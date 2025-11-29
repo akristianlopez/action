@@ -1,6 +1,6 @@
-github.com/akristianlopez/action/ast v0.0.0-20251129142236-51373a7bb7d0 h1:vxpN1fJAseNuAv0LzyPTpZf3eNhkBd55ZltarH1SBkE=
-github.com/akristianlopez/action/ast v0.0.0-20251129142236-51373a7bb7d0/go.mod h1:CES/yDgU5uK1eo0nF++sWQt1mmcPaN7lFvocYdbJ4/U=
-github.com/akristianlopez/action/object v0.0.0-20251129142236-51373a7bb7d0 h1:GV/Txg2jb4R1CnprufF5g8UMklvS3GtXAJNNV60vHqY=
-github.com/akristianlopez/action/object v0.0.0-20251129142236-51373a7bb7d0/go.mod h1:P0HrLDJOwPfWWgs14aoaxAlFk9yo4km7Cjje536Aimw=
-github.com/akristianlopez/action/token v0.0.0-20251129131858-d5c7802fc5dc h1:dXY/kIuBdVnlu08ZlvWmBQ0vXSQbptzIy/K350d4mmE=
-github.com/akristianlopez/action/token v0.0.0-20251129131858-d5c7802fc5dc/go.mod h1:n7cAip7Q5h0VfgSZT3ykRIPU5D8HKnm8R2pEtrvrC9s=
+github.com/akristianlopez/action/ast v0.0.0-20251129155632-9aaacf681392 h1:+6lLbbKQER9kxeEkhAJm/b/lNhpujnXBgwOBjeyU4Ps=
+github.com/akristianlopez/action/ast v0.0.0-20251129155632-9aaacf681392/go.mod h1:Cz+dFPa7uTflL7AGLZndgtQVqAG3XXhpkSY7bT8gEic=
+github.com/akristianlopez/action/object v0.0.0-20251129155814-1f1398ace6a8 h1:FHeD12732YUJAkHGZNidiVWbvBqr9Wyhz+qxGquv0XU=
+github.com/akristianlopez/action/object v0.0.0-20251129155814-1f1398ace6a8/go.mod h1:P0HrLDJOwPfWWgs14aoaxAlFk9yo4km7Cjje536Aimw=
+github.com/akristianlopez/action/token v0.0.0-20251129152159-472ddb9677ef h1:RlLr8JVDiR4CT3bgDnUlrT5HOxZHCmG/j03MZCV+Sa4=
+github.com/akristianlopez/action/token v0.0.0-20251129152159-472ddb9677ef/go.mod h1:n7cAip7Q5h0VfgSZT3ykRIPU5D8HKnm8R2pEtrvrC9s=

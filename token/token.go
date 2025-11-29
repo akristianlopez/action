@@ -3,63 +3,78 @@ package token
 type TokenType string
 
 type Token struct {
-    Type    TokenType
-    Literal string
+	Type    TokenType
+	Literal string
+	Line    int
+	Column  int
 }
 
 const (
-    ILLEGAL = "ILLEGAL"
-    EOF     = "EOF"
+	ILLEGAL = "ILLEGAL"
+	EOF     = "EOF"
 
-    // Identifiers + literals
-    IDENT = "IDENT" // add, foobar, x, y, ...
-    INT   = "INT"   // 1343456
+	// Identifiers + literals
+	IDENT  = "IDENT"
+	INT    = "INT"
+	STRING = "STRING"
 
-    // Operators
-    ASSIGN   = "="
-    PLUS     = "+"
-    MINUS    = "-"
-    BANG     = "!"
-    ASTERISK = "*"
-    SLASH    = "/"
+	// Operators
+	ASSIGN   = "="
+	PLUS     = "+"
+	MINUS    = "-"
+	BANG     = "!"
+	ASTERISK = "*"
+	SLASH    = "/"
 
-    LT     = "<"
-    GT     = ">"
-    EQ     = "=="
-    NOT_EQ = "!="
+	LT     = "<"
+	GT     = ">"
+	EQ     = "=="
+	NOT_EQ = "!="
 
-    // Delimiters
-    COMMA     = ","
-    SEMICOLON = ";"
+	// Delimiters
+	COMMA     = ","
+	SEMICOLON = ";"
+	COLON     = ":"
 
-    LPAREN = "("
-    RPAREN = ")"
-    LBRACE = "{"
-    RBRACE = "}"
+	LPAREN = "("
+	RPAREN = ")"
+	LBRACE = "{"
+	RBRACE = "}"
 
-    // Keywords
-    FUNCTION = "FUNCTION"
-    LET      = "LET"
-    TRUE     = "TRUE"
-    FALSE    = "FALSE"
-    IF       = "IF"
-    ELSE     = "ELSE"
-    RETURN   = "RETURN"
+	// Keywords
+	ACTION   = "ACTION"
+	DECLARE  = "DECLARE"
+	FUNCTION = "FUNCTION"
+	STRUCT   = "STRUCT"
+	LET      = "LET"
+	TRUE     = "TRUE"
+	FALSE    = "FALSE"
+	IF       = "IF"
+	ELSE     = "ELSE"
+	RETURN   = "RETURN"
+	STOP     = "STOP"
+	NEW      = "NEW"
+	DOT      = "DOT"
 )
 
 var keywords = map[string]TokenType{
-    "fn":     FUNCTION,
-    "let":    LET,
-    "true":   TRUE,
-    "false":  FALSE,
-    "if":     IF,
-    "else":   ELSE,
-    "return": RETURN,
+	"action":  ACTION,
+	"declare": DECLARE,
+	"fn":      FUNCTION,
+	"struct":  STRUCT,
+	"let":     LET,
+	"true":    TRUE,
+	"false":   FALSE,
+	"if":      IF,
+	"else":    ELSE,
+	"return":  RETURN,
+	"stop":    STOP,
+	"new":     NEW,
 }
 
 func LookupIdent(ident string) TokenType {
-    if tok, ok := keywords[ident]; ok {
-        return tok
-    }
-    return IDENT
+	if tok, ok := keywords[ident]; ok {
+		return tok
+	}
+	return IDENT
 }

@@ -150,17 +150,17 @@ func (sl *StructLiteral) String() string {
 	return out
 }
 
-// MemberExpression - accès aux membres d'une structure (obj.champ)
+// MemberExpression - Accès aux membres d'une structure (obj.champ)
 type MemberExpression struct {
-	Token  token.Token // token DOT
-	Object Expression
-	Member *Identifier
+	Token    token.Token // token DOT
+	Object   Expression
+	Property *Identifier
 }
 
 func (me *MemberExpression) expressionNode()      {}
 func (me *MemberExpression) TokenLiteral() string { return me.Token.Literal }
 func (me *MemberExpression) String() string {
-	return me.Object.String() + "." + me.Member.String()
+	return me.Object.String() + "." + me.Property.String()
 }
 
 // NewExpression - création d'instance avec "new"

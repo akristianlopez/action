@@ -1,5 +1,5 @@
-github.com/akristianlopez/action/ast v0.0.0-20251130112521-884061ec1913 h1:yvCw4amNZkw/quC1WQyDtxYUQMh3KijeYw+gH8orW6E=
-github.com/akristianlopez/action/ast v0.0.0-20251130112521-884061ec1913/go.mod h1:zGonwnF8gcxccxVd2FhRJIfFlSgocsW4ZSPG6pQtwr4=
+github.com/akristianlopez/action/ast v0.0.0-20251130121957-eae511ee9a89 h1:j8JpAeYnijtkkx8MNm49jJkq8q/fOB2OSnq1OEISlpI=
+github.com/akristianlopez/action/ast v0.0.0-20251130121957-eae511ee9a89/go.mod h1:zGonwnF8gcxccxVd2FhRJIfFlSgocsW4ZSPG6pQtwr4=
 github.com/akristianlopez/action/lexer v0.0.0-20251130104910-ec18044f0be9 h1:jGdPoURAWY4JKQz9gAOvwC9gUdfBs17dBZ1P0vAkl7U=
 github.com/akristianlopez/action/lexer v0.0.0-20251130104910-ec18044f0be9/go.mod h1:0GQYPRQmC+FuTcjS/RE03STSu7SnTxQ6kuCArqzGNmo=
 github.com/akristianlopez/action/token v0.0.0-20251130112521-884061ec1913 h1:Fbd5qCUOnfAc/ph4VSDAwSuxYLsaRTvmUtP59ZMT9GI=

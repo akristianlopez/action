@@ -63,6 +63,20 @@ func New(l *lexer.Lexer) *Parser {
 	return p
 }
 
+// Parser pour les expressions de membre (obj.champ)
+func (p *Parser) parseMemberExpression(left ast.Expression) ast.Expression {
+	exp := &ast.MemberExpression{Token: p.curToken, Object: left}
+
+	p.nextToken()
+	if !p.curTokenIs(token.IDENT) {
+		p.errors = append(p.errors, "expected property name after '.'")
+		return nil
+	}
+
+	exp.Property = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	return exp
+}
+
 // Parser pour les strings
 func (p *Parser) parseStringLiteral() ast.Expression {
 	return &ast.StringLiteral{Token: p.curToken, Value: p.curToken.Literal}
@@ -395,50 +409,23 @@ func (p *Parser) noPrefixParseFnError(t token.TokenType) {
 	p.errors = append(p.errors, msg)
 }
 
-func (p *Parser) parseFunctionLiteral() *ast.FunctionLiteral {
-	lit := &ast.FunctionLiteral{Token: p.curToken}
+// func (p *Parser) parseFunctionLiteral() *ast.FunctionLiteral {
+// 	lit := &ast.FunctionLiteral{Token: p.curToken}
 
-	if !p.expectPeek(token.LPAREN) {
-		return nil
-	}
+// 	if !p.expectPeek(token.LPAREN) {
+// 		return nil
+// 	}
 
-	lit.Parameters = p.parseFunctionParameters()
+// 	lit.Parameters = p.parseFunctionParameters()
 
-	if !p.expectPeek(token.LBRACE) {
-		return nil
-	}
+// 	if !p.expectPeek(token.LBRACE) {
+// 		return nil
+// 	}
 
-	lit.Body = p.parseBlockStatement()
+// 	lit.Body = p.parseBlockStatement()
 
-	return lit
-}
-
-func (p *Parser) parseFunctionParameters() []*ast.Identifier {
-	identifiers := []*ast.Identifier{}
-
-	if p.peekTokenIs(token.RPAREN) {
-		p.nextToken()
-		return identifiers
-	}
-
-	p.nextToken()
-
-	ident := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
-	identifiers = append(identifiers, ident)
-
-	for p.peekTokenIs(token.COMMA) {
-		p.nextToken()
-		p.nextToken()
-		ident := &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
-		identifiers = append(identifiers, ident)
-	}
-
-	if !p.expectPeek(token.RPAREN) {
-		return nil
-	}
-
-	return identifiers
-}
+// 	return lit
+// }
 
 func (p *Parser) parseCallExpression(function ast.Expression) ast.Expression {
 	exp := &ast.CallExpression{Token: p.curToken, Function: function}
@@ -469,6 +456,7 @@ func (p *Parser) parseExpressionList(end token.TokenType) []ast.Expression {
 
 	return list
 }
+
 func (p *Parser) parseStructField() *ast.StructField {
 	if !p.curTokenIs(token.IDENT) {
 		p.errors = append(p.errors, "expected field name")
@@ -536,3 +524,139 @@ func (p *Parser) parseDeclarationBlock() *ast.DeclarationBlock {
 
 	return block
 }
+
+// Modifier parseFunctionLiteral pour qu'il soit indenté dans le bloc
+func (p *Parser) parseFunctionLiteral() *ast.FunctionLiteral {
+	lit := &ast.FunctionLiteral{Token: p.curToken}
+
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+
+	lit.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	if !p.expectPeek(token.LPAREN) {
+		return nil
+	}
+
+	lit.Parameters = p.parseFunctionParameters()
+
+	if !p.expectPeek(token.LBRACE) {
+		return nil
+	}
+
+	lit.Body = p.parseBlockStatement()
+
+	return lit
+}
+
+// Modifier parseStructStatement pour qu'il soit indenté dans le bloc
+func (p *Parser) parseStructStatement() *ast.StructStatement {
+	stmt := &ast.StructStatement{Token: p.curToken}
+
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+
+	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	if !p.expectPeek(token.LBRACE) {
+		return nil
+	}
+
+	p.nextToken()
+	stmt.Fields = []*ast.StructField{}
+
+	for !p.curTokenIs(token.RBRACE) && !p.curTokenIs(token.EOF) {
+		field := p.parseStructField()
+		if field != nil {
+			stmt.Fields = append(stmt.Fields, field)
+		}
+		p.nextToken()
+	}
+
+	return stmt
+}
+
+func (p *Parser) parseFunctionParameters() []*ast.FunctionParameter {
+	parameters := []*ast.FunctionParameter{}
+
+	if p.peekTokenIs(token.RPAREN) {
+		p.nextToken()
+		return parameters
+	}
+
+	p.nextToken()
+
+	param := &ast.FunctionParameter{
+		Token: p.curToken,
+		Name:  &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal},
+	}
+
+	if !p.expectPeek(token.COLON) {
+		return nil
+	}
+
+	p.nextToken()
+	if !p.curTokenIs(token.IDENT) {
+		p.errors = append(p.errors, "expected parameter type")
+		return nil
+	}
+
+	param.Type = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	parameters = append(parameters, param)
+
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken() // comma
+		p.nextToken() // next param
+
+		param := &ast.FunctionParameter{
+			Token: p.curToken,
+			Name:  &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal},
+		}
+
+		if !p.expectPeek(token.COLON) {
+			return nil
+		}
+
+		p.nextToken()
+		if !p.curTokenIs(token.IDENT) {
+			p.errors = append(p.errors, "expected parameter type")
+			return nil
+		}
+
+		param.Type = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+		parameters = append(parameters, param)
+	}
+
+	if !p.expectPeek(token.RPAREN) {
+		return nil
+	}
+
+	return parameters
+}
+
+// // Modifier parseLetStatement pour qu'il soit indenté dans le bloc
+// func (p *Parser) parseLetStatement() *ast.LetStatement {
+// 	stmt := &ast.LetStatement{Token: p.curToken}
+
+// 	if !p.expectPeek(token.IDENT) {
+// 		return nil
+// 	}
+
+// 	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+// 	if !p.expectPeek(token.ASSIGN) {
+// 		return nil
+// 	}
+
+// 	p.nextToken()
+
+// 	stmt.Value = p.parseExpression(LOWEST)
+
+// 	if p.peekTokenIs(token.SEMICOLON) {
+// 		p.nextToken()
+// 	}
+
+// 	return stmt
+// }

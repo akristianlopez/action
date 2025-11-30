@@ -312,3 +312,64 @@ func (bs *BlockStatement) String() string {
 	}
 	return out
 }
+
+// FunctionLiteral - littéral de fonction
+type FunctionLiteral struct {
+	Token      token.Token // token 'fn'
+	Parameters []*Identifier
+	Body       *BlockStatement
+}
+
+func (fl *FunctionLiteral) expressionNode()      {}
+func (fl *FunctionLiteral) TokenLiteral() string { return fl.Token.Literal }
+func (fl *FunctionLiteral) String() string {
+	var out string
+	params := []string{}
+	for _, p := range fl.Parameters {
+		params = append(params, p.String())
+	}
+	out += fl.TokenLiteral()
+	out += "("
+	out += strings.Join(params, ", ")
+	out += ") "
+	out += fl.Body.String()
+	return out
+}
+
+// CallExpression - appel de fonction
+type CallExpression struct {
+	Token     token.Token // token '('
+	Function  Expression
+	Arguments []Expression
+}
+
+func (ce *CallExpression) expressionNode()      {}
+func (ce *CallExpression) TokenLiteral() string { return ce.Token.Literal }
+func (ce *CallExpression) String() string {
+	var out string
+	args := []string{}
+	for _, a := range ce.Arguments {
+		args = append(args, a.String())
+	}
+	out += ce.Function.String()
+	out += "("
+	out += strings.Join(args, ", ")
+	out += ")"
+	return out
+}
+
+// FunctionStatement - déclaration de fonction
+type FunctionStatement struct {
+	Token    token.Token // token FUNCTION
+	Name     *Identifier
+	Function *FunctionLiteral
+}
+
+func (fs *FunctionStatement) statementNode()       {}
+func (fs *FunctionStatement) TokenLiteral() string { return fs.Token.Literal }
+func (fs *FunctionStatement) String() string {
+	var out string
+	out += "fn " + fs.Name.String()
+	out += fs.Function.String()
+	return out
+}

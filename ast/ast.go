@@ -313,10 +313,18 @@ func (bs *BlockStatement) String() string {
 	return out
 }
 
-// FunctionLiteral - littéral de fonction
+// // FunctionLiteral - littéral de fonction
+// type FunctionLiteral struct {
+// 	Token      token.Token // token 'fn'
+// 	Parameters []*Identifier
+// 	Body       *BlockStatement
+// }
+
+// FunctionLiteral - Literal de fonction
 type FunctionLiteral struct {
-	Token      token.Token // token 'fn'
-	Parameters []*Identifier
+	Token      token.Token // token FUNCTION
+	Name       *Identifier
+	Parameters []*FunctionParameter
 	Body       *BlockStatement
 }
 
@@ -324,16 +332,30 @@ func (fl *FunctionLiteral) expressionNode()      {}
 func (fl *FunctionLiteral) TokenLiteral() string { return fl.Token.Literal }
 func (fl *FunctionLiteral) String() string {
 	var out string
-	params := []string{}
-	for _, p := range fl.Parameters {
-		params = append(params, p.String())
+	out += "fn " + fl.Name.String() + "("
+	for i, p := range fl.Parameters {
+		out += p.String()
+		if i < len(fl.Parameters)-1 {
+			out += ", "
+		}
 	}
-	out += fl.TokenLiteral()
-	out += "("
-	out += strings.Join(params, ", ")
-	out += ") "
+	out += ") {\n"
 	out += fl.Body.String()
+	out += "}\n"
 	return out
+}
+
+// FunctionParameter - Paramètre de fonction
+type FunctionParameter struct {
+	Token token.Token // token IDENT
+	Name  *Identifier
+	Type  *Identifier
+}
+
+func (fp *FunctionParameter) expressionNode()      {}
+func (fp *FunctionParameter) TokenLiteral() string { return fp.Token.Literal }
+func (fp *FunctionParameter) String() string {
+	return fp.Name.String() + " : " + fp.Type.String()
 }
 
 // CallExpression - appel de fonction

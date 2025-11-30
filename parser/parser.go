@@ -3,7 +3,8 @@ package parser
 import (
 	"fmt"
 	"strconv"
-	"strings"
+
+	// "strings"
 
 	"github.com/akristianlopez/action/ast"
 	"github.com/akristianlopez/action/lexer"
@@ -412,29 +413,6 @@ func (p *Parser) parseFunctionLiteral() *ast.FunctionLiteral {
 	return lit
 }
 
-// FunctionLiteral - littéral de fonction
-type FunctionLiteral struct {
-	Token      Token // token 'fn'
-	Parameters []*Identifier
-	Body       *BlockStatement
-}
-
-func (fl *FunctionLiteral) expressionNode()      {}
-func (fl *FunctionLiteral) TokenLiteral() string { return fl.Token.Literal }
-func (fl *FunctionLiteral) String() string {
-	var out string
-	params := []string{}
-	for _, p := range fl.Parameters {
-		params = append(params, p.String())
-	}
-	out += fl.TokenLiteral()
-	out += "("
-	out += strings.Join(params, ", ")
-	out += ") "
-	out += fl.Body.String()
-	return out
-}
-
 func (p *Parser) parseFunctionParameters() []*ast.Identifier {
 	identifiers := []*ast.Identifier{}
 
@@ -490,4 +468,71 @@ func (p *Parser) parseExpressionList(end token.TokenType) []ast.Expression {
 	}
 
 	return list
+}
+func (p *Parser) parseStructField() *ast.StructField {
+	if !p.curTokenIs(token.IDENT) {
+		p.errors = append(p.errors, "expected field name")
+		return nil
+	}
+
+	field := &ast.StructField{
+		Token: p.curToken,
+		Name:  &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal},
+	}
+
+	if !p.expectPeek(token.COLON) {
+		return nil
+	}
+
+	p.nextToken()
+	if !p.curTokenIs(token.IDENT) {
+		p.errors = append(p.errors, "expected field type")
+		return nil
+	}
+
+	field.Type = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	return field
+}
+
+// Nouvelle fonction pour parser le bloc declaration
+func (p *Parser) parseDeclarationBlock() *ast.DeclarationBlock {
+	block := &ast.DeclarationBlock{
+		Token:     p.curToken, // token DECLARATION
+		Structs:   []*ast.StructStatement{},
+		Functions: []*ast.FunctionLiteral{},
+		Variables: []*ast.LetStatement{},
+	}
+
+	p.nextToken() // avancer après 'declaration'
+
+	// Parser jusqu'au 'end' ou 'start'
+	for !p.curTokenIs(token.START) && !p.curTokenIs(token.EOF) {
+		switch p.curToken.Type {
+		case token.STRUCT:
+			stmt := p.parseStructStatement()
+			if stmt != nil {
+				block.Structs = append(block.Structs, stmt)
+			}
+		case token.FUNCTION:
+			fn := p.parseFunctionLiteral()
+			if fn != nil {
+				block.Functions = append(block.Functions, fn)
+			}
+		case token.LET:
+			letStmt := p.parseLetStatement()
+			if letStmt != nil {
+				block.Variables = append(block.Variables, letStmt)
+			}
+		default:
+			if p.curTokenIs(token.START) {
+				break // sortir de la boucle si on rencontre 'start'
+			}
+			p.errors = append(p.errors, "unexpected token in declaration block: "+p.curToken.Literal)
+			p.nextToken()
+		}
+		p.nextToken()
+	}
+
+	return block
 }

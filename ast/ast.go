@@ -24,31 +24,58 @@ type Expression interface {
 	expressionNode()
 }
 
-// DeclareSection - section des déclarations
-type DeclareSection struct {
-	Token        token.Token // token DECLARE
-	Declarations []Statement
-	EndToken     token.Token // token du délimiteur de fin
+// // DeclareSection - section des déclarations
+// type DeclareSection struct {
+// 	Token        token.Token // token DECLARE
+// 	Declarations []Statement
+// 	EndToken     token.Token // token du délimiteur de fin
+// }
+
+// func (ds *DeclareSection) statementNode()       {}
+// func (ds *DeclareSection) TokenLiteral() string { return ds.Token.Literal }
+//
+//	func (ds *DeclareSection) String() string {
+//		var out string
+//		out += "declare {\n"
+//		for _, decl := range ds.Declarations {
+//			out += "  " + decl.String() + "\n"
+//		}
+//		out += "}"
+//		return out
+//	}
+//
+// DeclarationBlock - Bloc de déclarations avec mot-clé
+type DeclarationBlock struct {
+	Token     token.Token // token DECLARATION
+	Structs   []*StructStatement
+	Functions []*FunctionLiteral
+	Variables []*LetStatement // Variables globales
 }
 
-func (ds *DeclareSection) statementNode()       {}
-func (ds *DeclareSection) TokenLiteral() string { return ds.Token.Literal }
-func (ds *DeclareSection) String() string {
+func (db *DeclarationBlock) statementNode()       {}
+func (db *DeclarationBlock) TokenLiteral() string { return db.Token.Literal }
+func (db *DeclarationBlock) String() string {
 	var out string
-	out += "declare {\n"
-	for _, decl := range ds.Declarations {
-		out += "  " + decl.String() + "\n"
+	out += "declaration\n"
+	for _, st := range db.Structs {
+		out += "  " + st.String()
 	}
-	out += "}"
+	for _, fn := range db.Functions {
+		out += "  " + fn.String()
+	}
+	for _, v := range db.Variables {
+		out += "  " + v.String()
+	}
+	out += "end\n"
 	return out
 }
 
 // ActionStatement - modifié pour inclure la section declare
 // Programme - nœud racine
 type ActionStatement struct {
-	Token        token.Token     // token ACTION
-	Name         *StringLiteral  //*StringLiteral
-	Declarations *DeclareSection // Section des déclarations optionnelle
+	Token        token.Token       // token ACTION
+	Name         *StringLiteral    //*StringLiteral
+	Declarations *DeclarationBlock // Section des déclarations optionnelle
 	Body         *BlockStatement
 	Stop         token.Token // token STOP
 	Start        token.Token // token START
@@ -312,13 +339,6 @@ func (bs *BlockStatement) String() string {
 	}
 	return out
 }
-
-// // FunctionLiteral - littéral de fonction
-// type FunctionLiteral struct {
-// 	Token      token.Token // token 'fn'
-// 	Parameters []*Identifier
-// 	Body       *BlockStatement
-// }
 
 // FunctionLiteral - Literal de fonction
 type FunctionLiteral struct {

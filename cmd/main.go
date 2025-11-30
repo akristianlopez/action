@@ -1,51 +1,51 @@
 package main
 
 import (
-    "fmt"
-    "io/ioutil"
-    "lang/evaluator"
-    "lang/lexer"
-    "lang/object"
-    "lang/parser"
-    "os"
+	"fmt"
+	"os"
+
+	"github.com/akristianlopez/action/lexer"
+	"github.com/akristianlopez/action/nsina"
+	"github.com/akristianlopez/action/object"
+	"github.com/akristianlopez/action/parser"
 )
 
 func main() {
-    if len(os.Args) < 2 {
-        fmt.Println("Usage: lang <filename>")
-        os.Exit(1)
-    }
+	if len(os.Args) < 2 {
+		fmt.Println("Usage: lang <filename>")
+		os.Exit(1)
+	}
 
-    filename := os.Args[1]
-    input, err := ioutil.ReadFile(filename)
-    if err != nil {
-        fmt.Printf("Erreur de lecture du fichier: %s\n", err)
-        os.Exit(1)
-    }
+	// filename := os.Args[1]
+	// input, err := ioutil.ReadFile(filename)
+	// if err != nil {
+	//     fmt.Printf("Erreur de lecture du fichier: %s\n", err)
+	//     os.Exit(1)
+	// }
+	input := exampleProgram
+	l := lexer.New(string(input))
+	p := parser.New(l)
 
-    l := lexer.New(string(input))
-    p := parser.New(l)
+	program := p.ParseProgram()
 
-    program := p.ParseProgram()
-    
-    if len(p.Errors()) != 0 {
-        fmt.Println("Erreurs de parsing:")
-        for _, msg := range p.Errors() {
-            fmt.Printf("\t%s\n", msg)
-        }
-        os.Exit(1)
-    }
+	if len(p.Errors()) != 0 {
+		fmt.Println("Erreurs de parsing:")
+		for _, msg := range p.Errors() {
+			fmt.Printf("\t%s\n", msg)
+		}
+		os.Exit(1)
+	}
 
-    env := object.NewEnvironment()
-    result := evaluator.Eval(program, env)
+	env := object.NewEnvironment()
+	result := nsina.Eval(program, env)
 
-    if result != nil {
-        if result.Type() == object.ERROR_OBJ {
-            fmt.Printf("Erreur d'exécution: %s\n", result.Inspect())
-            os.Exit(1)
-        }
-        fmt.Println(result.Inspect())
-    }
+	if result != nil {
+		if result.Type() == object.ERROR_OBJ {
+			fmt.Printf("Erreur d'exécution: %s\n", result.Inspect())
+			os.Exit(1)
+		}
+		fmt.Println(result.Inspect())
+	}
 }
 
 // Exemple de programme test

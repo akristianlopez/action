@@ -95,7 +95,7 @@ func (p *Parser) ParseProgram() *ast.ActionStatement {
 	program.Declarations = p.parseDeclarationBlock()
 
 	// Parser 'start'
-	if !p.curTokenIs(token.START) {
+	if !p.curTokenIs(token.S) {
 		p.errors = append(p.errors, "expected 'start' after declarations")
 		return nil
 	}

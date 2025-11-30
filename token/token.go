@@ -55,6 +55,7 @@ const (
 	STOP     = "STOP"
 	NEW      = "NEW"
 	DOT      = "DOT"
+	START    = "START"
 )
 
 var keywords = map[string]TokenType{
@@ -70,6 +71,7 @@ var keywords = map[string]TokenType{
 	"return":  RETURN,
 	"stop":    STOP,
 	"new":     NEW,
+	"start":   START,
 }
 
 func LookupIdent(ident string) TokenType {

@@ -1,6 +1,10 @@
 package ast
 
-import "github.com/akristianlopez/action/token"
+import (
+	"strings"
+
+	"github.com/akristianlopez/action/token"
+)
 
 // Node interface de base pour tous les nœuds AST
 type Node interface {
@@ -20,23 +24,135 @@ type Expression interface {
 	expressionNode()
 }
 
-// Programme - nœud racine
-type Program struct {
-	Statements []Statement
+// DeclareSection - section des déclarations
+type DeclareSection struct {
+	Token        token.Token // token DECLARE
+	Declarations []Statement
+	EndToken     token.Token // token du délimiteur de fin
 }
 
-func (p *Program) TokenLiteral() string {
-	if len(p.Statements) > 0 {
-		return p.Statements[0].TokenLiteral()
-	}
-	return ""
-}
-
-func (p *Program) String() string {
+func (ds *DeclareSection) statementNode()       {}
+func (ds *DeclareSection) TokenLiteral() string { return ds.Token.Literal }
+func (ds *DeclareSection) String() string {
 	var out string
-	for _, s := range p.Statements {
-		out += s.String()
+	out += "declare {\n"
+	for _, decl := range ds.Declarations {
+		out += "  " + decl.String() + "\n"
 	}
+	out += "}"
+	return out
+}
+
+// ActionStatement - modifié pour inclure la section declare
+// Programme - nœud racine
+type ActionStatement struct {
+	Token     token.Token     // token ACTION
+	Name      *StringLiteral  //*StringLiteral
+	Declare   *DeclareSection // Section des déclarations optionnelle
+	Body      *BlockStatement
+	StopToken token.Token // token STOP
+}
+
+func (as *ActionStatement) statementNode()       {}
+func (as *ActionStatement) TokenLiteral() string { return as.Token.Literal }
+func (as *ActionStatement) String() string {
+	var out string
+	out += "action " + as.Name.String() + " "
+	if as.Declare != nil {
+		out += as.Declare.String() + " "
+	}
+	out += as.Body.String()
+	out += " stop"
+	return out
+}
+
+// StructStatement - déclaration de structure
+type StructStatement struct {
+	Token  token.Token // token STRUCT
+	Name   *Identifier
+	Fields []*StructField
+}
+
+func (ss *StructStatement) statementNode()       {}
+func (ss *StructStatement) TokenLiteral() string { return ss.Token.Literal }
+func (ss *StructStatement) String() string {
+	var out string
+	out += "struct " + ss.Name.String() + " {"
+	for i, field := range ss.Fields {
+		if i > 0 {
+			out += ", "
+		}
+		out += field.String()
+	}
+	out += "}"
+	return out
+}
+
+// StructField - champ d'une structure
+type StructField struct {
+	Token token.Token
+	Name  *Identifier
+	Type  *Identifier // Pour l'instant, types simples
+}
+
+func (sf *StructField) expressionNode()      {}
+func (sf *StructField) TokenLiteral() string { return sf.Token.Literal }
+func (sf *StructField) String() string {
+	return sf.Name.String() + ":" + sf.Type.String()
+}
+
+// StructLiteral - instance de structure
+type StructLiteral struct {
+	Token  token.Token // token STRUCT ou NEW
+	Type   *Identifier
+	Fields map[*Identifier]Expression
+}
+
+func (sl *StructLiteral) expressionNode()      {}
+func (sl *StructLiteral) TokenLiteral() string { return sl.Token.Literal }
+func (sl *StructLiteral) String() string {
+	var out string
+	pairs := []string{}
+	for key, value := range sl.Fields {
+		pairs = append(pairs, key.String()+":"+value.String())
+	}
+	out += sl.Type.String() + " {"
+	out += strings.Join(pairs, ", ")
+	out += "}"
+	return out
+}
+
+// MemberExpression - accès aux membres d'une structure (obj.champ)
+type MemberExpression struct {
+	Token  token.Token // token DOT
+	Object Expression
+	Member *Identifier
+}
+
+func (me *MemberExpression) expressionNode()      {}
+func (me *MemberExpression) TokenLiteral() string { return me.Token.Literal }
+func (me *MemberExpression) String() string {
+	return me.Object.String() + "." + me.Member.String()
+}
+
+// NewExpression - création d'instance avec "new"
+type NewExpression struct {
+	Token     token.Token // token NEW
+	Type      *Identifier
+	Arguments []Expression
+}
+
+func (ne *NewExpression) expressionNode()      {}
+func (ne *NewExpression) TokenLiteral() string { return ne.Token.Literal }
+func (ne *NewExpression) String() string {
+	var out string
+	args := []string{}
+	for _, a := range ne.Arguments {
+		args = append(args, a.String())
+	}
+	out += "new " + ne.Type.String() + "("
+	out += strings.Join(args, ", ")
+	out += ")"
 	return out
 }
 
@@ -113,6 +229,16 @@ type IntegerLiteral struct {
 func (il *IntegerLiteral) expressionNode()      {}
 func (il *IntegerLiteral) TokenLiteral() string { return il.Token.Literal }
 func (il *IntegerLiteral) String() string       { return il.Token.Literal }
+
+// IntegerLiteral - entier
+type StringLiteral struct {
+	Token token.Token
+	Value string
+}
+
+func (sl *StringLiteral) expressionNode()      {}
+func (sl *StringLiteral) TokenLiteral() string { return sl.Token.Literal }
+func (sl *StringLiteral) String() string       { return sl.Value }
 
 // Boolean - booléen
 type Boolean struct {

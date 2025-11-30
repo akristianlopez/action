@@ -201,8 +201,8 @@ func evalForStatement(forStmt *ast.ForStatement, env *object.Environment) object
 
 func evalDateTimeLiteral(dt *ast.DateTimeLiteral) object.Object {
 	// Enlever les # et parser la date/time
-	value := dt.Literal[1 : len(dt.Literal)-1]
-
+	// value := dt.Literal[1 : len(dt.Literal)-1]
+	value := dt.Value[1 : len(dt.Value)-1]
 	if dt.IsTime {
 		t, err := time.Parse("15:04:05", value)
 		if err != nil {
@@ -375,7 +375,7 @@ func evalIdentifier(node *ast.Identifier, env *object.Environment) object.Object
 		return val
 	}
 
-	return newError("Identifiant non trouvé: " + node.Value)
+	return newError("%s", "Identifiant non trouvé: "+node.Value)
 }
 
 func isTruthy(obj object.Object) bool {

@@ -1,8 +1,6 @@
 package lexer
 
 import (
-	"strings"
-
 	"github.com/akristianlopez/action/token"
 )
 
@@ -119,39 +117,16 @@ func (l *Lexer) skipWhitespace() {
 	}
 }
 
-// Ajouter la fonction pour lire les strings
 func (l *Lexer) readString() string {
-	var out strings.Builder
-	l.readChar() // sauter le premier guillemet
-
-	for l.ch != '"' {
-		if l.ch == 0 {
-			return "" // erreur: string non fermée
-		}
-		if l.ch == '\\' {
-			l.readChar()
-			switch l.ch {
-			case 'n':
-				out.WriteByte('\n')
-			case 't':
-				out.WriteByte('\t')
-			case '"':
-				out.WriteByte('"')
-			case '\\':
-				out.WriteByte('\\')
-			default:
-				out.WriteByte('\\')
-				out.WriteByte(l.ch)
-			}
-		} else {
-			out.WriteByte(l.ch)
-		}
+	position := l.position + 1 // Saute le premier "
+	for {
 		l.readChar()
+		if l.ch == '"' || l.ch == 0 {
+			break
+		}
 	}
-
-	return out.String()
+	return l.input[position:l.position]
 }
-
 func (l *Lexer) readIdentifier() string {
 	position := l.position
 	for isLetter(l.ch) {

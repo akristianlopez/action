@@ -46,11 +46,12 @@ func (ds *DeclareSection) String() string {
 // ActionStatement - modifié pour inclure la section declare
 // Programme - nœud racine
 type ActionStatement struct {
-	Token     token.Token     // token ACTION
-	Name      *StringLiteral  //*StringLiteral
-	Declare   *DeclareSection // Section des déclarations optionnelle
-	Body      *BlockStatement
-	StopToken token.Token // token STOP
+	Token        token.Token     // token ACTION
+	Name         *StringLiteral  //*StringLiteral
+	Declarations *DeclareSection // Section des déclarations optionnelle
+	Body         *BlockStatement
+	Stop         token.Token // token STOP
+	Start        token.Token // token START
 }
 
 func (as *ActionStatement) statementNode()       {}
@@ -58,8 +59,8 @@ func (as *ActionStatement) TokenLiteral() string { return as.Token.Literal }
 func (as *ActionStatement) String() string {
 	var out string
 	out += "action " + as.Name.String() + " "
-	if as.Declare != nil {
-		out += as.Declare.String() + " "
+	if as.Declarations != nil {
+		out += as.Declarations.String() + " "
 	}
 	out += as.Body.String()
 	out += " stop"

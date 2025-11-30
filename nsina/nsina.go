@@ -1,5 +1,6 @@
 package nsina
 
+//Ce package remplace celui anciennement appelee evaluator
 import (
 	"fmt"
 

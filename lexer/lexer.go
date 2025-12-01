@@ -40,17 +40,21 @@ func (l *Lexer) readChar() {
 	l.readPosition += utf8.RuneLen(l.ch)
 }
 
-func (l *Lexer) NextToken() token.Token {
-	var tok token.Token
-
-	l.skipWhitespace()
-
+func (l *Lexer) skipComment() {
 	// Vérifier les commentaires
 	if l.ch == '(' && l.peekChar() == '*' {
 		l.readChar()
 		l.readChar()
-		return l.readComment()
+		// return l.readComment()
 	}
+	l.skipWhitespace()
+}
+
+func (l *Lexer) NextToken() token.Token {
+	var tok token.Token
+
+	l.skipWhitespace()
+	l.skipComment()
 
 	// Vérifier les littéraux date/time
 	if l.ch == '#' {

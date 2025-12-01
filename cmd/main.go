@@ -164,4 +164,136 @@ ADD CONSTRAINT fk_departement FOREIGN KEY (département) REFERENCES Département
 
 stop
 `
+
+const exampleArrayProgram = `
+action "Gestion des Tableaux"
+
+(* Déclaration de tableaux *)
+let nombres: array[10] of integer = [1, 2, 3, 4, 5];
+let noms: array of string = ["Alice", "Bob", "Charlie"];
+let matrice: array of array of integer = [[1, 2], [3, 4], [5, 6]];
+let vide: array of boolean = [];
+
+(* Tableau avec contraintes *)
+let scores: array[100] of integer(3)[0..100];
+
+start
+
+(* Accès aux éléments *)
+let premier = nombres[0];
+let dernier = nombres[length(nombres) - 1];
+
+(* Modification d'éléments *)
+nombres[0] = 100;
+nombres[2] = nombres[1] + nombres[2];
+
+(* Tranches (slices) *)
+let sous_tableau = nombres[1:3];
+let fin = nombres[2:];
+let debut = nombres[:3];
+let copie = nombres[:];
+
+(* Concaténation *)
+let tous = nombres || [6, 7, 8, 9, 10];
+let double = nombres + nombres;
+
+(* Vérification d'appartenance *)
+let existe = 5 in nombres;
+let pas_existe = 20 not in nombres;
+
+let contient = contains(nombres, 3);
+let position = index_of(nombres, 3); (* À implémenter *)
+
+(* Fonctions de tableau *)
+let taille = length(nombres);
+let avec_ajout = append(nombres, 11);
+let avec_insertion = prepend(nombres, 0);
+let sans_element = remove(nombres, 2);
+let partie = slice(nombres, 1, 4);
+
+(* Tableaux multidimensionnels *)
+let element = matrice[1][0];
+matrice[0] = [10, 20];
+
+(* Parcours de tableau *)
+for let i = 0; i < length(nombres); i = i + 1 {
+    let valeur = nombres[i];
+    (* Traitement... *)
+}
+
+(* Tableaux avec SQL *)
+let employes_ids = SELECT id FROM Employés WHERE actif = true;
+let salaires: array of float = SELECT salaire FROM Employés;
+
+(* Utilisation avec les structures *)
+struct Point {
+    x: integer,
+    y: integer
+}
+
+let points: array of Point = [
+    {x: 1, y: 2},
+    {x: 3, y: 4},
+    {x: 5, y: 6}
+];
+
+(* Tableaux de dates/times *)
+let dates_importantes: array of date = [#2024-01-01#, #2024-07-14#, #2024-12-25#];
+let horaires: array of time = [#09:00:00#, #12:00:00#, #18:00:00#];
+
+(* Fonctions qui retournent des tableaux *)
+function getNombresPairs(limite: integer): array of integer {
+    let resultat: array of integer = [];
+    for let i = 0; i <= limite; i = i + 1 {
+        if i % 2 == 0 {
+            resultat = append(resultat, i);
+        }
+    }
+    return resultat;
+}
+
+let pairs = getNombresPairs(10);
+
+(* Algorithmes sur les tableaux *)
+function somme(tableau: array of integer): integer {
+    let total = 0;
+    for let i = 0; i < length(tableau); i = i + 1 {
+        total = total + tableau[i];
+    }
+    return total;
+}
+
+function maximum(tableau: array of integer): integer {
+    if length(tableau) == 0 {
+        return 0;
+    }
+    let max = tableau[0];
+    for let i = 1; i < length(tableau); i = i + 1 {
+        if tableau[i] > max {
+            max = tableau[i];
+        }
+    }
+    return max;
+}
+
+function filtrer(tableau: array of integer, condition: function): array of integer {
+    let resultat: array of integer = [];
+    for let i = 0; i < length(tableau); i = i + 1 {
+        if condition(tableau[i]) {
+            resultat = append(resultat, tableau[i]);
+        }
+    }
+    return resultat;
+}
+
+(* Utilisation *)
+let mes_nombres = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+let total = somme(mes_nombres);
+let plus_grand = maximum(mes_nombres);
+let pairs_seulement = filtrer(mes_nombres, function(x: integer): boolean {
+    return x % 2 == 0;
+});
+
+stop
+
 */

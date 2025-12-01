@@ -2,6 +2,7 @@ package nsina
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/akristianlopez/action/ast"
@@ -1062,4 +1063,416 @@ func getColumnNames(table *object.SQLTable) []string {
 		columns = append(columns, colName)
 	}
 	return columns
+}
+
+func evalArrayLiteral(node *ast.ArrayLiteral, env *object.Environment) object.Object {
+	elements := make([]object.Object, len(node.Elements))
+
+	for i, element := range node.Elements {
+		evaluated := Eval(element, env)
+		if isError(evaluated) {
+			return evaluated
+		}
+		elements[i] = evaluated
+	}
+
+	return &object.Array{Elements: elements}
+}
+
+func evalIndexExpression(node *ast.IndexExpression, env *object.Environment) object.Object {
+	left := Eval(node.Left, env)
+	if isError(left) {
+		return left
+	}
+
+	index := Eval(node.Index, env)
+	if isError(index) {
+		return index
+	}
+
+	switch {
+	case left.Type() == object.ARRAY_OBJ && index.Type() == object.INTEGER_OBJ:
+		return evalArrayIndexExpression(left, index)
+	case left.Type() == object.STRING_OBJ && index.Type() == object.INTEGER_OBJ:
+		return evalStringIndexExpression(left, index)
+	default:
+		return newError("Opération d'indexation non supportée: %s[%s]",
+			left.Type(), index.Type())
+	}
+}
+
+func evalArrayIndexExpression(array, index object.Object) object.Object {
+	arrayObject := array.(*object.Array)
+	idx := index.(*object.Integer).Value
+	max := int64(len(arrayObject.Elements) - 1)
+
+	if idx < 0 || idx > max {
+		return object.NULL
+	}
+
+	return arrayObject.Elements[idx]
+}
+
+func evalStringIndexExpression(str, index object.Object) object.Object {
+	strObject := str.(*object.String)
+	idx := index.(*object.Integer).Value
+
+	if idx < 0 || idx >= int64(len(strObject.Value)) {
+		return object.NULL
+	}
+
+	return &object.String{Value: string(strObject.Value[idx])}
+}
+
+func evalSliceExpression(node *ast.SliceExpression, env *object.Environment) object.Object {
+	left := Eval(node.Left, env)
+	if isError(left) {
+		return left
+	}
+
+	var start, end int64
+
+	if node.Start != nil {
+		startObj := Eval(node.Start, env)
+		if isError(startObj) {
+			return startObj
+		}
+		if startObj.Type() != object.INTEGER_OBJ {
+			return newError("L'index de début doit être un entier, got %s", startObj.Type())
+		}
+		start = startObj.(*object.Integer).Value
+	} else {
+		start = 0
+	}
+
+	if node.End != nil {
+		endObj := Eval(node.End, env)
+		if isError(endObj) {
+			return endObj
+		}
+		if endObj.Type() != object.INTEGER_OBJ {
+			return newError("L'index de fin doit être un entier, got %s", endObj.Type())
+		}
+		end = endObj.(*object.Integer).Value
+	}
+
+	switch left := left.(type) {
+	case *object.Array:
+		return evalArraySlice(left, start, end)
+	case *object.String:
+		return evalStringSlice(left, start, end)
+	default:
+		return newError("Opération de slice non supportée sur %s", left.Type())
+	}
+}
+
+func evalArraySlice(array *object.Array, start, end int64) object.Object {
+	length := int64(len(array.Elements))
+
+	// Gestion des index négatifs
+	if start < 0 {
+		start = length + start
+		if start < 0 {
+			start = 0
+		}
+	}
+
+	if end <= 0 {
+		end = length + end
+	}
+
+	if end > length {
+		end = length
+	}
+
+	if start > end {
+		start = end
+	}
+
+	if start < 0 || start >= length || end < 0 {
+		return &object.Array{Elements: []object.Object{}}
+	}
+
+	result := make([]object.Object, end-start)
+	copy(result, array.Elements[start:end])
+
+	return &object.Array{Elements: result}
+}
+
+func evalStringSlice(str *object.String, start, end int64) object.Object {
+	length := int64(len(str.Value))
+
+	// Gestion des index négatifs
+	if start < 0 {
+		start = length + start
+		if start < 0 {
+			start = 0
+		}
+	}
+
+	if end <= 0 {
+		end = length + end
+	}
+
+	if end > length {
+		end = length
+	}
+
+	if start > end {
+		start = end
+	}
+
+	if start < 0 || start >= length || end < 0 {
+		return &object.String{Value: ""}
+	}
+
+	return &object.String{Value: str.Value[start:end]}
+}
+
+func evalInExpression(node *ast.InExpression, env *object.Environment) object.Object {
+	left := Eval(node.Left, env)
+	if isError(left) {
+		return left
+	}
+
+	right := Eval(node.Right, env)
+	if isError(right) {
+		return right
+	}
+
+	var contains bool
+
+	switch right := right.(type) {
+	case *object.Array:
+		contains = arrayContains(right, left)
+	case *object.String:
+		if left.Type() != object.STRING_OBJ {
+			return newError("L'opérateur IN sur les chaînes nécessite une chaîne à gauche")
+		}
+		leftStr := left.(*object.String).Value
+		rightStr := right.Value
+		contains = strings.Contains(rightStr, leftStr)
+	default:
+		return newError("L'opérande droit de IN doit être un tableau ou une chaîne, got %s", right.Type())
+	}
+
+	if node.Not {
+		return &object.Boolean{Value: !contains}
+	}
+	return &object.Boolean{Value: contains}
+}
+
+func arrayContains(array *object.Array, element object.Object) bool {
+	for _, el := range array.Elements {
+		if objectsEqual(el, element) {
+			return true
+		}
+	}
+	return false
+}
+
+func objectsEqual(a, b object.Object) bool {
+	if a.Type() != b.Type() {
+		return false
+	}
+
+	switch a := a.(type) {
+	case *object.Integer:
+		b := b.(*object.Integer)
+		return a.Value == b.Value
+	case *object.String:
+		b := b.(*object.String)
+		return a.Value == b.Value
+	case *object.Boolean:
+		b := b.(*object.Boolean)
+		return a.Value == b.Value
+	default:
+		return a == b
+	}
+}
+
+func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment) object.Object {
+	array := Eval(node.Array, env)
+	if isError(array) {
+		return array
+	}
+
+	if array.Type() != object.ARRAY_OBJ {
+		return newError("La fonction %s attend un tableau en argument", node.Function.Value)
+	}
+
+	arr := array.(*object.Array)
+
+	switch node.Function.Value {
+	case "length":
+		return &object.Integer{Value: int64(len(arr.Elements))}
+
+	case "append":
+		if len(node.Arguments) != 1 {
+			return newError("La fonction append attend exactement 1 argument")
+		}
+		element := Eval(node.Arguments[0], env)
+		if isError(element) {
+			return element
+		}
+		return arrayAppend(arr, element)
+
+	case "prepend":
+		if len(node.Arguments) != 1 {
+			return newError("La fonction prepend attend exactement 1 argument")
+		}
+		element := Eval(node.Arguments[0], env)
+		if isError(element) {
+			return element
+		}
+		return arrayPrepend(arr, element)
+
+	case "remove":
+		if len(node.Arguments) != 1 {
+			return newError("La fonction remove attend exactement 1 argument")
+		}
+		index := Eval(node.Arguments[0], env)
+		if isError(index) {
+			return index
+		}
+		if index.Type() != object.INTEGER_OBJ {
+			return newError("L'index pour remove doit être un entier")
+		}
+		return arrayRemove(arr, index.(*object.Integer).Value)
+
+	case "slice":
+		if len(node.Arguments) > 2 {
+			return newError("La fonction slice attend 1 ou 2 arguments")
+		}
+
+		var start, end int64
+		if len(node.Arguments) >= 1 {
+			startObj := Eval(node.Arguments[0], env)
+			if isError(startObj) {
+				return startObj
+			}
+			if startObj.Type() != object.INTEGER_OBJ {
+				return newError("Le début du slice doit être un entier")
+			}
+			start = startObj.(*object.Integer).Value
+		}
+
+		if len(node.Arguments) == 2 {
+			endObj := Eval(node.Arguments[1], env)
+			if isError(endObj) {
+				return endObj
+			}
+			if endObj.Type() != object.INTEGER_OBJ {
+				return newError("La fin du slice doit être un entier")
+			}
+			end = endObj.(*object.Integer).Value
+		} else {
+			end = int64(len(arr.Elements))
+		}
+
+		return evalArraySlice(arr, start, end)
+
+	case "contains":
+		if len(node.Arguments) != 1 {
+			return newError("La fonction contains attend exactement 1 argument")
+		}
+		element := Eval(node.Arguments[0], env)
+		if isError(element) {
+			return element
+		}
+		return &object.Boolean{Value: arrayContains(arr, element)}
+
+	default:
+		return newError("Fonction de tableau inconnue: %s", node.Function.Value)
+	}
+}
+
+func arrayAppend(arr *object.Array, element object.Object) object.Object {
+	newElements := make([]object.Object, len(arr.Elements)+1)
+	copy(newElements, arr.Elements)
+	newElements[len(arr.Elements)] = element
+	return &object.Array{Elements: newElements}
+}
+
+func arrayPrepend(arr *object.Array, element object.Object) object.Object {
+	newElements := make([]object.Object, len(arr.Elements)+1)
+	newElements[0] = element
+	copy(newElements[1:], arr.Elements)
+	return &object.Array{Elements: newElements}
+}
+
+func arrayRemove(arr *object.Array, index int64) object.Object {
+	if index < 0 || index >= int64(len(arr.Elements)) {
+		return arr
+	}
+
+	newElements := make([]object.Object, len(arr.Elements)-1)
+	copy(newElements, arr.Elements[:index])
+	copy(newElements[index:], arr.Elements[index+1:])
+	return &object.Array{Elements: newElements}
+}
+
+// Mettre à jour evalInfixExpression pour supporter la concaténation de tableaux
+func evalInfixExpression(operator string, left, right object.Object) object.Object {
+	switch {
+	case left.Type() == object.INTEGER_OBJ && right.Type() == object.INTEGER_OBJ:
+		return evalIntegerInfixExpression(operator, left, right)
+	case left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ:
+		return evalStringInfixExpression(operator, left, right)
+	case left.Type() == object.ARRAY_OBJ && right.Type() == object.ARRAY_OBJ:
+		return evalArrayInfixExpression(operator, left, right)
+	case operator == "==":
+		return &object.Boolean{Value: objectsEqual(left, right)}
+	case operator == "!=":
+		return &object.Boolean{Value: !objectsEqual(left, right)}
+	default:
+		return newError("Type mismatch: %s %s %s", left.Type(), operator, right.Type())
+	}
+}
+
+func evalArrayInfixExpression(operator string, left, right object.Object) object.Object {
+	leftArray := left.(*object.Array)
+	rightArray := right.(*object.Array)
+
+	switch operator {
+	case "+", "||": // Concaténation
+		newElements := make([]object.Object, len(leftArray.Elements)+len(rightArray.Elements))
+		copy(newElements, leftArray.Elements)
+		copy(newElements[len(leftArray.Elements):], rightArray.Elements)
+		return &object.Array{Elements: newElements}
+	case "==":
+		if len(leftArray.Elements) != len(rightArray.Elements) {
+			return &object.Boolean{Value: false}
+		}
+		for i := range leftArray.Elements {
+			if !objectsEqual(leftArray.Elements[i], rightArray.Elements[i]) {
+				return &object.Boolean{Value: false}
+			}
+		}
+		return &object.Boolean{Value: true}
+	case "!=":
+		return &object.Boolean{Value: !evalArrayInfixExpression("==", left, right).(*object.Boolean).Value}
+	default:
+		return newError("Opérateur inconnu: %s %s %s", left.Type(), operator, right.Type())
+	}
+}
+
+// Mettre à jour Eval pour les nouvelles expressions
+func Eval(node ast.Node, env *object.Environment) object.Object {
+	switch node := node.(type) {
+	// ... cas existants ...
+
+	case *ast.ArrayLiteral:
+		return evalArrayLiteral(node, env)
+	case *ast.IndexExpression:
+		return evalIndexExpression(node, env)
+	case *ast.SliceExpression:
+		return evalSliceExpression(node, env)
+	case *ast.InExpression:
+		return evalInExpression(node, env)
+	case *ast.ArrayFunctionCall:
+		return evalArrayFunctionCall(node, env)
+	}
+
+	return nil
 }

@@ -65,21 +65,6 @@ func (ls *LetStatement) String() string {
 	return out
 }
 
-// TypeAnnotation - annotation de type avec contraintes
-type TypeAnnotation struct {
-	Token       token.Token
-	Type        string
-	Constraints *TypeConstraints
-}
-
-func (ta *TypeAnnotation) String() string {
-	out := ta.Type
-	if ta.Constraints != nil {
-		out += ta.Constraints.String()
-	}
-	return out
-}
-
 // TypeConstraints - contraintes de type
 type TypeConstraints struct {
 	MaxDigits     *IntegerLiteral
@@ -1045,5 +1030,135 @@ func (sr *SQLRecursiveCTE) String() string {
 	}
 	out += sr.Recursive.String()
 	out += ")"
+	return out
+}
+
+// ArrayType - Type de tableau
+type ArrayType struct {
+	Token       token.Token
+	ElementType *TypeAnnotation
+	Size        *IntegerLiteral // Taille fixe optionnelle
+}
+
+func (at *ArrayType) String() string {
+	out := "array"
+	if at.Size != nil {
+		out += "[" + at.Size.String() + "]"
+	}
+	out += " of " + at.ElementType.String()
+	return out
+}
+
+// ArrayLiteral - Littéral de tableau
+type ArrayLiteral struct {
+	Token    token.Token
+	Elements []Expression
+}
+
+func (al *ArrayLiteral) expressionNode()      {}
+func (al *ArrayLiteral) TokenLiteral() string { return al.Token.Literal }
+func (al *ArrayLiteral) String() string {
+	var out string
+	out += "["
+	for i, el := range al.Elements {
+		if i > 0 {
+			out += ", "
+		}
+		out += el.String()
+	}
+	out += "]"
+	return out
+}
+
+// IndexExpression - Accès par index
+type IndexExpression struct {
+	Token token.Token
+	Left  Expression
+	Index Expression
+}
+
+func (ie *IndexExpression) expressionNode()      {}
+func (ie *IndexExpression) TokenLiteral() string { return ie.Token.Literal }
+func (ie *IndexExpression) String() string {
+	return "(" + ie.Left.String() + "[" + ie.Index.String() + "])"
+}
+
+// SliceExpression - Tranche de tableau
+type SliceExpression struct {
+	Token token.Token
+	Left  Expression
+	Start Expression
+	End   Expression
+}
+
+func (se *SliceExpression) expressionNode()      {}
+func (se *SliceExpression) TokenLiteral() string { return se.Token.Literal }
+func (se *SliceExpression) String() string {
+	out := "(" + se.Left.String() + "["
+	if se.Start != nil {
+		out += se.Start.String()
+	}
+	out += ":"
+	if se.End != nil {
+		out += se.End.String()
+	}
+	out += "])"
+	return out
+}
+
+// ArrayFunctionCall - Appel de fonction de tableau
+type ArrayFunctionCall struct {
+	Token     token.Token
+	Function  *Identifier
+	Array     Expression
+	Arguments []Expression
+}
+
+func (af *ArrayFunctionCall) expressionNode()      {}
+func (af *ArrayFunctionCall) TokenLiteral() string { return af.Token.Literal }
+func (af *ArrayFunctionCall) String() string {
+	out := af.Function.String() + "(" + af.Array.String()
+	for _, arg := range af.Arguments {
+		out += ", " + arg.String()
+	}
+	out += ")"
+	return out
+}
+
+// InExpression - Expression IN
+type InExpression struct {
+	Token token.Token
+	Left  Expression
+	Right Expression // Peut être un ArrayLiteral ou une expression
+	Not   bool
+}
+
+func (ie *InExpression) expressionNode()      {}
+func (ie *InExpression) TokenLiteral() string { return ie.Token.Literal }
+func (ie *InExpression) String() string {
+	out := "(" + ie.Left.String()
+	if ie.Not {
+		out += " NOT"
+	}
+	out += " IN " + ie.Right.String() + ")"
+	return out
+}
+
+// Mettre à jour TypeAnnotation pour supporter les tableaux
+type TypeAnnotation struct {
+	Token       token.Token
+	Type        string
+	ArrayType   *ArrayType // Pour les tableaux
+	Constraints *TypeConstraints
+}
+
+func (ta *TypeAnnotation) String() string {
+	if ta.ArrayType != nil {
+		return ta.ArrayType.String()
+	}
+	out := ta.Type
+	if ta.Constraints != nil {
+		out += ta.Constraints.String()
+	}
 	return out
 }

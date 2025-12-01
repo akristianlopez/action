@@ -2,9 +2,11 @@ package object
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/akristianlopez/action/ast"
+	"github.com/akristianlopez/action/object"
 )
 
 type ObjectType string
@@ -22,6 +24,7 @@ const (
 	FUNCTION_OBJ     = "FUNCTION"
 	STRUCT_OBJ       = "STRUCT"
 	SQL_RESULT_OBJ   = "SQL_RESULT"
+	ARRAY_OBJ        = "ARRAY"
 )
 
 type Object interface {
@@ -217,4 +220,72 @@ type WindowState struct {
 	Partition  []map[string]Object
 	CurrentRow int
 	OrderBy    []string
+}
+
+// Array - Type tableau
+type Array struct {
+	Elements    []Object
+	ElementType string // Type des éléments (optionnel)
+	FixedSize   bool   // Taille fixe
+	Size        int64  // Taille maximale
+}
+
+func (a *Array) Type() ObjectType { return ARRAY_OBJ }
+func (a *Array) Inspect() string {
+	var out strings.Builder
+	out.WriteString("[")
+
+	for i, element := range a.Elements {
+		if i > 0 {
+			out.WriteString(", ")
+		}
+		out.WriteString(element.Inspect())
+	}
+
+	out.WriteString("]")
+	return out.String()
+}
+
+// Mettre à jour getDefaultValue pour les tableaux
+func getDefaultValue(typeName string) object.Object {
+	switch typeName {
+	// ... cas existants ...
+	case "array":
+		return &object.Array{Elements: []object.Object{}}
+	default:
+		// Vérifier si c'est un type tableau
+		if strings.HasPrefix(typeName, "array") {
+			return &object.Array{
+				Elements:    []object.Object{},
+				ElementType: extractElementType(typeName),
+			}
+		}
+		return object.NULL
+	}
+}
+
+func extractElementType(arrayType string) string {
+	// Extrait le type d'élément d'une chaîne comme "array of integer"
+	parts := strings.Split(arrayType, " of ")
+	if len(parts) > 1 {
+		return parts[1]
+	}
+	return "any"
+}
+
+// Ajouter une fonction pour créer des tableaux avec taille fixe
+func NewFixedSizeArray(size int64, elementType string) *Array {
+	elements := make([]Object, size)
+	defaultElement := getDefaultValue(elementType)
+
+	for i := range elements {
+		elements[i] = defaultElement
+	}
+
+	return &Array{
+		Elements:    elements,
+		ElementType: elementType,
+		FixedSize:   true,
+		Size:        size,
+	}
 }

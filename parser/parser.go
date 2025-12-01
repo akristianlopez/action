@@ -52,6 +52,13 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.FIRST_VALUE, p.parseWindowFunction)
 	p.registerPrefix(token.LAST_VALUE, p.parseWindowFunction)
 	p.registerPrefix(token.NTILE, p.parseWindowFunction)
+	p.registerPrefix(token.LBRACKET, p.parseArrayLiteral)
+	p.registerPrefix(token.LENGTH, p.parseArrayFunctionCall)
+	p.registerPrefix(token.APPEND, p.parseArrayFunctionCall)
+	p.registerPrefix(token.PREPEND, p.parseArrayFunctionCall)
+	p.registerPrefix(token.REMOVE, p.parseArrayFunctionCall)
+	p.registerPrefix(token.SLICE, p.parseArrayFunctionCall)
+	p.registerPrefix(token.CONTAINS, p.parseArrayFunctionCall)
 
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -65,6 +72,8 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.GT, p.parseInfixExpression)
 	p.registerInfix(token.LTE, p.parseInfixExpression)
 	p.registerInfix(token.GTE, p.parseInfixExpression)
+	p.registerInfix(token.LBRACKET, p.parseIndexOrSliceExpression)
+	p.registerInfix(token.IN, p.parseInExpression)
 
 	p.nextToken()
 	p.nextToken()
@@ -171,17 +180,6 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 	}
 
 	return stmt
-}
-
-func (p *Parser) parseTypeAnnotation() *ast.TypeAnnotation {
-	ta := &ast.TypeAnnotation{Token: p.curToken, Type: p.curToken.Literal}
-
-	// Vérifier les contraintes
-	if p.peekTokenIs(token.LPAREN) || p.peekTokenIs(token.LBRACKET) {
-		ta.Constraints = p.parseTypeConstraints()
-	}
-
-	return ta
 }
 
 func (p *Parser) parseTypeConstraints() *ast.TypeConstraints {
@@ -460,6 +458,7 @@ const (
 	PRODUCT
 	PREFIX
 	CALL
+	INDEX
 )
 
 func (p *Parser) parseExpression(precedence int) ast.Expression {
@@ -1143,116 +1142,116 @@ func (p *Parser) parseSQLCreateIndex() *ast.SQLCreateIndexStatement {
 	return stmt
 }
 
-// Mettre à jour parseSQLSelect pour supporter les clauses avancées
-func (p *Parser) parseSQLSelectStatement() ast.Statement {
-	selectStmt := &ast.SQLSelectStatement{Token: p.curToken}
+// // Mettre à jour parseSQLSelect pour supporter les clauses avancées
+// func (p *Parser) parseSQLSelectStatement() ast.Statement {
+// 	selectStmt := &ast.SQLSelectStatement{Token: p.curToken}
 
-	// DISTINCT optionnel
-	if p.peekTokenIs(token.DISTINCT) {
-		p.nextToken()
-		selectStmt.Distinct = true
-	}
+// 	// DISTINCT optionnel
+// 	if p.peekTokenIs(token.DISTINCT) {
+// 		p.nextToken()
+// 		selectStmt.Distinct = true
+// 	}
 
-	p.nextToken()
-	selectStmt.Select = p.parseSelectList()
+// 	p.nextToken()
+// 	selectStmt.Select = p.parseSelectList()
 
-	// FROM
-	if !p.expectPeek(token.FROM) {
-		return nil
-	}
-	p.nextToken()
-	selectStmt.From = p.parseExpression(LOWEST)
+// 	// FROM
+// 	if !p.expectPeek(token.FROM) {
+// 		return nil
+// 	}
+// 	p.nextToken()
+// 	selectStmt.From = p.parseExpression(LOWEST)
 
-	// JOINs optionnels
-	for p.peekTokenIs(token.JOIN) ||
-		(p.peekTokenIs(token.IDENT) &&
-			(p.peekToken.Literal == "INNER" || p.peekToken.Literal == "LEFT" ||
-				p.peekToken.Literal == "RIGHT" || p.peekToken.Literal == "FULL")) {
-		p.nextToken()
-		join := &ast.SQLJoin{Token: p.curToken}
+// 	// JOINs optionnels
+// 	for p.peekTokenIs(token.JOIN) ||
+// 		(p.peekTokenIs(token.IDENT) &&
+// 			(p.peekToken.Literal == "INNER" || p.peekToken.Literal == "LEFT" ||
+// 				p.peekToken.Literal == "RIGHT" || p.peekToken.Literal == "FULL")) {
+// 		p.nextToken()
+// 		join := &ast.SQLJoin{Token: p.curToken}
 
-		if p.curTokenIs(token.IDENT) {
-			join.Type = p.curToken.Literal
-			if !p.expectPeek(token.JOIN) {
-				return nil
-			}
-			p.nextToken()
-		} else {
-			join.Type = "INNER"
-		}
+// 		if p.curTokenIs(token.IDENT) {
+// 			join.Type = p.curToken.Literal
+// 			if !p.expectPeek(token.JOIN) {
+// 				return nil
+// 			}
+// 			p.nextToken()
+// 		} else {
+// 			join.Type = "INNER"
+// 		}
 
-		join.Table = p.parseExpression(LOWEST)
+// 		join.Table = p.parseExpression(LOWEST)
 
-		if !p.expectPeek(token.ON) {
-			return nil
-		}
-		p.nextToken()
-		join.On = p.parseExpression(LOWEST)
+// 		if !p.expectPeek(token.ON) {
+// 			return nil
+// 		}
+// 		p.nextToken()
+// 		join.On = p.parseExpression(LOWEST)
 
-		selectStmt.Joins = append(selectStmt.Joins, join)
-	}
+// 		selectStmt.Joins = append(selectStmt.Joins, join)
+// 	}
 
-	// WHERE optionnel
-	if p.peekTokenIs(token.WHERE) {
-		p.nextToken()
-		p.nextToken()
-		selectStmt.Where = p.parseExpression(LOWEST)
-	}
+// 	// WHERE optionnel
+// 	if p.peekTokenIs(token.WHERE) {
+// 		p.nextToken()
+// 		p.nextToken()
+// 		selectStmt.Where = p.parseExpression(LOWEST)
+// 	}
 
-	// GROUP BY optionnel
-	if p.peekTokenIs(token.GROUP) {
-		p.nextToken() // GROUP
-		if !p.expectPeek(token.BY) {
-			return nil
-		}
-		p.nextToken()
-		selectStmt.GroupBy = p.parseExpressionList(token.HAVING, token.ORDER, token.LIMIT)
-	}
+// 	// GROUP BY optionnel
+// 	if p.peekTokenIs(token.GROUP) {
+// 		p.nextToken() // GROUP
+// 		if !p.expectPeek(token.BY) {
+// 			return nil
+// 		}
+// 		p.nextToken()
+// 		selectStmt.GroupBy = p.parseExpressionList(token.HAVING, token.ORDER, token.LIMIT)
+// 	}
 
-	// HAVING optionnel
-	if p.peekTokenIs(token.HAVING) {
-		p.nextToken()
-		p.nextToken()
-		selectStmt.Having = p.parseExpression(LOWEST)
-	}
+// 	// HAVING optionnel
+// 	if p.peekTokenIs(token.HAVING) {
+// 		p.nextToken()
+// 		p.nextToken()
+// 		selectStmt.Having = p.parseExpression(LOWEST)
+// 	}
 
-	// ORDER BY optionnel
-	if p.peekTokenIs(token.ORDER) {
-		p.nextToken() // ORDER
-		if !p.expectPeek(token.BY) {
-			return nil
-		}
-		p.nextToken()
-		selectStmt.OrderBy = p.parseOrderByList()
-	}
+// 	// ORDER BY optionnel
+// 	if p.peekTokenIs(token.ORDER) {
+// 		p.nextToken() // ORDER
+// 		if !p.expectPeek(token.BY) {
+// 			return nil
+// 		}
+// 		p.nextToken()
+// 		selectStmt.OrderBy = p.parseOrderByList()
+// 	}
 
-	// LIMIT optionnel
-	if p.peekTokenIs(token.LIMIT) {
-		p.nextToken()
-		p.nextToken()
-		selectStmt.Limit = p.parseExpression(LOWEST)
-	}
+// 	// LIMIT optionnel
+// 	if p.peekTokenIs(token.LIMIT) {
+// 		p.nextToken()
+// 		p.nextToken()
+// 		selectStmt.Limit = p.parseExpression(LOWEST)
+// 	}
 
-	// OFFSET optionnel
-	if p.peekTokenIs(token.OFFSET) {
-		p.nextToken()
-		p.nextToken()
-		selectStmt.Offset = p.parseExpression(LOWEST)
-	}
+// 	// OFFSET optionnel
+// 	if p.peekTokenIs(token.OFFSET) {
+// 		p.nextToken()
+// 		p.nextToken()
+// 		selectStmt.Offset = p.parseExpression(LOWEST)
+// 	}
 
-	// UNION optionnel
-	if p.peekTokenIs(token.UNION) {
-		p.nextToken()
-		if p.peekTokenIs(token.ALL) {
-			p.nextToken()
-			selectStmt.UnionAll = true
-		}
-		p.nextToken()
-		selectStmt.Union = p.parseSQLSelectStatement().(*ast.SQLSelectStatement)
-	}
+// 	// UNION optionnel
+// 	if p.peekTokenIs(token.UNION) {
+// 		p.nextToken()
+// 		if p.peekTokenIs(token.ALL) {
+// 			p.nextToken()
+// 			selectStmt.UnionAll = true
+// 		}
+// 		p.nextToken()
+// 		selectStmt.Union = p.parseSQLSelectStatement().(*ast.SQLSelectStatement)
+// 	}
 
-	return selectStmt
-}
+// 	return selectStmt
+// }
 
 func (p *Parser) parseOrderByList() []*ast.SQLOrderBy {
 	var orderByList []*ast.SQLOrderBy
@@ -1379,6 +1378,10 @@ var precedences = map[token.TokenType]int{
 	token.SLASH:    PRODUCT,
 	token.ASTERISK: PRODUCT,
 	token.MOD:      PRODUCT,
+	token.LBRACKET: INDEX,
+	token.CONCAT:   SUM,
+	token.IN:       EQUALS,
+	token.NOT:      EQUALS,
 }
 
 func (p *Parser) registerPrefix(tokenType token.TokenType, fn prefixParseFn) {
@@ -1389,8 +1392,8 @@ func (p *Parser) registerInfix(tokenType token.TokenType, fn infixParseFn) {
 	p.infixParseFns[tokenType] = fn
 }
 
-func (p *Parser) parseSQLWithStatement() *SQLWithStatement {
-	stmt := &SQLWithStatement{Token: p.curToken}
+func (p *Parser) parseSQLWithStatement() *ast.SQLWithStatement {
+	stmt := &ast.SQLWithStatement{Token: p.curToken}
 
 	// RECURSIVE optionnel
 	if p.peekTokenIs(token.RECURSIVE) {
@@ -1411,8 +1414,8 @@ func (p *Parser) parseSQLWithStatement() *SQLWithStatement {
 	return stmt
 }
 
-func (p *Parser) parseCTEList() []*SQLCommonTableExpression {
-	var ctes []*SQLCommonTableExpression
+func (p *Parser) parseCTEList() []*ast.SQLCommonTableExpression {
+	var ctes []*ast.SQLCommonTableExpression
 
 	cte := p.parseCommonTableExpression()
 	if cte != nil {
@@ -1431,8 +1434,8 @@ func (p *Parser) parseCTEList() []*SQLCommonTableExpression {
 	return ctes
 }
 
-func (p *Parser) parseCommonTableExpression() *SQLCommonTableExpression {
-	cte := &SQLCommonTableExpression{Token: p.curToken}
+func (p *Parser) parseCommonTableExpression() *ast.SQLCommonTableExpression {
+	cte := &ast.SQLCommonTableExpression{Token: p.curToken}
 	cte.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 	// Colonnes optionnelles
@@ -1462,8 +1465,8 @@ func (p *Parser) parseCommonTableExpression() *SQLCommonTableExpression {
 	return cte
 }
 
-func (p *Parser) parseRecursiveCTE() *SQLRecursiveCTE {
-	cte := &SQLRecursiveCTE{Token: p.curToken}
+func (p *Parser) parseRecursiveCTE() *ast.SQLRecursiveCTE {
+	cte := &ast.SQLRecursiveCTE{Token: p.curToken}
 	cte.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 	// Colonnes optionnelles
@@ -1510,7 +1513,7 @@ func (p *Parser) parseRecursiveCTE() *SQLRecursiveCTE {
 }
 
 func (p *Parser) parseWindowFunction() ast.Expression {
-	function := &SQLWindowFunction{Token: p.curToken, Name: p.curToken.Literal}
+	function := &ast.SQLWindowFunction{Token: p.curToken, Name: p.curToken.Literal}
 
 	if p.peekTokenIs(token.LPAREN) {
 		p.nextToken()
@@ -1530,8 +1533,8 @@ func (p *Parser) parseWindowFunction() ast.Expression {
 	return function
 }
 
-func (p *Parser) parseWindowClause() *SQLWindowClause {
-	clause := &SQLWindowClause{Token: p.curToken}
+func (p *Parser) parseWindowClause() *ast.SQLWindowClause {
+	clause := &ast.SQLWindowClause{Token: p.curToken}
 
 	if !p.expectPeek(token.LPAREN) {
 		// Peut être un nom de fenêtre prédéfini
@@ -1574,8 +1577,8 @@ func (p *Parser) parseWindowClause() *SQLWindowClause {
 	return clause
 }
 
-func (p *Parser) parseWindowFrame() *SQLWindowFrame {
-	frame := &SQLWindowFrame{Token: p.curToken, Type: p.curToken.Literal}
+func (p *Parser) parseWindowFrame() *ast.SQLWindowFrame {
+	frame := &ast.SQLWindowFrame{Token: p.curToken, Type: p.curToken.Literal}
 
 	if !p.expectPeek(token.BETWEEN) {
 		return nil
@@ -1591,7 +1594,7 @@ func (p *Parser) parseWindowFrame() *SQLWindowFrame {
 	p.nextToken()
 
 	if p.curTokenIs(token.CURRENT) {
-		frame.End = &SQLWindowFrameBound{Token: p.curToken, Type: "ROW"}
+		frame.End = &ast.SQLWindowFrameBound{Token: p.curToken, Type: "ROW"}
 		p.nextToken() // ROW
 	} else {
 		frame.End = p.parseWindowFrameBound()
@@ -1600,8 +1603,8 @@ func (p *Parser) parseWindowFrame() *SQLWindowFrame {
 	return frame
 }
 
-func (p *Parser) parseWindowFrameBound() *SQLWindowFrameBound {
-	bound := &SQLWindowFrameBound{Token: p.curToken}
+func (p *Parser) parseWindowFrameBound() *ast.SQLWindowFrameBound {
+	bound := &ast.SQLWindowFrameBound{Token: p.curToken}
 
 	if p.curTokenIs(token.UNBOUNDED) {
 		bound.Unbounded = true
@@ -1620,8 +1623,8 @@ func (p *Parser) parseWindowFrameBound() *SQLWindowFrameBound {
 	return bound
 }
 
-func (p *Parser) parseHierarchicalQuery() *SQLHierarchicalQuery {
-	hierarchical := &SQLHierarchicalQuery{Token: p.curToken}
+func (p *Parser) parseHierarchicalQuery() *ast.SQLHierarchicalQuery {
+	hierarchical := &ast.SQLHierarchicalQuery{Token: p.curToken}
 
 	// START WITH optionnel
 	if p.curTokenIs(token.START) {
@@ -1676,7 +1679,7 @@ func (p *Parser) parseSQLSelectStatement() ast.Statement {
 		return selectStmt
 	}
 
-	selectStmt := &SQLSelectStatement{Token: p.curToken}
+	selectStmt := &ast.SQLSelectStatement{Token: p.curToken}
 
 	// DISTINCT optionnel
 	if p.peekTokenIs(token.DISTINCT) {
@@ -1700,7 +1703,7 @@ func (p *Parser) parseSQLSelectStatement() ast.Statement {
 			(p.peekToken.Literal == "INNER" || p.peekToken.Literal == "LEFT" ||
 				p.peekToken.Literal == "RIGHT" || p.peekToken.Literal == "FULL")) {
 		p.nextToken()
-		join := &SQLJoin{Token: p.curToken}
+		join := &ast.SQLJoin{Token: p.curToken}
 
 		if p.curTokenIs(token.IDENT) {
 			join.Type = p.curToken.Literal
@@ -1797,8 +1800,8 @@ func (p *Parser) parseSQLSelectStatement() ast.Statement {
 	return selectStmt
 }
 
-func (p *Parser) parseWindowDefinitions() []*SQLWindowClause {
-	var windows []*SQLWindowClause
+func (p *Parser) parseWindowDefinitions() []*ast.SQLWindowClause {
+	var windows []*ast.SQLWindowClause
 
 	window := p.parseWindowClause()
 	if window != nil {
@@ -1817,7 +1820,183 @@ func (p *Parser) parseWindowDefinitions() []*SQLWindowClause {
 	return windows
 }
 
-// // Mettre à jour registerPrefix pour les fonctions de fenêtrage
-// func (p *Parser) registerPrefix(tokenType token.TokenType, fn prefixParseFn) {
-//     p.prefixParseFns[tokenType] = fn
-// }
+func (p *Parser) parseArrayLiteral() ast.Expression {
+	array := &ast.ArrayLiteral{Token: p.curToken}
+
+	if p.peekTokenIs(token.RBRACKET) {
+		p.nextToken()
+		return array
+	}
+
+	p.nextToken()
+	array.Elements = append(array.Elements, p.parseExpression(LOWEST))
+
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken()
+		p.nextToken()
+		array.Elements = append(array.Elements, p.parseExpression(LOWEST))
+	}
+
+	if !p.expectPeek(token.RBRACKET) {
+		return nil
+	}
+
+	return array
+}
+
+func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
+	exp := &ast.IndexExpression{Token: p.curToken, Left: left}
+
+	p.nextToken()
+	exp.Index = p.parseExpression(LOWEST)
+
+	if !p.expectPeek(token.RBRACKET) {
+		return nil
+	}
+
+	return exp
+}
+
+func (p *Parser) parseSliceExpression(left ast.Expression) ast.Expression {
+	exp := &ast.SliceExpression{Token: p.curToken, Left: left}
+
+	p.nextToken()
+
+	if !p.curTokenIs(token.COLON) {
+		exp.Start = p.parseExpression(LOWEST)
+	}
+
+	if p.curTokenIs(token.COLON) {
+		p.nextToken()
+
+		if !p.curTokenIs(token.RBRACKET) {
+			exp.End = p.parseExpression(LOWEST)
+		}
+	}
+
+	if !p.expectPeek(token.RBRACKET) {
+		return nil
+	}
+
+	return exp
+}
+
+func (p *Parser) parseArrayType() *ast.ArrayType {
+	arrayType := &ast.ArrayType{Token: p.curToken}
+
+	// Taille optionnelle [n]
+	if p.peekTokenIs(token.LBRACKET) {
+		p.nextToken() // [
+		p.nextToken()
+		arrayType.Size = p.parseIntegerLiteral().(*ast.IntegerLiteral)
+		if !p.expectPeek(token.RBRACKET) {
+			return nil
+		}
+	}
+
+	if !p.expectPeek(token.OF) {
+		return nil
+	}
+
+	p.nextToken()
+	arrayType.ElementType = p.parseTypeAnnotation()
+
+	return arrayType
+}
+
+func (p *Parser) parseInExpression(left ast.Expression) ast.Expression {
+	exp := &ast.InExpression{Token: p.curToken, Left: left}
+
+	// Vérifier NOT IN
+	if p.curTokenIs(token.NOT) {
+		exp.Not = true
+		if !p.expectPeek(token.IN) {
+			return nil
+		}
+	}
+
+	p.nextToken()
+	exp.Right = p.parseExpression(LOWEST)
+
+	return exp
+}
+
+func (p *Parser) parseArrayFunctionCall() ast.Expression {
+	call := &ast.ArrayFunctionCall{Token: p.curToken}
+	call.Function = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	if !p.expectPeek(token.LPAREN) {
+		return nil
+	}
+
+	p.nextToken()
+	call.Array = p.parseExpression(LOWEST)
+
+	// Arguments optionnels
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken()
+		p.nextToken()
+		call.Arguments = append(call.Arguments, p.parseExpression(LOWEST))
+	}
+
+	if !p.expectPeek(token.RPAREN) {
+		return nil
+	}
+
+	return call
+}
+
+func (p *Parser) parseTypeAnnotation() *ast.TypeAnnotation {
+	ta := &ast.TypeAnnotation{Token: p.curToken}
+
+	if p.curTokenIs(token.ARRAY) {
+		ta.ArrayType = p.parseArrayType()
+		return ta
+	}
+
+	ta.Type = p.curToken.Literal
+
+	// Vérifier les contraintes
+	if p.peekTokenIs(token.LPAREN) || p.peekTokenIs(token.LBRACKET) {
+		ta.Constraints = p.parseTypeConstraints()
+	}
+
+	return ta
+}
+
+// Nouvelle méthode pour gérer à la fois l'index et le slice
+func (p *Parser) parseIndexOrSliceExpression(left ast.Expression) ast.Expression {
+	// Sauvegarder la position pour vérifier si c'est un slice
+	currentPosition := p.l.position
+
+	p.nextToken()
+
+	// Vérifier si c'est un slice (contient :)
+	isSlice := false
+	// tempPosition := p.l.position
+	// tempToken := p.curToken
+
+	// Avancer pour vérifier
+	for !p.curTokenIs(token.RBRACKET) && !p.curTokenIs(token.EOF) {
+		if p.curTokenIs(token.COLON) {
+			isSlice = true
+			break
+		}
+		p.nextToken()
+	}
+
+	// Revenir à la position originale
+	p.l.position = currentPosition
+	p.l.readPosition = currentPosition + 1
+	if p.l.readPosition >= len(p.l.input) {
+		p.l.ch = 0
+	} else {
+		p.l.ch = rune(p.l.input[p.l.readPosition-1])
+	}
+	p.curToken = token.Token{Type: token.LBRACKET, Literal: "["}
+
+	if isSlice {
+		return p.parseSliceExpression(left)
+	}
+	return p.parseIndexExpression(left)
+}

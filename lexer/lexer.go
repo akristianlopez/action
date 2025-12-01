@@ -118,6 +118,11 @@ func (l *Lexer) NextToken() token.Token {
 		tok = newToken(token.LBRACKET, l.ch, l.line, l.column)
 	case ']':
 		tok = newToken(token.RBRACKET, l.ch, l.line, l.column)
+	case '|':
+		if l.peekChar() == '|' {
+			l.readChar()
+			tok = token.Token{Type: token.CONCAT, Literal: "||", Line: l.line, Column: l.column}
+		}
 	case '"':
 		tok.Type = token.STRING_LIT
 		tok.Literal = l.readString()

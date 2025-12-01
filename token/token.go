@@ -159,6 +159,22 @@ const (
 	DENSE_RANK  = "DENSE_RANK"
 	ROW_NUMBER  = "ROW_NUMBER"
 	NTILE       = "NTILE"
+
+	// Tableaux
+	ARRAY = "ARRAY"
+	OF    = "OF"
+
+	// Opérateurs de tableau
+	CONCAT = "||"
+	NOT_IN = "NOT IN"
+
+	// Fonctions de tableau
+	LENGTH   = "LENGTH"
+	APPEND   = "APPEND"
+	PREPEND  = "PREPEND"
+	REMOVE   = "REMOVE"
+	SLICE    = "SLICE"
+	CONTAINS = "CONTAINS"
 )
 
 var keywords = map[string]TokenType{
@@ -265,6 +281,14 @@ var keywords = map[string]TokenType{
 	"dense_rank":  DENSE_RANK,
 	"row_number":  ROW_NUMBER,
 	"ntile":       NTILE,
+	"array":       ARRAY,
+	"of":          OF,
+	"length":      LENGTH,
+	"append":      APPEND,
+	"prepend":     PREPEND,
+	"remove":      REMOVE,
+	"slice":       SLICE,
+	"contains":    CONTAINS,
 }
 
 func LookupIdent(ident string) TokenType {

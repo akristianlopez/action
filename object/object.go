@@ -111,16 +111,6 @@ func (s *Struct) Inspect() string {
 	return fmt.Sprintf("struct %s", s.Name)
 }
 
-type SQLResult struct {
-	Columns []string
-	Rows    []map[string]Object
-}
-
-func (sr *SQLResult) Type() ObjectType { return SQL_RESULT_OBJ }
-func (sr *SQLResult) Inspect() string {
-	return fmt.Sprintf("SQLResult(%d rows)", len(sr.Rows))
-}
-
 var (
 	NULL  = &Null{}
 	TRUE  = &Boolean{Value: true}
@@ -154,4 +144,77 @@ func (e *Environment) Get(name string) (Object, bool) {
 func (e *Environment) Set(name string, val Object) Object {
 	e.store[name] = val
 	return val
+}
+
+// SQLTable - Représente une table/objet SQL
+type SQLTable struct {
+	Name    string
+	Columns map[string]*SQLColumn
+	Data    []map[string]Object
+	Indexes map[string]*SQLIndex
+}
+
+func (st *SQLTable) Type() ObjectType { return "SQL_TABLE" }
+func (st *SQLTable) Inspect() string {
+	return fmt.Sprintf("TABLE %s (%d colonnes, %d lignes)", st.Name, len(st.Columns), len(st.Data))
+}
+
+// SQLColumn - Colonne d'une table
+type SQLColumn struct {
+	Name         string
+	Type         string
+	PrimaryKey   bool
+	NotNull      bool
+	Unique       bool
+	DefaultValue Object
+}
+
+// SQLIndex - Index sur une table
+type SQLIndex struct {
+	Name    string
+	Columns []string
+	Unique  bool
+}
+
+// SQLResult - Résultat d'une opération SQL
+type SQLResult struct {
+	Message      string
+	RowsAffected int64
+	Columns      []string
+	Rows         []map[string]Object
+}
+
+func (sr *SQLResult) Type() ObjectType { return SQL_RESULT_OBJ }
+func (sr *SQLResult) Inspect() string {
+	if sr.Message != "" {
+		return sr.Message
+	}
+	return fmt.Sprintf("SQLResult(%d ligne(s) affectée(s))", sr.RowsAffected)
+}
+
+// HierarchicalTree - Arbre hiérarchique
+type HierarchicalTree struct {
+	Roots []*HierarchicalNode
+	Nodes map[string]*HierarchicalNode
+}
+
+func (ht *HierarchicalTree) Type() ObjectType { return "HIERARCHICAL_TREE" }
+func (ht *HierarchicalTree) Inspect() string {
+	return fmt.Sprintf("HierarchicalTree(%d racines, %d nœuds)", len(ht.Roots), len(ht.Nodes))
+}
+
+// HierarchicalNode - Nœud dans un arbre hiérarchique
+type HierarchicalNode struct {
+	ID       string
+	Data     map[string]Object
+	Level    int
+	Parent   *HierarchicalNode
+	Children []*HierarchicalNode
+}
+
+// WindowState - État pour le calcul des fonctions de fenêtrage
+type WindowState struct {
+	Partition  []map[string]Object
+	CurrentRow int
+	OrderBy    []string
 }

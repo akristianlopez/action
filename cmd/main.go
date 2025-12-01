@@ -97,3 +97,71 @@ let a = 5; let b = 10; let c = a + b;
 
 stop
 `
+
+/*
+const exampleProgram = `
+action "Gestion Base de Données"
+
+(* Création des objets *)
+CREATE OBJECT IF NOT EXISTS Employés (
+    id INTEGER PRIMARY KEY,
+    nom VARCHAR(50) NOT NULL,
+    salaire NUMERIC(10,2),
+    département VARCHAR(30),
+    date_embauche DATE,
+    actif BOOLEAN DEFAULT true
+);
+
+CREATE OBJECT Départements (
+    id INTEGER PRIMARY KEY,
+    nom VARCHAR(50) UNIQUE NOT NULL,
+    budget NUMERIC(12,2)
+);
+
+(* Création d'index *)
+CREATE INDEX idx_employes_departement ON Employés(département);
+CREATE UNIQUE INDEX idx_employes_nom ON Employés(nom);
+
+(* Insertion de données *)
+INSERT INTO Départements (id, nom, budget)
+VALUES (1, 'IT', 1000000.00),
+       (2, 'RH', 500000.00),
+       (3, 'Finance', 750000.00);
+
+INSERT INTO Employés (id, nom, salaire, département, date_embauche)
+VALUES (1, 'Alice Dupont', 55000.00, 'IT', #2023-01-15#),
+       (2, 'Bob Martin', 48000.00, 'RH', #2023-03-20#),
+       (3, 'Charlie Durand', 62000.00, 'IT', #2022-11-10#);
+
+start
+
+(* Requêtes SELECT avancées *)
+let employes_actifs = SELECT e.nom, e.salaire, d.nom as département
+                      FROM Employés e
+                      INNER JOIN Départements d ON e.département = d.nom
+                      WHERE e.actif = true
+                      ORDER BY e.salaire DESC;
+
+(* Mise à jour *)
+UPDATE Employés
+SET salaire = salaire * 1.05
+WHERE département = 'IT';
+
+(* Suppression *)
+DELETE FROM Employés
+WHERE actif = false;
+
+(* Requête avec GROUP BY et HAVING *)
+let stats_departements = SELECT département, AVG(salaire) as salaire_moyen, COUNT(*) as nb_employes
+                         FROM Employés
+                         GROUP BY département
+                         HAVING AVG(salaire) > 50000;
+
+(* ALTER TABLE *)
+ALTER OBJECT Employés
+ADD COLUMN email VARCHAR(100),
+ADD CONSTRAINT fk_departement FOREIGN KEY (département) REFERENCES Départements(nom);
+
+stop
+`
+*/

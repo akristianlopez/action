@@ -43,6 +43,15 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
 	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
 	p.registerPrefix(token.SELECT, p.parseSQLSelect)
+	// Enregistrer les fonctions de fenêtrage
+	p.registerPrefix(token.ROW_NUMBER, p.parseWindowFunction)
+	p.registerPrefix(token.RANK, p.parseWindowFunction)
+	p.registerPrefix(token.DENSE_RANK, p.parseWindowFunction)
+	p.registerPrefix(token.LAG, p.parseWindowFunction)
+	p.registerPrefix(token.LEAD, p.parseWindowFunction)
+	p.registerPrefix(token.FIRST_VALUE, p.parseWindowFunction)
+	p.registerPrefix(token.LAST_VALUE, p.parseWindowFunction)
+	p.registerPrefix(token.NTILE, p.parseWindowFunction)
 
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -612,6 +621,684 @@ func (p *Parser) parseSQLSelect() ast.Expression {
 	return selectStmt
 }
 
+func (p *Parser) parseSQLStatement() ast.Statement {
+	switch p.curToken.Type {
+	case token.CREATE:
+		if p.peekTokenIs(token.OBJECT) {
+			return p.parseSQLCreateObject()
+		} else if p.peekTokenIs(token.INDEX) {
+			return p.parseSQLCreateIndex()
+		}
+	case token.DROP:
+		if p.peekTokenIs(token.OBJECT) {
+			return p.parseSQLDropObject()
+		}
+	case token.ALTER:
+		if p.peekTokenIs(token.OBJECT) {
+			return p.parseSQLAlterObject()
+		}
+	case token.INSERT:
+		return p.parseSQLInsert()
+	case token.UPDATE:
+		return p.parseSQLUpdate()
+	case token.DELETE:
+		return p.parseSQLDelete()
+	case token.TRUNCATE:
+		if p.peekTokenIs(token.OBJECT) {
+			return p.parseSQLTruncate()
+		}
+	case token.SELECT:
+		return p.parseSQLSelectStatement()
+	}
+	return nil
+}
+
+func (p *Parser) parseSQLCreateObject() *ast.SQLCreateObjectStatement {
+	stmt := &ast.SQLCreateObjectStatement{Token: p.curToken}
+
+	// CREATE
+	if !p.expectPeek(token.OBJECT) {
+		return nil
+	}
+
+	// IF NOT EXISTS optionnel
+	if p.peekTokenIs(token.IF) {
+		p.nextToken() // IF
+		p.nextToken() // NOT
+		p.nextToken() // EXISTS
+		stmt.IfNotExists = true
+	}
+
+	// Nom de l'objet
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+	stmt.ObjectName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	// (
+	if !p.expectPeek(token.LPAREN) {
+		return nil
+	}
+
+	p.nextToken()
+
+	// Colonnes et contraintes
+	for !p.curTokenIs(token.RPAREN) && !p.curTokenIs(token.EOF) {
+		if p.curTokenIs(token.CONSTRAINT) {
+			constraint := p.parseSQLConstraint()
+			if constraint != nil {
+				stmt.Constraints = append(stmt.Constraints, constraint)
+			}
+		} else {
+			column := p.parseSQLColumnDefinition()
+			if column != nil {
+				stmt.Columns = append(stmt.Columns, column)
+			}
+		}
+
+		if p.peekTokenIs(token.COMMA) {
+			p.nextToken()
+		}
+		p.nextToken()
+	}
+
+	return stmt
+}
+
+func (p *Parser) parseSQLColumnDefinition() *ast.SQLColumnDefinition {
+	col := &ast.SQLColumnDefinition{Token: p.curToken}
+	col.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	// Type de données
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+	col.DataType = p.parseSQLDataType()
+
+	// Contraintes de colonne
+	for p.peekTokenIs(token.NOT) || p.peekTokenIs(token.UNIQUE) ||
+		p.peekTokenIs(token.PRIMARY) || p.peekTokenIs(token.CHECK) ||
+		p.peekTokenIs(token.DEFAULT) {
+		p.nextToken()
+		constraint := p.parseSQLColumnConstraint()
+		if constraint != nil {
+			col.Constraints = append(col.Constraints, constraint)
+		}
+	}
+
+	return col
+}
+
+func (p *Parser) parseSQLDataType() *ast.SQLDataType {
+	dt := &ast.SQLDataType{Token: p.curToken, Name: p.curToken.Literal}
+
+	// Longueur/Précision optionnelle
+	if p.peekTokenIs(token.LPAREN) {
+		p.nextToken() // (
+		p.nextToken()
+
+		if p.curTokenIs(token.INT_LIT) {
+			length := &ast.IntegerLiteral{Token: p.curToken}
+			val, _ := strconv.ParseInt(p.curToken.Literal, 10, 64)
+			length.Value = val
+
+			if p.peekTokenIs(token.COMMA) {
+				// NUMERIC/DECIMAL avec précision et échelle
+				dt.Precision = length
+				p.nextToken() // ,
+				p.nextToken()
+				scale := &ast.IntegerLiteral{Token: p.curToken}
+				val, _ = strconv.ParseInt(p.curToken.Literal, 10, 64)
+				scale.Value = val
+				dt.Scale = scale
+			} else {
+				// VARCHAR/CHAR avec longueur
+				dt.Length = length
+			}
+		}
+
+		if !p.expectPeek(token.RPAREN) {
+			return nil
+		}
+	}
+
+	return dt
+}
+
+func (p *Parser) parseSQLColumnConstraint() *ast.SQLColumnConstraint {
+	constraint := &ast.SQLColumnConstraint{Token: p.curToken}
+
+	switch p.curToken.Type {
+	case token.NOT:
+		if !p.expectPeek(token.NULL) {
+			return nil
+		}
+		constraint.Type = "NOT NULL"
+	case token.UNIQUE:
+		constraint.Type = "UNIQUE"
+	case token.PRIMARY:
+		if !p.expectPeek(token.KEY) {
+			return nil
+		}
+		constraint.Type = "PRIMARY KEY"
+	case token.DEFAULT:
+		constraint.Type = "DEFAULT"
+		p.nextToken()
+		constraint.Expression = p.parseExpression(LOWEST)
+		return constraint
+	case token.CHECK:
+		constraint.Type = "CHECK"
+		p.nextToken()
+		constraint.Expression = p.parseExpression(LOWEST)
+		return constraint
+	}
+
+	return constraint
+}
+
+func (p *Parser) parseSQLConstraint() *ast.SQLConstraint {
+	constraint := &ast.SQLConstraint{Token: p.curToken}
+
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+	constraint.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	p.nextToken()
+
+	switch p.curToken.Type {
+	case token.PRIMARY:
+		constraint.Type = "PRIMARY KEY"
+		if !p.expectPeek(token.KEY) {
+			return nil
+		}
+		if !p.expectPeek(token.LPAREN) {
+			return nil
+		}
+		constraint.Columns = p.parseColumnList()
+	case token.FOREIGN:
+		constraint.Type = "FOREIGN KEY"
+		if !p.expectPeek(token.KEY) {
+			return nil
+		}
+		if !p.expectPeek(token.LPAREN) {
+			return nil
+		}
+		constraint.Columns = p.parseColumnList()
+		if !p.expectPeek(token.REFERENCES) {
+			return nil
+		}
+		constraint.References = p.parseSQLReference()
+	case token.UNIQUE:
+		constraint.Type = "UNIQUE"
+		if !p.expectPeek(token.LPAREN) {
+			return nil
+		}
+		constraint.Columns = p.parseColumnList()
+	case token.CHECK:
+		constraint.Type = "CHECK"
+		p.nextToken()
+		constraint.Check = p.parseExpression(LOWEST)
+	}
+
+	return constraint
+}
+
+func (p *Parser) parseColumnList() []*ast.Identifier {
+	var columns []*ast.Identifier
+
+	p.nextToken()
+	columns = append(columns, &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal})
+
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken()
+		p.nextToken()
+		columns = append(columns, &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal})
+	}
+
+	if !p.expectPeek(token.RPAREN) {
+		return nil
+	}
+
+	return columns
+}
+
+func (p *Parser) parseSQLReference() *ast.SQLReference {
+	ref := &ast.SQLReference{Token: p.curToken}
+
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+	ref.TableName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	if p.peekTokenIs(token.LPAREN) {
+		p.nextToken()
+		ref.Columns = p.parseColumnList()
+	}
+
+	return ref
+}
+
+func (p *Parser) parseSQLDropObject() *ast.SQLDropObjectStatement {
+	stmt := &ast.SQLDropObjectStatement{Token: p.curToken}
+
+	if !p.expectPeek(token.OBJECT) {
+		return nil
+	}
+
+	// IF EXISTS optionnel
+	if p.peekTokenIs(token.IF) {
+		p.nextToken() // IF
+		p.nextToken() // EXISTS
+		stmt.IfExists = true
+	}
+
+	// Nom de l'objet
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+	stmt.ObjectName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	// CASCADE optionnel
+	if p.peekTokenIs(token.CASCADE) {
+		p.nextToken()
+		stmt.Cascade = true
+	}
+
+	return stmt
+}
+
+func (p *Parser) parseSQLAlterObject() *ast.SQLAlterObjectStatement {
+	stmt := &ast.SQLAlterObjectStatement{Token: p.curToken}
+
+	if !p.expectPeek(token.OBJECT) {
+		return nil
+	}
+
+	// Nom de l'objet
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+	stmt.ObjectName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	// Actions
+	for !p.curTokenIs(token.SEMICOLON) && !p.curTokenIs(token.EOF) {
+		action := p.parseSQLAlterAction()
+		if action != nil {
+			stmt.Actions = append(stmt.Actions, action)
+		}
+		p.nextToken()
+	}
+
+	return stmt
+}
+
+func (p *Parser) parseSQLAlterAction() *ast.SQLAlterAction {
+	action := &ast.SQLAlterAction{Token: p.curToken}
+
+	switch p.curToken.Type {
+	case token.ADD:
+		action.Type = "ADD"
+		p.nextToken()
+		if p.curTokenIs(token.CONSTRAINT) {
+			action.Constraint = p.parseSQLConstraint()
+		} else {
+			action.Column = p.parseSQLColumnDefinition()
+		}
+	case token.MODIFY:
+		action.Type = "MODIFY"
+		p.nextToken()
+		action.Column = p.parseSQLColumnDefinition()
+	case token.DROP:
+		action.Type = "DROP"
+		p.nextToken()
+		if p.curTokenIs(token.CONSTRAINT) {
+			p.nextToken()
+			action.Constraint = &ast.SQLConstraint{
+				Token: p.curToken,
+				Name:  &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal},
+			}
+		} else {
+			action.ColumnName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+		}
+	}
+
+	return action
+}
+
+func (p *Parser) parseSQLInsert() *ast.SQLInsertStatement {
+	stmt := &ast.SQLInsertStatement{Token: p.curToken}
+
+	if !p.expectPeek(token.INTO) {
+		return nil
+	}
+
+	// Nom de l'objet
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+	stmt.ObjectName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	// Colonnes optionnelles
+	if p.peekTokenIs(token.LPAREN) {
+		p.nextToken()
+		stmt.Columns = p.parseColumnList()
+	}
+
+	// VALUES ou SELECT
+	if p.peekTokenIs(token.VALUES) {
+		p.nextToken()
+		stmt.Values = p.parseSQLValues()
+	} else if p.peekTokenIs(token.SELECT) {
+		p.nextToken()
+		stmt.Select = p.parseSQLSelectStatement().(*ast.SQLSelectStatement)
+	}
+
+	return stmt
+}
+
+func (p *Parser) parseSQLValues() []*ast.SQLValues {
+	var valuesList []*ast.SQLValues
+
+	for !p.curTokenIs(token.SEMICOLON) && !p.curTokenIs(token.EOF) {
+		if p.curTokenIs(token.LPAREN) {
+			values := &ast.SQLValues{Token: p.curToken}
+			p.nextToken()
+
+			for !p.curTokenIs(token.RPAREN) && !p.curTokenIs(token.EOF) {
+				expr := p.parseExpression(LOWEST)
+				if expr != nil {
+					values.Values = append(values.Values, expr)
+				}
+				if p.peekTokenIs(token.COMMA) {
+					p.nextToken()
+				}
+				p.nextToken()
+			}
+			valuesList = append(valuesList, values)
+		}
+		p.nextToken()
+	}
+
+	return valuesList
+}
+
+func (p *Parser) parseSQLUpdate() *ast.SQLUpdateStatement {
+	stmt := &ast.SQLUpdateStatement{Token: p.curToken}
+
+	// Nom de l'objet
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+	stmt.ObjectName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	if !p.expectPeek(token.SET) {
+		return nil
+	}
+
+	p.nextToken()
+
+	// Clauses SET
+	for !p.curTokenIs(token.WHERE) && !p.curTokenIs(token.SEMICOLON) && !p.curTokenIs(token.EOF) {
+		setClause := &ast.SQLSetClause{Token: p.curToken}
+		setClause.Column = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+		if !p.expectPeek(token.ASSIGN) {
+			return nil
+		}
+
+		p.nextToken()
+		setClause.Value = p.parseExpression(LOWEST)
+		stmt.Set = append(stmt.Set, setClause)
+
+		if p.peekTokenIs(token.COMMA) {
+			p.nextToken()
+		}
+		p.nextToken()
+	}
+
+	// WHERE optionnel
+	if p.curTokenIs(token.WHERE) {
+		p.nextToken()
+		stmt.Where = p.parseExpression(LOWEST)
+	}
+
+	return stmt
+}
+
+func (p *Parser) parseSQLDelete() *ast.SQLDeleteStatement {
+	stmt := &ast.SQLDeleteStatement{Token: p.curToken}
+
+	if !p.expectPeek(token.FROM) {
+		return nil
+	}
+
+	// Nom de l'objet
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+	stmt.From = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	// WHERE optionnel
+	if p.peekTokenIs(token.WHERE) {
+		p.nextToken()
+		p.nextToken()
+		stmt.Where = p.parseExpression(LOWEST)
+	}
+
+	return stmt
+}
+
+func (p *Parser) parseSQLTruncate() *ast.SQLTruncateStatement {
+	stmt := &ast.SQLTruncateStatement{Token: p.curToken}
+
+	if !p.expectPeek(token.OBJECT) {
+		return nil
+	}
+
+	// Nom de l'objet
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+	stmt.ObjectName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	return stmt
+}
+
+func (p *Parser) parseSQLCreateIndex() *ast.SQLCreateIndexStatement {
+	stmt := &ast.SQLCreateIndexStatement{Token: p.curToken}
+
+	// UNIQUE optionnel
+	if p.peekTokenIs(token.UNIQUE) {
+		p.nextToken()
+		stmt.Unique = true
+	}
+
+	if !p.expectPeek(token.INDEX) {
+		return nil
+	}
+
+	// Nom de l'index
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+	stmt.IndexName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	if !p.expectPeek(token.ON) {
+		return nil
+	}
+
+	// Nom de l'objet
+	if !p.expectPeek(token.IDENT) {
+		return nil
+	}
+	stmt.ObjectName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	if !p.expectPeek(token.LPAREN) {
+		return nil
+	}
+
+	stmt.Columns = p.parseColumnList()
+
+	return stmt
+}
+
+// Mettre à jour parseSQLSelect pour supporter les clauses avancées
+func (p *Parser) parseSQLSelectStatement() ast.Statement {
+	selectStmt := &ast.SQLSelectStatement{Token: p.curToken}
+
+	// DISTINCT optionnel
+	if p.peekTokenIs(token.DISTINCT) {
+		p.nextToken()
+		selectStmt.Distinct = true
+	}
+
+	p.nextToken()
+	selectStmt.Select = p.parseSelectList()
+
+	// FROM
+	if !p.expectPeek(token.FROM) {
+		return nil
+	}
+	p.nextToken()
+	selectStmt.From = p.parseExpression(LOWEST)
+
+	// JOINs optionnels
+	for p.peekTokenIs(token.JOIN) ||
+		(p.peekTokenIs(token.IDENT) &&
+			(p.peekToken.Literal == "INNER" || p.peekToken.Literal == "LEFT" ||
+				p.peekToken.Literal == "RIGHT" || p.peekToken.Literal == "FULL")) {
+		p.nextToken()
+		join := &ast.SQLJoin{Token: p.curToken}
+
+		if p.curTokenIs(token.IDENT) {
+			join.Type = p.curToken.Literal
+			if !p.expectPeek(token.JOIN) {
+				return nil
+			}
+			p.nextToken()
+		} else {
+			join.Type = "INNER"
+		}
+
+		join.Table = p.parseExpression(LOWEST)
+
+		if !p.expectPeek(token.ON) {
+			return nil
+		}
+		p.nextToken()
+		join.On = p.parseExpression(LOWEST)
+
+		selectStmt.Joins = append(selectStmt.Joins, join)
+	}
+
+	// WHERE optionnel
+	if p.peekTokenIs(token.WHERE) {
+		p.nextToken()
+		p.nextToken()
+		selectStmt.Where = p.parseExpression(LOWEST)
+	}
+
+	// GROUP BY optionnel
+	if p.peekTokenIs(token.GROUP) {
+		p.nextToken() // GROUP
+		if !p.expectPeek(token.BY) {
+			return nil
+		}
+		p.nextToken()
+		selectStmt.GroupBy = p.parseExpressionList(token.HAVING, token.ORDER, token.LIMIT)
+	}
+
+	// HAVING optionnel
+	if p.peekTokenIs(token.HAVING) {
+		p.nextToken()
+		p.nextToken()
+		selectStmt.Having = p.parseExpression(LOWEST)
+	}
+
+	// ORDER BY optionnel
+	if p.peekTokenIs(token.ORDER) {
+		p.nextToken() // ORDER
+		if !p.expectPeek(token.BY) {
+			return nil
+		}
+		p.nextToken()
+		selectStmt.OrderBy = p.parseOrderByList()
+	}
+
+	// LIMIT optionnel
+	if p.peekTokenIs(token.LIMIT) {
+		p.nextToken()
+		p.nextToken()
+		selectStmt.Limit = p.parseExpression(LOWEST)
+	}
+
+	// OFFSET optionnel
+	if p.peekTokenIs(token.OFFSET) {
+		p.nextToken()
+		p.nextToken()
+		selectStmt.Offset = p.parseExpression(LOWEST)
+	}
+
+	// UNION optionnel
+	if p.peekTokenIs(token.UNION) {
+		p.nextToken()
+		if p.peekTokenIs(token.ALL) {
+			p.nextToken()
+			selectStmt.UnionAll = true
+		}
+		p.nextToken()
+		selectStmt.Union = p.parseSQLSelectStatement().(*ast.SQLSelectStatement)
+	}
+
+	return selectStmt
+}
+
+func (p *Parser) parseOrderByList() []*ast.SQLOrderBy {
+	var orderByList []*ast.SQLOrderBy
+
+	orderBy := &ast.SQLOrderBy{}
+	orderBy.Expression = p.parseExpression(LOWEST)
+
+	if p.peekTokenIs(token.ASC) || p.peekTokenIs(token.DESC) {
+		p.nextToken()
+		orderBy.Direction = p.curToken.Literal
+	}
+
+	orderByList = append(orderByList, orderBy)
+
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken()
+		p.nextToken()
+
+		orderBy := &ast.SQLOrderBy{}
+		orderBy.Expression = p.parseExpression(LOWEST)
+
+		if p.peekTokenIs(token.ASC) || p.peekTokenIs(token.DESC) {
+			p.nextToken()
+			orderBy.Direction = p.curToken.Literal
+		}
+
+		orderByList = append(orderByList, orderBy)
+	}
+
+	return orderByList
+}
+
+func (p *Parser) parseExpressionList(stopTokens ...token.TokenType) []ast.Expression {
+	var expressions []ast.Expression
+
+	expressions = append(expressions, p.parseExpression(LOWEST))
+
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken()
+		p.nextToken()
+		expressions = append(expressions, p.parseExpression(LOWEST))
+	}
+
+	return expressions
+}
+
 func (p *Parser) parseSelectList() []ast.Expression {
 	var expressions []ast.Expression
 
@@ -701,3 +1388,436 @@ func (p *Parser) registerPrefix(tokenType token.TokenType, fn prefixParseFn) {
 func (p *Parser) registerInfix(tokenType token.TokenType, fn infixParseFn) {
 	p.infixParseFns[tokenType] = fn
 }
+
+func (p *Parser) parseSQLWithStatement() *SQLWithStatement {
+	stmt := &SQLWithStatement{Token: p.curToken}
+
+	// RECURSIVE optionnel
+	if p.peekTokenIs(token.RECURSIVE) {
+		p.nextToken()
+		stmt.Recursive = true
+	}
+
+	// CTEs
+	stmt.CTEs = p.parseCTEList()
+
+	// Requête principale
+	if !p.expectPeek(token.SELECT) {
+		return nil
+	}
+	p.nextToken()
+	stmt.Select = p.parseSQLSelectStatement().(*SQLSelectStatement)
+
+	return stmt
+}
+
+func (p *Parser) parseCTEList() []*SQLCommonTableExpression {
+	var ctes []*SQLCommonTableExpression
+
+	cte := p.parseCommonTableExpression()
+	if cte != nil {
+		ctes = append(ctes, cte)
+	}
+
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken()
+		p.nextToken()
+		cte = p.parseCommonTableExpression()
+		if cte != nil {
+			ctes = append(ctes, cte)
+		}
+	}
+
+	return ctes
+}
+
+func (p *Parser) parseCommonTableExpression() *SQLCommonTableExpression {
+	cte := &SQLCommonTableExpression{Token: p.curToken}
+	cte.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	// Colonnes optionnelles
+	if p.peekTokenIs(token.LPAREN) {
+		p.nextToken()
+		cte.Columns = p.parseColumnList()
+	}
+
+	if !p.expectPeek(token.AS) {
+		return nil
+	}
+
+	if !p.expectPeek(token.LPAREN) {
+		return nil
+	}
+
+	p.nextToken()
+
+	if p.curTokenIs(token.SELECT) {
+		cte.Query = p.parseSQLSelectStatement().(*SQLSelectStatement)
+	}
+
+	if !p.expectPeek(token.RPAREN) {
+		return nil
+	}
+
+	return cte
+}
+
+func (p *Parser) parseRecursiveCTE() *SQLRecursiveCTE {
+	cte := &SQLRecursiveCTE{Token: p.curToken}
+	cte.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	// Colonnes optionnelles
+	if p.peekTokenIs(token.LPAREN) {
+		p.nextToken()
+		cte.Columns = p.parseColumnList()
+	}
+
+	if !p.expectPeek(token.AS) {
+		return nil
+	}
+
+	if !p.expectPeek(token.LPAREN) {
+		return nil
+	}
+
+	p.nextToken()
+
+	// Partie anchor
+	if p.curTokenIs(token.SELECT) {
+		cte.Anchor = p.parseSQLSelectStatement().(*SQLSelectStatement)
+	}
+
+	// UNION ou UNION ALL
+	if p.peekTokenIs(token.UNION) {
+		p.nextToken()
+		if p.peekTokenIs(token.ALL) {
+			p.nextToken()
+			cte.UnionAll = true
+		}
+
+		// Partie récursive
+		p.nextToken()
+		if p.curTokenIs(token.SELECT) {
+			cte.Recursive = p.parseSQLSelectStatement().(*SQLSelectStatement)
+		}
+	}
+
+	if !p.expectPeek(token.RPAREN) {
+		return nil
+	}
+
+	return cte
+}
+
+func (p *Parser) parseWindowFunction() ast.Expression {
+	function := &SQLWindowFunction{Token: p.curToken, Name: p.curToken.Literal}
+
+	if p.peekTokenIs(token.LPAREN) {
+		p.nextToken()
+		if !p.curTokenIs(token.RPAREN) {
+			function.Arguments = p.parseExpressionList(token.RPAREN)
+		}
+		if !p.expectPeek(token.RPAREN) {
+			return nil
+		}
+	}
+
+	if p.peekTokenIs(token.OVER) {
+		p.nextToken()
+		function.Over = p.parseWindowClause()
+	}
+
+	return function
+}
+
+func (p *Parser) parseWindowClause() *SQLWindowClause {
+	clause := &SQLWindowClause{Token: p.curToken}
+
+	if !p.expectPeek(token.LPAREN) {
+		// Peut être un nom de fenêtre prédéfini
+		if p.curTokenIs(token.IDENT) {
+			clause.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+			return clause
+		}
+		return nil
+	}
+
+	p.nextToken()
+
+	// PARTITION BY optionnel
+	if p.curTokenIs(token.PARTITION) {
+		if !p.expectPeek(token.BY) {
+			return nil
+		}
+		p.nextToken()
+		clause.Partition = p.parseExpressionList(token.ORDER, token.ROWS, token.RANGE)
+	}
+
+	// ORDER BY optionnel
+	if p.curTokenIs(token.ORDER) {
+		if !p.expectPeek(token.BY) {
+			return nil
+		}
+		p.nextToken()
+		clause.OrderBy = p.parseOrderByList()
+	}
+
+	// Frame optionnel
+	if p.curTokenIs(token.ROWS) || p.curTokenIs(token.RANGE) {
+		clause.Frame = p.parseWindowFrame()
+	}
+
+	if !p.expectPeek(token.RPAREN) {
+		return nil
+	}
+
+	return clause
+}
+
+func (p *Parser) parseWindowFrame() *SQLWindowFrame {
+	frame := &SQLWindowFrame{Token: p.curToken, Type: p.curToken.Literal}
+
+	if !p.expectPeek(token.BETWEEN) {
+		return nil
+	}
+
+	p.nextToken()
+	frame.Start = p.parseWindowFrameBound()
+
+	if !p.expectPeek(token.AND) {
+		return nil
+	}
+
+	p.nextToken()
+
+	if p.curTokenIs(token.CURRENT) {
+		frame.End = &SQLWindowFrameBound{Token: p.curToken, Type: "ROW"}
+		p.nextToken() // ROW
+	} else {
+		frame.End = p.parseWindowFrameBound()
+	}
+
+	return frame
+}
+
+func (p *Parser) parseWindowFrameBound() *SQLWindowFrameBound {
+	bound := &SQLWindowFrameBound{Token: p.curToken}
+
+	if p.curTokenIs(token.UNBOUNDED) {
+		bound.Unbounded = true
+		p.nextToken()
+		bound.Type = p.curToken.Literal // PRECEDING ou FOLLOWING
+	} else if p.curTokenIs(token.CURRENT) {
+		bound.Type = "ROW"
+		p.nextToken() // ROW
+	} else {
+		// Expression numérique
+		bound.Value = p.parseExpression(LOWEST)
+		p.nextToken()
+		bound.Type = p.curToken.Literal // PRECEDING ou FOLLOWING
+	}
+
+	return bound
+}
+
+func (p *Parser) parseHierarchicalQuery() *SQLHierarchicalQuery {
+	hierarchical := &SQLHierarchicalQuery{Token: p.curToken}
+
+	// START WITH optionnel
+	if p.curTokenIs(token.START) {
+		if !p.expectPeek(token.WITH) {
+			return nil
+		}
+		p.nextToken()
+		hierarchical.StartWith = p.parseExpression(LOWEST)
+	}
+
+	// CONNECT BY
+	if p.curTokenIs(token.CONNECT) {
+		if !p.expectPeek(token.BY) {
+			return nil
+		}
+		p.nextToken()
+
+		// PRIOR optionnel
+		if p.curTokenIs(token.PRIOR) {
+			hierarchical.Prior = true
+			p.nextToken()
+		}
+
+		hierarchical.ConnectBy = p.parseExpression(LOWEST)
+	}
+
+	// NOCYCLE optionnel
+	if p.peekTokenIs(token.NOCYCLE) {
+		p.nextToken()
+		hierarchical.Nocycle = true
+	}
+
+	// ORDER SIBLINGS BY optionnel
+	if p.peekTokenIs(token.ORDER) {
+		p.nextToken()
+		if p.peekTokenIs(token.SIBLINGS) {
+			p.nextToken()
+			hierarchical.OrderSiblings = true
+		}
+	}
+
+	return hierarchical
+}
+
+// Mettre à jour parseSQLSelectStatement pour inclure les fonctionnalités récursives
+func (p *Parser) parseSQLSelectStatement() ast.Statement {
+	// Vérifier d'abord s'il y a une clause WITH
+	if p.curTokenIs(token.WITH) {
+		withStmt := p.parseSQLWithStatement()
+		selectStmt := withStmt.Select
+		selectStmt.With = withStmt
+		return selectStmt
+	}
+
+	selectStmt := &SQLSelectStatement{Token: p.curToken}
+
+	// DISTINCT optionnel
+	if p.peekTokenIs(token.DISTINCT) {
+		p.nextToken()
+		selectStmt.Distinct = true
+	}
+
+	p.nextToken()
+	selectStmt.Select = p.parseSelectList()
+
+	// FROM
+	if !p.expectPeek(token.FROM) {
+		return nil
+	}
+	p.nextToken()
+	selectStmt.From = p.parseExpression(LOWEST)
+
+	// JOINs optionnels
+	for p.peekTokenIs(token.JOIN) ||
+		(p.peekTokenIs(token.IDENT) &&
+			(p.peekToken.Literal == "INNER" || p.peekToken.Literal == "LEFT" ||
+				p.peekToken.Literal == "RIGHT" || p.peekToken.Literal == "FULL")) {
+		p.nextToken()
+		join := &SQLJoin{Token: p.curToken}
+
+		if p.curTokenIs(token.IDENT) {
+			join.Type = p.curToken.Literal
+			if !p.expectPeek(token.JOIN) {
+				return nil
+			}
+			p.nextToken()
+		} else {
+			join.Type = "INNER"
+		}
+
+		join.Table = p.parseExpression(LOWEST)
+
+		if !p.expectPeek(token.ON) {
+			return nil
+		}
+		p.nextToken()
+		join.On = p.parseExpression(LOWEST)
+
+		selectStmt.Joins = append(selectStmt.Joins, join)
+	}
+
+	// WHERE optionnel
+	if p.peekTokenIs(token.WHERE) {
+		p.nextToken()
+		p.nextToken()
+		selectStmt.Where = p.parseExpression(LOWEST)
+	}
+
+	// Clause hiérarchique CONNECT BY optionnelle
+	if p.peekTokenIs(token.CONNECT) || p.peekTokenIs(token.START) {
+		p.nextToken()
+		selectStmt.Hierarchical = p.parseHierarchicalQuery()
+	}
+
+	// GROUP BY optionnel
+	if p.peekTokenIs(token.GROUP) {
+		p.nextToken() // GROUP
+		if !p.expectPeek(token.BY) {
+			return nil
+		}
+		p.nextToken()
+		selectStmt.GroupBy = p.parseExpressionList(token.HAVING, token.ORDER, token.LIMIT, token.WINDOW)
+	}
+
+	// HAVING optionnel
+	if p.peekTokenIs(token.HAVING) {
+		p.nextToken()
+		p.nextToken()
+		selectStmt.Having = p.parseExpression(LOWEST)
+	}
+
+	// WINDOW optionnel (définitions de fenêtres nommées)
+	if p.peekTokenIs(token.WINDOW) {
+		p.nextToken()
+		selectStmt.WindowClauses = p.parseWindowDefinitions()
+	}
+
+	// ORDER BY optionnel
+	if p.peekTokenIs(token.ORDER) {
+		p.nextToken() // ORDER
+		if !p.expectPeek(token.BY) {
+			return nil
+		}
+		p.nextToken()
+		selectStmt.OrderBy = p.parseOrderByList()
+	}
+
+	// LIMIT optionnel
+	if p.peekTokenIs(token.LIMIT) {
+		p.nextToken()
+		p.nextToken()
+		selectStmt.Limit = p.parseExpression(LOWEST)
+	}
+
+	// OFFSET optionnel
+	if p.peekTokenIs(token.OFFSET) {
+		p.nextToken()
+		p.nextToken()
+		selectStmt.Offset = p.parseExpression(LOWEST)
+	}
+
+	// UNION optionnel
+	if p.peekTokenIs(token.UNION) {
+		p.nextToken()
+		if p.peekTokenIs(token.ALL) {
+			p.nextToken()
+			selectStmt.UnionAll = true
+		}
+		p.nextToken()
+		selectStmt.Union = p.parseSQLSelectStatement().(*SQLSelectStatement)
+	}
+
+	return selectStmt
+}
+
+func (p *Parser) parseWindowDefinitions() []*SQLWindowClause {
+	var windows []*SQLWindowClause
+
+	window := p.parseWindowClause()
+	if window != nil {
+		windows = append(windows, window)
+	}
+
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken()
+		p.nextToken()
+		window = p.parseWindowClause()
+		if window != nil {
+			windows = append(windows, window)
+		}
+	}
+
+	return windows
+}
+
+// // Mettre à jour registerPrefix pour les fonctions de fenêtrage
+// func (p *Parser) registerPrefix(tokenType token.TokenType, fn prefixParseFn) {
+//     p.prefixParseFns[tokenType] = fn
+// }

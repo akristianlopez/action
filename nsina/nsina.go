@@ -401,3 +401,665 @@ func isError(obj object.Object) bool {
 	}
 	return false
 }
+
+func evalSQLStatement(stmt ast.Statement, env *object.Environment) object.Object {
+	switch stmt := stmt.(type) {
+	case *ast.SQLCreateObjectStatement:
+		return evalSQLCreateObject(stmt, env)
+	case *ast.SQLDropObjectStatement:
+		return evalSQLDropObject(stmt, env)
+	case *ast.SQLAlterObjectStatement:
+		return evalSQLAlterObject(stmt, env)
+	case *ast.SQLInsertStatement:
+		return evalSQLInsert(stmt, env)
+	case *ast.SQLUpdateStatement:
+		return evalSQLUpdate(stmt, env)
+	case *ast.SQLDeleteStatement:
+		return evalSQLDelete(stmt, env)
+	case *ast.SQLTruncateStatement:
+		return evalSQLTruncate(stmt, env)
+	case *ast.SQLCreateIndexStatement:
+		return evalSQLCreateIndex(stmt, env)
+	default:
+		return newError("Instruction SQL non supportée: %T", stmt)
+	}
+}
+
+func evalSQLCreateObject(stmt *ast.SQLCreateObjectStatement, env *object.Environment) object.Object {
+	// Créer une nouvelle table/objet dans l'environnement
+	table := &object.SQLTable{
+		Name:    stmt.ObjectName.Value,
+		Columns: make(map[string]*object.SQLColumn),
+		Data:    []map[string]object.Object{},
+		Indexes: make(map[string]*object.SQLIndex),
+	}
+
+	// Traiter les définitions de colonnes
+	for _, colDef := range stmt.Columns {
+		column := &object.SQLColumn{
+			Name: colDef.Name.Value,
+			Type: colDef.DataType.Name,
+		}
+
+		// Appliquer les contraintes
+		for _, constraint := range colDef.Constraints {
+			switch constraint.Type {
+			case "PRIMARY KEY":
+				column.PrimaryKey = true
+			case "NOT NULL":
+				column.NotNull = true
+			case "UNIQUE":
+				column.Unique = true
+			case "DEFAULT":
+				column.DefaultValue = Eval(constraint.Expression, env)
+			}
+		}
+
+		table.Columns[colDef.Name.Value] = column
+	}
+
+	// Stocker la table dans l'environnement
+	env.Set(stmt.ObjectName.Value, table)
+
+	return &object.SQLResult{
+		Message:      fmt.Sprintf("OBJECT %s créé avec succès", stmt.ObjectName.Value),
+		RowsAffected: 0,
+	}
+}
+
+func evalSQLDropObject(stmt *ast.SQLDropObjectStatement, env *object.Environment) object.Object {
+	// Vérifier si l'objet existe
+	if _, ok := env.Get(stmt.ObjectName.Value); !ok {
+		if stmt.IfExists {
+			return &object.SQLResult{
+				Message:      "Aucun objet à supprimer",
+				RowsAffected: 0,
+			}
+		}
+		return newError("L'objet %s n'existe pas", stmt.ObjectName.Value)
+	}
+
+	// Supprimer l'objet de l'environnement
+	env.Set(stmt.ObjectName.Value, object.NULL)
+
+	return &object.SQLResult{
+		Message:      fmt.Sprintf("OBJECT %s supprimé avec succès", stmt.ObjectName.Value),
+		RowsAffected: 0,
+	}
+}
+
+func evalSQLAlterObject(stmt *ast.SQLAlterObjectStatement, env *object.Environment) object.Object {
+	// Récupérer l'objet existant
+	obj, ok := env.Get(stmt.ObjectName.Value)
+	if !ok {
+		return newError("L'objet %s n'existe pas", stmt.ObjectName.Value)
+	}
+
+	table, ok := obj.(*object.SQLTable)
+	if !ok {
+		return newError("%s n'est pas un OBJECT", stmt.ObjectName.Value)
+	}
+
+	// Appliquer les actions ALTER
+	for _, action := range stmt.Actions {
+		switch action.Type {
+		case "ADD":
+			if action.Column != nil {
+				// Ajouter une nouvelle colonne
+				column := &object.SQLColumn{
+					Name: action.Column.Name.Value,
+					Type: action.Column.DataType.Name,
+				}
+				table.Columns[action.Column.Name.Value] = column
+
+				// Mettre à jour les données existantes avec la valeur par défaut
+				defaultValue := getDefaultSQLValue(action.Column.DataType.Name)
+				for i := range table.Data {
+					table.Data[i][action.Column.Name.Value] = defaultValue
+				}
+			}
+		case "MODIFY":
+			// Modifier une colonne existante
+			// Implémentation simplifiée
+		case "DROP":
+			if action.ColumnName != nil {
+				// Supprimer une colonne
+				delete(table.Columns, action.ColumnName.Value)
+				for i := range table.Data {
+					delete(table.Data[i], action.ColumnName.Value)
+				}
+			}
+		}
+	}
+
+	return &object.SQLResult{
+		Message:      fmt.Sprintf("OBJECT %s modifié avec succès", stmt.ObjectName.Value),
+		RowsAffected: 0,
+	}
+}
+
+func evalSQLInsert(stmt *ast.SQLInsertStatement, env *object.Environment) object.Object {
+	// Récupérer l'objet
+	obj, ok := env.Get(stmt.ObjectName.Value)
+	if !ok {
+		return newError("L'objet %s n'existe pas", stmt.ObjectName.Value)
+	}
+
+	table, ok := obj.(*object.SQLTable)
+	if !ok {
+		return newError("%s n'est pas un OBJECT", stmt.ObjectName.Value)
+	}
+
+	rowsAffected := 0
+
+	if stmt.Select != nil {
+		// INSERT ... SELECT
+		result := Eval(stmt.Select, env).(*object.SQLResult)
+		// Implémentation de l'insertion des résultats
+		rowsAffected = len(result.Rows)
+	} else {
+		// INSERT ... VALUES
+		for _, values := range stmt.Values {
+			row := make(map[string]object.Object)
+
+			for i, value := range values.Values {
+				var colName string
+				if i < len(stmt.Columns) {
+					colName = stmt.Columns[i].Value
+				} else {
+					// Utiliser l'ordre des colonnes de la table
+					colIndex := 0
+					for name := range table.Columns {
+						if colIndex == i {
+							colName = name
+							break
+						}
+						colIndex++
+					}
+				}
+
+				evaluatedValue := Eval(value, env)
+				row[colName] = evaluatedValue
+			}
+
+			table.Data = append(table.Data, row)
+			rowsAffected++
+		}
+	}
+
+	return &object.SQLResult{
+		Message:      fmt.Sprintf("%d ligne(s) insérée(s)", rowsAffected),
+		RowsAffected: int64(rowsAffected),
+	}
+}
+
+func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object.Object {
+	obj, ok := env.Get(stmt.ObjectName.Value)
+	if !ok {
+		return newError("L'objet %s n'existe pas", stmt.ObjectName.Value)
+	}
+
+	table, ok := obj.(*object.SQLTable)
+	if !ok {
+		return newError("%s n'est pas un OBJECT", stmt.ObjectName.Value)
+	}
+
+	rowsAffected := 0
+
+	for _, row := range table.Data {
+		// Créer un environnement local pour la ligne
+		rowEnv := object.NewEnclosedEnvironment(env)
+		for colName, value := range row {
+			rowEnv.Set(colName, value)
+		}
+
+		// Évaluer la condition WHERE
+		shouldUpdate := true
+		if stmt.Where != nil {
+			condition := Eval(stmt.Where, rowEnv)
+			if isError(condition) {
+				return condition
+			}
+			shouldUpdate = isTruthy(condition)
+		}
+
+		if shouldUpdate {
+			// Appliquer les modifications SET
+			for _, setClause := range stmt.Set {
+				newValue := Eval(setClause.Value, rowEnv)
+				if isError(newValue) {
+					return newValue
+				}
+				row[setClause.Column.Value] = newValue
+			}
+			rowsAffected++
+		}
+	}
+
+	return &object.SQLResult{
+		Message:      fmt.Sprintf("%d ligne(s) modifiée(s)", rowsAffected),
+		RowsAffected: int64(rowsAffected),
+	}
+}
+
+func evalSQLDelete(stmt *ast.SQLDeleteStatement, env *object.Environment) object.Object {
+	obj, ok := env.Get(stmt.From.Value)
+	if !ok {
+		return newError("L'objet %s n'existe pas", stmt.From.Value)
+	}
+
+	table, ok := obj.(*object.SQLTable)
+	if !ok {
+		return newError("%s n'est pas un OBJECT", stmt.From.Value)
+	}
+
+	rowsAffected := 0
+	var newData []map[string]object.Object
+
+	for _, row := range table.Data {
+		// Créer un environnement local pour la ligne
+		rowEnv := object.NewEnclosedEnvironment(env)
+		for colName, value := range row {
+			rowEnv.Set(colName, value)
+		}
+
+		// Évaluer la condition WHERE
+		shouldDelete := true
+		if stmt.Where != nil {
+			condition := Eval(stmt.Where, rowEnv)
+			if isError(condition) {
+				return condition
+			}
+			shouldDelete = isTruthy(condition)
+		}
+
+		if shouldDelete {
+			rowsAffected++
+		} else {
+			newData = append(newData, row)
+		}
+	}
+
+	table.Data = newData
+
+	return &object.SQLResult{
+		Message:      fmt.Sprintf("%d ligne(s) supprimée(s)", rowsAffected),
+		RowsAffected: int64(rowsAffected),
+	}
+}
+
+func evalSQLTruncate(stmt *ast.SQLTruncateStatement, env *object.Environment) object.Object {
+	obj, ok := env.Get(stmt.ObjectName.Value)
+	if !ok {
+		return newError("L'objet %s n'existe pas", stmt.ObjectName.Value)
+	}
+
+	table, ok := obj.(*object.SQLTable)
+	if !ok {
+		return newError("%s n'est pas un OBJECT", stmt.ObjectName.Value)
+	}
+
+	rowsAffected := len(table.Data)
+	table.Data = []map[string]object.Object{}
+
+	return &object.SQLResult{
+		Message:      fmt.Sprintf("OBJECT %s vidé (%d ligne(s) supprimée(s))", stmt.ObjectName.Value, rowsAffected),
+		RowsAffected: int64(rowsAffected),
+	}
+}
+
+func evalSQLCreateIndex(stmt *ast.SQLCreateIndexStatement, env *object.Environment) object.Object {
+	obj, ok := env.Get(stmt.ObjectName.Value)
+	if !ok {
+		return newError("L'objet %s n'existe pas", stmt.ObjectName.Value)
+	}
+
+	table, ok := obj.(*object.SQLTable)
+	if !ok {
+		return newError("%s n'est pas un OBJECT", stmt.ObjectName.Value)
+	}
+
+	// Créer l'index
+	index := &object.SQLIndex{
+		Name:    stmt.IndexName.Value,
+		Columns: make([]string, len(stmt.Columns)),
+		Unique:  stmt.Unique,
+	}
+
+	for i, col := range stmt.Columns {
+		index.Columns[i] = col.Value
+	}
+
+	table.Indexes[stmt.IndexName.Value] = index
+
+	return &object.SQLResult{
+		Message:      fmt.Sprintf("INDEX %s créé avec succès", stmt.IndexName.Value),
+		RowsAffected: 0,
+	}
+}
+
+func getDefaultSQLValue(dataType string) object.Object {
+	switch dataType {
+	case "integer", "int":
+		return &object.Integer{Value: 0}
+	case "float", "numeric", "decimal":
+		return &object.Float{Value: 0.0}
+	case "varchar", "char", "text":
+		return &object.String{Value: ""}
+	case "boolean", "bool":
+		return object.FALSE
+	case "date":
+		return &object.Date{Value: time.Now()}
+	case "time", "timestamp", "datetime":
+		return &object.Time{Value: time.Now()}
+	default:
+		return object.NULL
+	}
+}
+
+func evalSQLWithStatement(stmt *ast.SQLWithStatement, env *object.Environment) object.Object {
+	// Créer un nouvel environnement pour les CTE
+	cteEnv := object.NewEnclosedEnvironment(env)
+
+	// Évaluer les CTEs
+	for _, cte := range stmt.CTEs {
+		result := evalCommonTableExpression(cte, cteEnv)
+		if isError(result) {
+			return result
+		}
+		cteEnv.Set(cte.Name.Value, result)
+	}
+
+	// Évaluer la requête principale dans l'environnement avec CTE
+	return Eval(stmt.Select, cteEnv)
+}
+
+func evalCommonTableExpression(cte *ast.SQLCommonTableExpression, env *object.Environment) object.Object {
+	// Évaluer la requête CTE
+	result := Eval(cte.Query, env)
+	if isError(result) {
+		return result
+	}
+
+	// Stocker le résultat comme table temporaire
+	if sqlResult, ok := result.(*object.SQLResult); ok {
+		table := &object.SQLTable{
+			Name:    cte.Name.Value,
+			Columns: make(map[string]*object.SQLColumn),
+			Data:    sqlResult.Rows,
+		}
+
+		// Définir les colonnes
+		for i, colName := range sqlResult.Columns {
+			if i < len(cte.Columns) {
+				colName = cte.Columns[i].Value
+			}
+			table.Columns[colName] = &object.SQLColumn{
+				Name: colName,
+				Type: "dynamic", // Type déterminé dynamiquement
+			}
+		}
+
+		return table
+	}
+
+	return newError("Le CTE doit retourner un résultat SQL")
+}
+
+func evalRecursiveCTE(cte *ast.SQLRecursiveCTE, env *object.Environment) object.Object {
+	// Évaluer la partie anchor
+	anchorResult := Eval(cte.Anchor, env)
+	if isError(anchorResult) {
+		return anchorResult
+	}
+
+	anchorTable, ok := anchorResult.(*object.SQLTable)
+	if !ok {
+		return newError("L'anchor doit retourner une table")
+	}
+
+	// Créer la table de résultat
+	resultTable := &object.SQLTable{
+		Name:    cte.Name.Value,
+		Columns: anchorTable.Columns,
+		Data:    make([]map[string]object.Object, 0),
+	}
+
+	// Ajouter les données anchor
+	resultTable.Data = append(resultTable.Data, anchorTable.Data...)
+
+	// Itération récursive
+	maxIterations := 1000 // Limite de sécurité
+	iteration := 0
+	previousCount := 0
+
+	for iteration < maxIterations {
+		// Créer un environnement avec les données actuelles
+		recursiveEnv := object.NewEnclosedEnvironment(env)
+		recursiveEnv.Set(cte.Name.Value, resultTable)
+
+		// Évaluer la partie récursive
+		recursiveResult := Eval(cte.Recursive, recursiveEnv)
+		if isError(recursiveResult) {
+			return recursiveResult
+		}
+
+		recursiveTable, ok := recursiveResult.(*object.SQLTable)
+		if !ok {
+			return newError("La partie récursive doit retourner une table")
+		}
+
+		// Vérifier si on a de nouvelles données
+		if len(recursiveTable.Data) == 0 {
+			break // Point fixe atteint
+		}
+
+		// Ajouter les nouvelles données (éviter les doublons)
+		for _, newRow := range recursiveTable.Data {
+			if !containsRow(resultTable.Data, newRow) {
+				resultTable.Data = append(resultTable.Data, newRow)
+			}
+		}
+
+		// Vérifier la convergence
+		if len(resultTable.Data) == previousCount {
+			break // Aucun nouveau row ajouté
+		}
+
+		previousCount = len(resultTable.Data)
+		iteration++
+	}
+
+	if iteration >= maxIterations {
+		return newError("Limite d'itérations récursives atteinte")
+	}
+
+	return &object.SQLResult{
+		Columns:      getColumnNames(resultTable),
+		Rows:         resultTable.Data,
+		RowsAffected: int64(len(resultTable.Data)),
+	}
+}
+
+func evalHierarchicalQuery(selectStmt *ast.SQLSelectStatement, env *object.Environment) object.Object {
+	// Récupérer la table source
+	fromResult := Eval(selectStmt.From, env)
+	if isError(fromResult) {
+		return fromResult
+	}
+
+	sourceTable, ok := fromResult.(*object.SQLTable)
+	if !ok {
+		return newError("La source doit être une table")
+	}
+
+	// Construire l'arbre hiérarchique
+	tree := buildHierarchicalTree(sourceTable, selectStmt.Hierarchical, env)
+	if isError(tree) {
+		return tree
+	}
+
+	// Parcourir l'arbre et construire le résultat
+	resultRows := traverseHierarchicalTree(tree, selectStmt, env)
+
+	return &object.SQLResult{
+		Columns:      getColumnNames(sourceTable),
+		Rows:         resultRows,
+		RowsAffected: int64(len(resultRows)),
+	}
+}
+
+func buildHierarchicalTree(table *object.SQLTable, hierarchical *ast.SQLHierarchicalQuery, env *object.Environment) object.Object {
+	// Implémentation simplifiée de la construction d'arbre
+	// Dans une implémentation réelle, cela utiliserait les clauses
+	// START WITH et CONNECT BY pour construire la hiérarchie
+
+	tree := &object.HierarchicalTree{
+		Nodes: make(map[string]*object.HierarchicalNode),
+	}
+
+	// Identifier la colonne clé et parent
+	keyColumn := "id"
+	parentColumn := "parent_id"
+
+	// Construire les nœuds
+	for i, row := range table.Data {
+		node := &object.HierarchicalNode{
+			Data:     row,
+			Level:    0,
+			Children: []*object.HierarchicalNode{},
+		}
+
+		if id, ok := row[keyColumn]; ok {
+			node.ID = id.Inspect()
+		} else {
+			node.ID = fmt.Sprintf("node_%d", i)
+		}
+
+		tree.Nodes[node.ID] = node
+	}
+
+	// Construire les relations parent-enfant
+	for _, node := range tree.Nodes {
+		if parentID, ok := node.Data[parentColumn]; ok {
+			if parentNode, exists := tree.Nodes[parentID.Inspect()]; exists {
+				parentNode.Children = append(parentNode.Children, node)
+				node.Parent = parentNode
+			}
+		} else {
+			// Nœud racine
+			tree.Roots = append(tree.Roots, node)
+		}
+	}
+
+	// Calculer les niveaux
+	for _, root := range tree.Roots {
+		calculateLevels(root, 0)
+	}
+
+	return tree
+}
+
+func calculateLevels(node *object.HierarchicalNode, level int) {
+	node.Level = level
+	for _, child := range node.Children {
+		calculateLevels(child, level+1)
+	}
+}
+
+func traverseHierarchicalTree(treeObj object.Object, selectStmt *ast.SQLSelectStatement, env *object.Environment) []map[string]object.Object {
+	tree, ok := treeObj.(*object.HierarchicalTree)
+	if !ok {
+		return []map[string]object.Object{}
+	}
+
+	var result []map[string]object.Object
+
+	// Parcours en profondeur d'abord
+	for _, root := range tree.Roots {
+		traverseNode(root, &result, selectStmt, env)
+	}
+
+	return result
+}
+
+func traverseNode(node *object.HierarchicalNode, result *[]map[string]object.Object, selectStmt *ast.SQLSelectStatement, env *object.Environment) {
+	// Ajouter le nœud courant
+	row := make(map[string]object.Object)
+	for k, v := range node.Data {
+		row[k] = v
+	}
+
+	// Ajouter les colonnes hiérarchiques
+	row["level"] = &object.Integer{Value: int64(node.Level)}
+	if node.Parent != nil {
+		if parentID, ok := node.Parent.Data["id"]; ok {
+			row["parent_id"] = parentID
+		}
+	}
+
+	*result = append(*result, row)
+
+	// Parcourir les enfants
+	for _, child := range node.Children {
+		traverseNode(child, result, selectStmt, env)
+	}
+}
+
+func evalWindowFunction(function *ast.SQLWindowFunction, env *object.Environment) object.Object {
+	// Implémentation simplifiée des fonctions de fenêtrage
+	switch function.Name {
+	case "ROW_NUMBER":
+		return evalRowNumber(function, env)
+	case "RANK":
+		return evalRank(function, env)
+	case "DENSE_RANK":
+		return evalDenseRank(function, env)
+	case "LAG":
+		return evalLag(function, env)
+	case "LEAD":
+		return evalLead(function, env)
+	default:
+		return newError("Fonction de fenêtrage non supportée: %s", function.Name)
+	}
+}
+
+func evalRowNumber(function *ast.SQLWindowFunction, env *object.Environment) object.Object {
+	// Dans une implémentation réelle, cela calculerait le numéro de ligne
+	// dans la partition et l'ordre définis
+	return &object.Integer{Value: 1}
+}
+
+// Implémentations similaires pour RANK, DENSE_RANK, LAG, LEAD...
+
+// Fonctions utilitaires
+func containsRow(rows []map[string]object.Object, row map[string]object.Object) bool {
+	for _, existingRow := range rows {
+		if rowsEqual(existingRow, row) {
+			return true
+		}
+	}
+	return false
+}
+
+func rowsEqual(row1, row2 map[string]object.Object) bool {
+	if len(row1) != len(row2) {
+		return false
+	}
+
+	for k, v1 := range row1 {
+		if v2, exists := row2[k]; !exists || v1.Inspect() != v2.Inspect() {
+			return false
+		}
+	}
+
+	return true
+}
+
+func getColumnNames(table *object.SQLTable) []string {
+	var columns []string
+	for colName := range table.Columns {
+		columns = append(columns, colName)
+	}
+	return columns
+}

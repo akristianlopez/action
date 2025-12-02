@@ -163,6 +163,7 @@ const (
 	PRIOR       = "PRIOR"
 	NOCYCLE     = "NOCYCLE"
 	SIBLINGS    = "SIBLINGS"
+	CASCADE     = "CASCADE"
 
 	// Tableaux
 	ARRAY = "ARRAY"
@@ -259,6 +260,7 @@ var keywords = map[string]TokenType{
 	"prior":    PRIOR,
 	"nocycle":  NOCYCLE,
 	"siblings": SIBLINGS,
+	"cascade":  CASCADE,
 
 	// Types SQL
 	"varchar":   VARCHAR,

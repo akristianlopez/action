@@ -1968,7 +1968,7 @@ func (p *Parser) parseTypeAnnotation() *ast.TypeAnnotation {
 // Nouvelle méthode pour gérer à la fois l'index et le slice
 func (p *Parser) parseIndexOrSliceExpression(left ast.Expression) ast.Expression {
 	// Sauvegarder la position pour vérifier si c'est un slice
-	currentPosition := p.l.ReadPosition
+	_, currentPosition := p.l.GetCursorPosition()
 
 	p.nextToken()
 
@@ -1987,13 +1987,15 @@ func (p *Parser) parseIndexOrSliceExpression(left ast.Expression) ast.Expression
 	}
 
 	// Revenir à la position originale
-	p.l.position = currentPosition
-	p.l.readPosition = currentPosition + 1
-	if p.l.readPosition >= len(p.l.input) {
-		p.l.ch = 0
-	} else {
-		p.l.ch = rune(p.l.input[p.l.readPosition-1])
-	}
+	// p.l.position = currentPosition
+	// p.l.ReadPosition = currentPosition + 1
+	// if p.l.ReadPosition >= len(p.l.Input()) {
+	// 	p.l.ch = 0
+	// } else {
+	// 	p.l.ch = rune(p.l.input[p.l.readPosition-1])
+	// }
+	p.l.SetCursorPosition(currentPosition, currentPosition+1)
+
 	p.curToken = token.Token{Type: token.LBRACKET, Literal: "["}
 
 	if isSlice {

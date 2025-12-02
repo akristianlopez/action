@@ -21,13 +21,15 @@ func (l *Lexer) GetCursorPosition() (int, int) {
 	return l.position, l.readPosition
 }
 
-func (l *Lexer) Input() string {
-	return l.input
-}
-
 func (l *Lexer) SetCursorPosition(pos, cur int) {
 	l.position = pos
 	l.readPosition = cur
+	if l.readPosition >= len(l.input) {
+		l.ch = 0
+	} else {
+		l.ch = rune(l.input[l.readPosition-1])
+	}
+
 }
 
 func New(input string) *Lexer {

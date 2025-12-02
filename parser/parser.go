@@ -211,15 +211,15 @@ func (p *Parser) parseTypeConstraints() (*ast.TypeConstraints, *ParserError) {
 		p.nextToken()
 		switch p.curToken.Type {
 		case token.LPAREN:
-			if p.peekTokenIs(token.INT_LIT) {
+			if p.peekTokenIs(token.INT_LIT) && p.curToken.Type == token.STRING {
 				p.nextToken()
 				maxDigits := &ast.IntegerLiteral{Token: p.curToken}
 				val, _ := strconv.ParseInt(p.curToken.Literal, 10, 64)
 				maxDigits.Value = val
 				constraints.MaxDigits = maxDigits
 
-				if p.peekTokenIs(token.DOT) {
-					p.nextToken() // .
+				if p.peekTokenIs(token.COMMA) { //p.peekTokenIs(token.DOT)
+					p.nextToken() // ,
 					p.nextToken() // decimal places
 					decimalPlaces := &ast.IntegerLiteral{Token: p.curToken}
 					val, _ := strconv.ParseInt(p.curToken.Literal, 10, 64)

@@ -17,6 +17,19 @@ type Lexer struct {
 	column       int
 }
 
+func (l *Lexer) GetCursorPosition() (int, int) {
+	return l.position, l.readPosition
+}
+
+func (l *Lexer) Input() string {
+	return l.input
+}
+
+func (l *Lexer) SetCursorPosition(pos, cur int) {
+	l.position = pos
+	l.readPosition = cur
+}
+
 func New(input string) *Lexer {
 	l := &Lexer{input: input, line: 1, column: 0}
 	l.readChar()

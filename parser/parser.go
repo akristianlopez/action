@@ -1673,10 +1673,11 @@ func (p *Parser) parseHierarchicalQuery() *ast.SQLHierarchicalQuery {
 func (p *Parser) parseSQLSelectStatement() ast.Statement {
 	// Vérifier d'abord s'il y a une clause WITH
 	if p.curTokenIs(token.WITH) {
+		// var selectStmt *ast.SQLSelectStatement
 		withStmt := p.parseSQLWithStatement()
 		selectStmt := withStmt.Select
 		selectStmt.With = withStmt
-		return selectStmt
+		return selectStmt //return withStmt //
 	}
 
 	selectStmt := &ast.SQLSelectStatement{Token: p.curToken}
@@ -1794,7 +1795,7 @@ func (p *Parser) parseSQLSelectStatement() ast.Statement {
 			selectStmt.UnionAll = true
 		}
 		p.nextToken()
-		selectStmt.Union = p.parseSQLSelectStatement().(*SQLSelectStatement)
+		selectStmt.Union = p.parseSQLSelectStatement().(*ast.SQLSelectStatement)
 	}
 
 	return selectStmt
@@ -1967,7 +1968,7 @@ func (p *Parser) parseTypeAnnotation() *ast.TypeAnnotation {
 // Nouvelle méthode pour gérer à la fois l'index et le slice
 func (p *Parser) parseIndexOrSliceExpression(left ast.Expression) ast.Expression {
 	// Sauvegarder la position pour vérifier si c'est un slice
-	currentPosition := p.l.position
+	currentPosition := p.l.ReadPosition
 
 	p.nextToken()
 

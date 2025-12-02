@@ -205,13 +205,14 @@ func (p *Parser) parseLetStatement() (*ast.LetStatement, *ParserError) {
 
 func (p *Parser) parseTypeConstraints() (*ast.TypeConstraints, *ParserError) {
 	constraints := &ast.TypeConstraints{}
+	tok := p.curToken.Type
 	var pe *ParserError
 
 	for p.peekTokenIs(token.LPAREN) || p.peekTokenIs(token.LBRACKET) {
 		p.nextToken()
 		switch p.curToken.Type {
 		case token.LPAREN:
-			if p.peekTokenIs(token.INT_LIT) && p.curToken.Type == token.STRING {
+			if p.peekTokenIs(token.INT_LIT) && tok != token.STRING {
 				p.nextToken()
 				maxDigits := &ast.IntegerLiteral{Token: p.curToken}
 				val, _ := strconv.ParseInt(p.curToken.Literal, 10, 64)

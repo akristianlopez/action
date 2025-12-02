@@ -15,7 +15,7 @@ type Parser struct {
 	curToken  token.Token
 	peekToken token.Token
 
-	errors []string
+	errors []ParserError
 
 	prefixParseFns map[token.TokenType]prefixParseFn
 	infixParseFns  map[token.TokenType]infixParseFn
@@ -26,10 +26,25 @@ type (
 	infixParseFn  func(ast.Expression) ast.Expression
 )
 
+type ParserError struct {
+	msg    string
+	line   int
+	column int
+}
+
+func (pe *ParserError) Message() string {
+	return pe.msg
+}
+func (pe *ParserError) Line() int   { return pe.line }
+func (pe *ParserError) Column() int { return pe.column }
+func Create(message string, line, column int) *ParserError {
+	return &ParserError{msg: message, line: line, column: column}
+}
+
 func New(l *lexer.Lexer) *Parser {
 	p := &Parser{
 		l:      l,
-		errors: []string{},
+		errors: []ParserError{},
 	}
 
 	p.prefixParseFns = make(map[token.TokenType]prefixParseFn)
@@ -97,7 +112,7 @@ func (p *Parser) ParseProgram() *ast.Program {
 
 	// Vérifier que le programme commence par 'action'
 	if !p.curTokenIs(token.ACTION) {
-		p.errors = append(p.errors, "The action must start with the word 'action'")
+		p.errors = append(p.errors, *Create("The action must start with the word 'action'", p.curToken.Line, p.curToken.Column))
 		return program
 	}
 
@@ -105,7 +120,7 @@ func (p *Parser) ParseProgram() *ast.Program {
 
 	// Lire le nom de l'action
 	if !p.curTokenIs(token.STRING_LIT) {
-		p.errors = append(p.errors, "Attendu un nom d'action après 'action'")
+		p.errors = append(p.errors, *Create("Attendu un nom d'action après 'action'", p.curToken.Line, p.curToken.Column))
 		return program
 	}
 	program.ActionName = p.curToken.Literal
@@ -114,7 +129,10 @@ func (p *Parser) ParseProgram() *ast.Program {
 
 	// Parser les déclarations jusqu'à 'start'
 	for !p.curTokenIs(token.START) && !p.curTokenIs(token.EOF) {
-		stmt := p.parseStatement()
+		stmt, pe := p.parseStatement()
+		if pe != nil {
+			p.errors = append(p.errors, *pe)
+		}
 		if stmt != nil {
 			program.Statements = append(program.Statements, stmt)
 		}
@@ -125,7 +143,10 @@ func (p *Parser) ParseProgram() *ast.Program {
 	if p.curTokenIs(token.START) {
 		p.nextToken()
 		for !p.curTokenIs(token.STOP) && !p.curTokenIs(token.EOF) {
-			stmt := p.parseStatement()
+			stmt, pe := p.parseStatement()
+			if pe != nil {
+				p.errors = append(p.errors, *pe)
+			}
 			if stmt != nil {
 				program.Statements = append(program.Statements, stmt)
 			}
@@ -136,7 +157,7 @@ func (p *Parser) ParseProgram() *ast.Program {
 	return program
 }
 
-func (p *Parser) parseStatement() ast.Statement {
+func (p *Parser) parseStatement() (ast.Statement, *ParserError) {
 	switch p.curToken.Type {
 	case token.LET:
 		return p.parseLetStatement()
@@ -153,11 +174,11 @@ func (p *Parser) parseStatement() ast.Statement {
 	}
 }
 
-func (p *Parser) parseLetStatement() *ast.LetStatement {
+func (p *Parser) parseLetStatement() (*ast.LetStatement, *ParserError) {
 	stmt := &ast.LetStatement{Token: p.curToken}
 
 	if !p.expectPeek(token.IDENT) {
-		return nil
+		return nil, Create("Identifier expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
@@ -179,11 +200,12 @@ func (p *Parser) parseLetStatement() *ast.LetStatement {
 		p.nextToken()
 	}
 
-	return stmt
+	return stmt, nil
 }
 
-func (p *Parser) parseTypeConstraints() *ast.TypeConstraints {
+func (p *Parser) parseTypeConstraints() (*ast.TypeConstraints, *ParserError) {
 	constraints := &ast.TypeConstraints{}
+	var pe *ParserError
 
 	for p.peekTokenIs(token.LPAREN) || p.peekTokenIs(token.LBRACKET) {
 		p.nextToken()
@@ -212,50 +234,56 @@ func (p *Parser) parseTypeConstraints() *ast.TypeConstraints {
 				constraints.MaxLength = maxLength
 			}
 			if !p.expectPeek(token.RPAREN) {
-				return nil
+				return nil, Create("')'", p.peekToken.Line, p.peekToken.Column)
 			}
 		case token.LBRACKET:
-			constraints.IntegerRange = p.parseRangeConstraint()
+			constraints.IntegerRange, pe = p.parseRangeConstraint()
+			if pe != nil {
+				p.errors = append(p.errors, *pe)
+			}
 			if !p.expectPeek(token.RBRACKET) {
-				return nil
+				return nil, Create("']'", p.peekToken.Line, p.peekToken.Column)
 			}
 		}
 	}
 
-	return constraints
+	return constraints, nil
 }
 
-func (p *Parser) parseRangeConstraint() *ast.RangeConstraint {
+func (p *Parser) parseRangeConstraint() (*ast.RangeConstraint, *ParserError) {
 	rc := &ast.RangeConstraint{}
 
 	p.nextToken()
 	rc.Min = p.parseExpression(LOWEST)
 
 	if !p.expectPeek(token.DOT) || !p.expectPeek(token.DOT) {
-		return nil
+		return nil, Create("'.' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	p.nextToken()
 	rc.Max = p.parseExpression(LOWEST)
 
-	return rc
+	return rc, nil
 }
 
-func (p *Parser) parseFunctionStatement() *ast.FunctionStatement {
+func (p *Parser) parseFunctionStatement() (*ast.FunctionStatement, *ParserError) {
 	stmt := &ast.FunctionStatement{Token: p.curToken}
+	var pe *ParserError
 
 	if !p.expectPeek(token.IDENT) {
-		return nil
+		return nil, Create("Identifier expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 	if !p.expectPeek(token.LPAREN) {
-		return nil
+		return nil, Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
-	stmt.Parameters = p.parseFunctionParameters()
-
+	stmt.Parameters, pe = p.parseFunctionParameters()
+	if pe != nil {
+		p.errors = append(p.errors, *pe)
+	}
 	// Type de retour optionnel
 	if p.peekTokenIs(token.COLON) {
 		p.nextToken() // :
@@ -264,20 +292,20 @@ func (p *Parser) parseFunctionStatement() *ast.FunctionStatement {
 	}
 
 	if !p.expectPeek(token.LBRACE) {
-		return nil
+		return nil, Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
-	stmt.Body = p.parseBlockStatement()
+	stmt.Body, pe = p.parseBlockStatement()
 
-	return stmt
+	return stmt, pe
 }
 
-func (p *Parser) parseFunctionParameters() []*ast.FunctionParameter {
+func (p *Parser) parseFunctionParameters() ([]*ast.FunctionParameter, *ParserError) {
 	var params []*ast.FunctionParameter
 
 	if p.peekTokenIs(token.RPAREN) {
 		p.nextToken()
-		return params
+		return params, nil
 	}
 
 	p.nextToken()
@@ -286,7 +314,7 @@ func (p *Parser) parseFunctionParameters() []*ast.FunctionParameter {
 	param.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 	if !p.expectPeek(token.COLON) {
-		return nil
+		return nil, Create("':' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	p.nextToken()
@@ -301,7 +329,7 @@ func (p *Parser) parseFunctionParameters() []*ast.FunctionParameter {
 		param.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 		if !p.expectPeek(token.COLON) {
-			return nil
+			return nil, Create("':' expected", p.peekToken.Line, p.peekToken.Column)
 		}
 
 		p.nextToken()
@@ -310,23 +338,23 @@ func (p *Parser) parseFunctionParameters() []*ast.FunctionParameter {
 	}
 
 	if !p.expectPeek(token.RPAREN) {
-		return nil
+		return nil, Create("')' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
-	return params
+	return params, nil
 }
 
-func (p *Parser) parseStructStatement() *ast.StructStatement {
+func (p *Parser) parseStructStatement() (*ast.StructStatement, *ParserError) {
 	stmt := &ast.StructStatement{Token: p.curToken}
 
 	if !p.expectPeek(token.IDENT) {
-		return nil
+		return nil, Create("Identifier expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 	if !p.expectPeek(token.LBRACE) {
-		return nil
+		return nil, Create("'{' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	p.nextToken()
@@ -337,7 +365,7 @@ func (p *Parser) parseStructStatement() *ast.StructStatement {
 		field.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 		if !p.expectPeek(token.COLON) {
-			return nil
+			return nil, Create("':' expected", p.peekToken.Line, p.peekToken.Column)
 		}
 
 		p.nextToken()
@@ -350,25 +378,38 @@ func (p *Parser) parseStructStatement() *ast.StructStatement {
 		p.nextToken()
 	}
 
-	return stmt
+	return stmt, nil
 }
 
-func (p *Parser) parseForStatement() *ast.ForStatement {
+func (p *Parser) parseForStatement() (*ast.ForStatement, *ParserError) {
 	stmt := &ast.ForStatement{Token: p.curToken}
+	var pe *ParserError
 
-	if !p.expectPeek(token.LPAREN) {
-		return nil
+	//this modification is important insofar as it allows not to oblige
+	//developper to put absolutely the parentheses when they wrote the
+	//statement for. But the brace is the one thing obligatory to show
+	//the beginning of the list of statements
+
+	// if !p.expectPeek(token.LPAREN) {
+	// 	return nil
+	// }
+
+	//check if the NextToken is '(' if true move to the next token
+	if p.expectPeek(token.LPAREN) {
+		p.nextToken()
 	}
-
 	p.nextToken()
 
 	// Initialisation
 	if !p.curTokenIs(token.SEMICOLON) {
-		stmt.Init = p.parseStatement()
+		stmt.Init, pe = p.parseStatement()
+		if pe != nil {
+			p.errors = append(p.errors, *pe)
+		}
 	}
 
 	if !p.expectPeek(token.SEMICOLON) {
-		return nil
+		return nil, Create("';' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	p.nextToken()
@@ -379,30 +420,36 @@ func (p *Parser) parseForStatement() *ast.ForStatement {
 	}
 
 	if !p.expectPeek(token.SEMICOLON) {
-		return nil
+		return nil, Create("';' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	p.nextToken()
 
 	// Update
 	if !p.curTokenIs(token.RPAREN) {
-		stmt.Update = p.parseStatement()
+		stmt.Update, pe = p.parseStatement()
+		if pe != nil {
+			p.errors = append(p.errors, *pe)
+		}
 	}
 
-	if !p.expectPeek(token.RPAREN) {
-		return nil
+	// if !p.expectPeek(token.RPAREN) {
+	// 	return nil
+	// }
+	if p.expectPeek(token.RPAREN) {
+		p.nextToken()
 	}
 
 	if !p.expectPeek(token.LBRACE) {
-		return nil
+		return nil, Create("'}' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
-	stmt.Body = p.parseBlockStatement()
+	stmt.Body, pe = p.parseBlockStatement()
 
-	return stmt
+	return stmt, pe
 }
 
-func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
+func (p *Parser) parseReturnStatement() (*ast.ReturnStatement, *ParserError) {
 	stmt := &ast.ReturnStatement{Token: p.curToken}
 
 	p.nextToken()
@@ -415,26 +462,30 @@ func (p *Parser) parseReturnStatement() *ast.ReturnStatement {
 		p.nextToken()
 	}
 
-	return stmt
+	return stmt, nil
 }
 
-func (p *Parser) parseBlockStatement() *ast.BlockStatement {
+func (p *Parser) parseBlockStatement() (*ast.BlockStatement, *ParserError) {
 	block := &ast.BlockStatement{Token: p.curToken}
+	// var pe *ParserError
 
 	p.nextToken()
 
 	for !p.curTokenIs(token.RBRACE) && !p.curTokenIs(token.EOF) {
-		stmt := p.parseStatement()
+		stmt, pe := p.parseStatement()
+		if pe != nil {
+			p.errors = append(p.errors, *pe)
+		}
 		if stmt != nil {
 			block.Statements = append(block.Statements, stmt)
 		}
 		p.nextToken()
 	}
 
-	return block
+	return block, nil
 }
 
-func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
+func (p *Parser) parseExpressionStatement() (*ast.ExpressionStatement, *ParserError) {
 	stmt := &ast.ExpressionStatement{Token: p.curToken}
 
 	stmt.Expression = p.parseExpression(LOWEST)
@@ -443,7 +494,7 @@ func (p *Parser) parseExpressionStatement() *ast.ExpressionStatement {
 		p.nextToken()
 	}
 
-	return stmt
+	return stmt, nil
 }
 
 // Les méthodes restantes pour les expressions (parseExpression, parsePrefixExpression, etc.)
@@ -491,7 +542,8 @@ func (p *Parser) parseIntegerLiteral() ast.Expression {
 
 	value, err := strconv.ParseInt(p.curToken.Literal, 10, 64)
 	if err != nil {
-		p.errors = append(p.errors, fmt.Sprintf("Impossible de parser %q comme entier", p.curToken.Literal))
+		p.errors = append(p.errors, *Create(fmt.Sprintf("Impossible de parser %q comme entier", p.curToken.Literal),
+			p.curToken.Line, p.curToken.Column))
 		return nil
 	}
 
@@ -504,7 +556,8 @@ func (p *Parser) parseFloatLiteral() ast.Expression {
 
 	value, err := strconv.ParseFloat(p.curToken.Literal, 64)
 	if err != nil {
-		p.errors = append(p.errors, fmt.Sprintf("Impossible de parser %q comme flottant", p.curToken.Literal))
+		p.errors = append(p.errors, *Create(fmt.Sprintf("Impossible de parser %q comme flottant", p.curToken.Literal),
+			p.curToken.Line, p.curToken.Column))
 		return nil
 	}
 
@@ -535,6 +588,7 @@ func (p *Parser) parseGroupedExpression() ast.Expression {
 	exp := p.parseExpression(LOWEST)
 
 	if !p.expectPeek(token.RPAREN) {
+
 		return nil
 	}
 
@@ -1338,18 +1392,18 @@ func (p *Parser) expectPeek(t token.TokenType) bool {
 	return false
 }
 
-func (p *Parser) Errors() []string {
+func (p *Parser) Errors() []ParserError {
 	return p.errors
 }
 
 func (p *Parser) peekError(t token.TokenType) {
 	msg := fmt.Sprintf("Attendu %s, got %s", t, p.peekToken.Type)
-	p.errors = append(p.errors, msg)
+	p.errors = append(p.errors, *Create(msg, p.peekToken.Line, p.peekToken.Column))
 }
 
 func (p *Parser) noPrefixParseFnError(t token.TokenType) {
 	msg := fmt.Sprintf("Aucune fonction prefix parse pour %s", t)
-	p.errors = append(p.errors, msg)
+	p.errors = append(p.errors, *Create(msg, p.peekToken.Line, p.peekToken.Column))
 }
 
 func (p *Parser) peekPrecedence() int {
@@ -1956,10 +2010,14 @@ func (p *Parser) parseTypeAnnotation() *ast.TypeAnnotation {
 	}
 
 	ta.Type = p.curToken.Literal
+	var pe *ParserError
 
 	// Vérifier les contraintes
 	if p.peekTokenIs(token.LPAREN) || p.peekTokenIs(token.LBRACKET) {
-		ta.Constraints = p.parseTypeConstraints()
+		ta.Constraints, pe = p.parseTypeConstraints()
+		if pe != nil {
+			p.errors = append(p.errors, *pe)
+		}
 	}
 
 	return ta

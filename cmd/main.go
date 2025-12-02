@@ -11,45 +11,8 @@ import (
 )
 
 func main() {
-	// if len(os.Args) < 2 {
-	// 	fmt.Println("Usage: lang <filename>")
-	// 	os.Exit(1)
-	// }
-
-	// filename := os.Args[1]
-	// input, err := ioutil.ReadFile(filename)
-	// if err != nil {
-	//     fmt.Printf("Erreur de lecture du fichier: %s\n", err)
-	//     os.Exit(1)
-	// }
-	input := exampleProgram
-	l := lexer.New(string(input))
-	p := parser.New(l)
-
-	program := p.ParseProgram()
-
-	if len(p.Errors()) != 0 {
-		fmt.Println("Erreurs de parsing:")
-		for _, msg := range p.Errors() {
-			fmt.Printf("\t%s\n", msg)
-		}
-		os.Exit(1)
-	}
-
-	env := object.NewEnvironment()
-	result := nsina.Eval(program, env)
-
-	if result != nil {
-		if result.Type() == object.ERROR_OBJ {
-			fmt.Printf("Erreur d'exécution: %s\n", result.Inspect())
-			os.Exit(1)
-		}
-		fmt.Println(result.Inspect())
-	}
-}
-
-// Exemple de programme test
-const exampleProgram = `
+	// Exemple de programme test
+	const exampleProgram = `
 (* 
  * Exemple de programme avec toutes les fonctionnalités
  *)
@@ -97,6 +60,43 @@ let a = 5; let b = 10; let c = a + b;
 
 stop
 `
+
+	// if len(os.Args) < 2 {
+	// 	fmt.Println("Usage: lang <filename>")
+	// 	os.Exit(1)
+	// }
+
+	// filename := os.Args[1]
+	// input, err := ioutil.ReadFile(filename)
+	// if err != nil {
+	//     fmt.Printf("Erreur de lecture du fichier: %s\n", err)
+	//     os.Exit(1)
+	// }
+	input := exampleProgram
+	l := lexer.New(string(input))
+	p := parser.New(l)
+
+	program := p.ParseProgram()
+
+	if len(p.Errors()) != 0 {
+		fmt.Println("Erreurs de parsing:")
+		for _, msg := range p.Errors() {
+			fmt.Printf("\t%s\n", msg)
+		}
+		os.Exit(1)
+	}
+
+	env := object.NewEnvironment()
+	result := nsina.Eval(program, env)
+
+	if result != nil {
+		if result.Type() == object.ERROR_OBJ {
+			fmt.Printf("Erreur d'exécution: %s\n", result.Inspect())
+			os.Exit(1)
+		}
+		fmt.Println(result.Inspect())
+	}
+}
 
 /*
 const exampleProgram = `

@@ -679,9 +679,6 @@ func (so *SQLOrderBy) String() string {
 	return out
 }
 
-func (ss *SQLSelectStatement) expressionNode()      {}
-func (ss *SQLSelectStatement) TokenLiteral() string { return ss.Token.Literal }
-
 // SQLJoin - clause JOIN
 type SQLJoin struct {
 	Token token.Token
@@ -998,6 +995,9 @@ func (ss *SQLSelectStatement) String() string {
 
 	return out
 }
+func (ss *SQLSelectStatement) expressionNode()      {}
+func (ss *SQLSelectStatement) TokenLiteral() string { return ss.Token.Literal }
+func (sw *SQLSelectStatement) statementNode()       {}
 
 // SQLRecursiveCTE - CTE récursif spécialisé
 type SQLRecursiveCTE struct {

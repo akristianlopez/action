@@ -45,6 +45,7 @@ func (l *Lexer) skipComment() {
 	if l.ch == '(' && l.peekChar() == '*' {
 		l.readChar()
 		l.readChar()
+		l.readComment()
 		// return l.readComment()
 	}
 	l.skipWhitespace()

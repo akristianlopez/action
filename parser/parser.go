@@ -1409,7 +1409,7 @@ func (p *Parser) parseSQLWithStatement() *ast.SQLWithStatement {
 		return nil
 	}
 	p.nextToken()
-	stmt.Select = p.parseSQLSelectStatement().(*SQLSelectStatement)
+	stmt.Select = p.parseSQLSelectStatement().(*ast.SQLSelectStatement)
 
 	return stmt
 }
@@ -1455,7 +1455,7 @@ func (p *Parser) parseCommonTableExpression() *ast.SQLCommonTableExpression {
 	p.nextToken()
 
 	if p.curTokenIs(token.SELECT) {
-		cte.Query = p.parseSQLSelectStatement().(*SQLSelectStatement)
+		cte.Query = p.parseSQLSelectStatement().(*ast.SQLSelectStatement)
 	}
 
 	if !p.expectPeek(token.RPAREN) {
@@ -1487,7 +1487,7 @@ func (p *Parser) parseRecursiveCTE() *ast.SQLRecursiveCTE {
 
 	// Partie anchor
 	if p.curTokenIs(token.SELECT) {
-		cte.Anchor = p.parseSQLSelectStatement().(*SQLSelectStatement)
+		cte.Anchor = p.parseSQLSelectStatement().(*ast.SQLSelectStatement)
 	}
 
 	// UNION ou UNION ALL
@@ -1501,7 +1501,7 @@ func (p *Parser) parseRecursiveCTE() *ast.SQLRecursiveCTE {
 		// Partie récursive
 		p.nextToken()
 		if p.curTokenIs(token.SELECT) {
-			cte.Recursive = p.parseSQLSelectStatement().(*SQLSelectStatement)
+			cte.Recursive = p.parseSQLSelectStatement().(*ast.SQLSelectStatement)
 		}
 	}
 

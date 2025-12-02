@@ -159,6 +159,10 @@ const (
 	DENSE_RANK  = "DENSE_RANK"
 	ROW_NUMBER  = "ROW_NUMBER"
 	NTILE       = "NTILE"
+	CONNECT     = "CONNECT"
+	PRIOR       = "PRIOR"
+	NOCYCLE     = "NOCYCLE"
+	SIBLINGS    = "SIBLINGS"
 
 	// Tableaux
 	ARRAY = "ARRAY"
@@ -251,6 +255,10 @@ var keywords = map[string]TokenType{
 	"or":       OR,
 	"asc":      ASC,
 	"desc":     DESC,
+	"connect":  CONNECT,
+	"prior":    PRIOR,
+	"nocycle":  NOCYCLE,
+	"siblings": SIBLINGS,
 
 	// Types SQL
 	"varchar":   VARCHAR,

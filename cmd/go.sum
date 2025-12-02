@@ -1,0 +1,16 @@
+github.com/akristianlopez/action/ast v0.0.0-20251202104846-1a25d905e47e h1:EGfa8siuxbXCfiSqmhbsCNTrIROrE0VAxWrTxj1eJEM=
+github.com/akristianlopez/action/ast v0.0.0-20251202104846-1a25d905e47e/go.mod h1:Bek0HtWaKnuFKgGC3tFcWmg9pk3Wgp+KgbNoTkResfw=
+github.com/akristianlopez/action/ast v0.0.0-20251202123734-84f5123e717b h1:TcH5DeZtyAVKzrt/1FSeEg/jZa8uFBf+Kls5aKAHFXE=
+github.com/akristianlopez/action/ast v0.0.0-20251202123734-84f5123e717b/go.mod h1:UUyCN3I0178BVaaWoLn7jZDHexuj6N0fEU0jRgMsmMU=
+github.com/akristianlopez/action/lexer v0.0.0-20251202131442-2783d7c25591 h1:6ckSFdnlf6Sp9YyhHwHdtf/UbqvYA8S3YzlmzmceWt8=
+github.com/akristianlopez/action/lexer v0.0.0-20251202131442-2783d7c25591/go.mod h1:zlNeBJV6gcb/OMoMxyauYXrXoVjDeuu+Ofu7hSuXrVE=
+github.com/akristianlopez/action/nsina v0.0.0-20251202131442-2783d7c25591 h1:+SaIcE00Jyjg/Km3KDe+6reGwMYbRJCCKvHwfEL4QfU=
+github.com/akristianlopez/action/nsina v0.0.0-20251202131442-2783d7c25591/go.mod h1:B3Ighn5qkCD4qU4QAlsxbYsPRJUKKbCkGBIOmpdVGx8=
+github.com/akristianlopez/action/object v0.0.0-20251202131442-2783d7c25591 h1:cGwArr8wrmtxtiwUs8gTDAAUjbDlb3/K1P2OO75Oxrk=
+github.com/akristianlopez/action/object v0.0.0-20251202131442-2783d7c25591/go.mod h1:93iBuY6vBfR3Jx+Qd7uH7NKs1D0pySf4ASSIDM5t+Zw=
+github.com/akristianlopez/action/parser v0.0.0-20251202131442-2783d7c25591 h1:2c7gv8cLmwcclE68505HdeGAyqnnbhZsttkNhVLvUm8=
+github.com/akristianlopez/action/parser v0.0.0-20251202131442-2783d7c25591/go.mod h1:bNG2wyCv3cw8ld0F5c6BxeD6+LD0JV8hhQ/4Ckhcb6c=
+github.com/akristianlopez/action/token v0.0.0-20251202104846-1a25d905e47e h1:MjlSkYUvS7liPKGhzaEvMlNkUcUX86KOZRVWYnrYFgo=
+github.com/akristianlopez/action/token v0.0.0-20251202104846-1a25d905e47e/go.mod h1:n7cAip7Q5h0VfgSZT3ykRIPU5D8HKnm8R2pEtrvrC9s=
+github.com/akristianlopez/action/token v0.0.0-20251202123734-84f5123e717b h1:19GZxPEGJYFWsFKXzjEFxfDXxCuM8HWMZiAGJdeljCw=
+github.com/akristianlopez/action/token v0.0.0-20251202123734-84f5123e717b/go.mod h1:n7cAip7Q5h0VfgSZT3ykRIPU5D8HKnm8R2pEtrvrC9s=

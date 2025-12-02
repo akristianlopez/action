@@ -96,8 +96,8 @@ func (p *Parser) ParseProgram() *ast.Program {
 	program := &ast.Program{}
 
 	// Vérifier que le programme commence par 'action'
-	if !p.expectPeek(token.ACTION) {
-		p.errors = append(p.errors, "Le programme doit commencer par 'action'")
+	if !p.curTokenIs(token.ACTION) {
+		p.errors = append(p.errors, "The action must start with the word 'action'")
 		return program
 	}
 

@@ -402,9 +402,13 @@ func (p *Parser) parseForStatement() (*ast.ForStatement, *ParserError) {
 
 	// Initialisation
 	if !p.curTokenIs(token.SEMICOLON) {
-		stmt.Init, pe = p.parseStatement()
+		var stm ast.Statement
+		stm, pe = p.parseStatement()
 		if pe != nil {
 			p.errors = append(p.errors, *pe)
+		}
+		if stm != nil {
+			stmt.Init = stm
 		}
 	}
 
@@ -427,10 +431,12 @@ func (p *Parser) parseForStatement() (*ast.ForStatement, *ParserError) {
 
 	// Update
 	if !p.curTokenIs(token.RPAREN) {
-		stmt.Update, pe = p.parseStatement()
+		var tp ast.Statement
+		tp, pe = p.parseStatement()
 		if pe != nil {
 			p.errors = append(p.errors, *pe)
 		}
+		stmt.Update = tp
 	}
 
 	// if !p.expectPeek(token.RPAREN) {

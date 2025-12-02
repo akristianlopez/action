@@ -1986,14 +1986,6 @@ func (p *Parser) parseIndexOrSliceExpression(left ast.Expression) ast.Expression
 		p.nextToken()
 	}
 
-	// Revenir à la position originale
-	// p.l.position = currentPosition
-	// p.l.ReadPosition = currentPosition + 1
-	// if p.l.ReadPosition >= len(p.l.Input()) {
-	// 	p.l.ch = 0
-	// } else {
-	// 	p.l.ch = rune(p.l.input[p.l.readPosition-1])
-	// }
 	p.l.SetCursorPosition(currentPosition, currentPosition+1)
 
 	p.curToken = token.Token{Type: token.LBRACKET, Literal: "["}

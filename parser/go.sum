@@ -1,0 +1,6 @@
+github.com/akristianlopez/action/ast v0.0.0-20251202123734-84f5123e717b h1:TcH5DeZtyAVKzrt/1FSeEg/jZa8uFBf+Kls5aKAHFXE=
+github.com/akristianlopez/action/ast v0.0.0-20251202123734-84f5123e717b/go.mod h1:UUyCN3I0178BVaaWoLn7jZDHexuj6N0fEU0jRgMsmMU=
+github.com/akristianlopez/action/lexer v0.0.0-20251202123734-84f5123e717b h1:I7sh3tuaAK5YcoC3MR2KZisUHM2OnLa6IxDHxH+4WsE=
+github.com/akristianlopez/action/lexer v0.0.0-20251202123734-84f5123e717b/go.mod h1:zlNeBJV6gcb/OMoMxyauYXrXoVjDeuu+Ofu7hSuXrVE=
+github.com/akristianlopez/action/token v0.0.0-20251202123734-84f5123e717b h1:19GZxPEGJYFWsFKXzjEFxfDXxCuM8HWMZiAGJdeljCw=
+github.com/akristianlopez/action/token v0.0.0-20251202123734-84f5123e717b/go.mod h1:n7cAip7Q5h0VfgSZT3ykRIPU5D8HKnm8R2pEtrvrC9s=

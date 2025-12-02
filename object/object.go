@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/akristianlopez/action/ast"
-	"github.com/akristianlopez/action/object"
 )
 
 type ObjectType string
@@ -244,48 +243,4 @@ func (a *Array) Inspect() string {
 
 	out.WriteString("]")
 	return out.String()
-}
-
-// Mettre à jour getDefaultValue pour les tableaux
-func getDefaultValue(typeName string) object.Object {
-	switch typeName {
-	// ... cas existants ...
-	case "array":
-		return &object.Array{Elements: []object.Object{}}
-	default:
-		// Vérifier si c'est un type tableau
-		if strings.HasPrefix(typeName, "array") {
-			return &object.Array{
-				Elements:    []object.Object{},
-				ElementType: extractElementType(typeName),
-			}
-		}
-		return object.NULL
-	}
-}
-
-func extractElementType(arrayType string) string {
-	// Extrait le type d'élément d'une chaîne comme "array of integer"
-	parts := strings.Split(arrayType, " of ")
-	if len(parts) > 1 {
-		return parts[1]
-	}
-	return "any"
-}
-
-// Ajouter une fonction pour créer des tableaux avec taille fixe
-func NewFixedSizeArray(size int64, elementType string) *Array {
-	elements := make([]Object, size)
-	defaultElement := getDefaultValue(elementType)
-
-	for i := range elements {
-		elements[i] = defaultElement
-	}
-
-	return &Array{
-		Elements:    elements,
-		ElementType: elementType,
-		FixedSize:   true,
-		Size:        size,
-	}
 }

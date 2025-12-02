@@ -61,6 +61,16 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return &object.ReturnValue{Value: val}
 	case *ast.SQLSelectStatement:
 		return evalSQLSelectStatement(node, env)
+	case *ast.ArrayLiteral:
+		return evalArrayLiteral(node, env)
+	case *ast.IndexExpression:
+		return evalIndexExpression(node, env)
+	case *ast.SliceExpression:
+		return evalSliceExpression(node, env)
+	case *ast.InExpression:
+		return evalInExpression(node, env)
+	case *ast.ArrayFunctionCall:
+		return evalArrayFunctionCall(node, env)
 	}
 
 	return nil
@@ -118,7 +128,16 @@ func getDefaultValue(typeName string) object.Object {
 		return &object.Time{Value: time.Now()}
 	case "date":
 		return &object.Date{Value: time.Now()}
+	case "array":
+		return &object.Array{Elements: []object.Object{}}
 	default:
+		// Vérifier si c'est un type tableau
+		if strings.HasPrefix(typeName, "array") {
+			return &object.Array{
+				Elements:    []object.Object{},
+				ElementType: extractElementType(typeName),
+			}
+		}
 		return object.NULL
 	}
 }
@@ -302,6 +321,16 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 		return &object.Boolean{Value: left == right}
 	case operator == "!=":
 		return &object.Boolean{Value: left != right}
+	case left.Type() == object.INTEGER_OBJ && right.Type() == object.INTEGER_OBJ:
+		return evalIntegerInfixExpression(operator, left, right)
+	case left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ:
+		return evalStringInfixExpression(operator, left, right)
+	case left.Type() == object.ARRAY_OBJ && right.Type() == object.ARRAY_OBJ:
+		return evalArrayInfixExpression(operator, left, right)
+	case operator == "==":
+		return &object.Boolean{Value: objectsEqual(left, right)}
+	case operator == "!=":
+		return &object.Boolean{Value: !objectsEqual(left, right)}
 	default:
 		return newError("Type mismatch: %s %s %s", left.Type(), operator, right.Type())
 	}
@@ -1031,7 +1060,29 @@ func evalRowNumber(function *ast.SQLWindowFunction, env *object.Environment) obj
 	return &object.Integer{Value: 1}
 }
 
-// Implémentations similaires pour RANK, DENSE_RANK, LAG, LEAD...
+func evalRank(function *ast.SQLWindowFunction, env *object.Environment) object.Object {
+	// Dans une implémentation réelle, cela calculerait le rank
+	// dans la partition et l'ordre définis
+	return &object.Integer{Value: 1}
+}
+
+func evalDenseRank(function *ast.SQLWindowFunction, env *object.Environment) object.Object {
+	// Dans une implémentation réelle, cela calculerait le rank
+	// dans la partition et l'ordre définis
+	return &object.Integer{Value: 1}
+}
+
+func evalLag(function *ast.SQLWindowFunction, env *object.Environment) object.Object {
+	// Dans une implémentation réelle, cela calculerait le rank
+	// dans la partition et l'ordre définis
+	return &object.Integer{Value: 1}
+}
+
+func evalLead(function *ast.SQLWindowFunction, env *object.Environment) object.Object {
+	// Dans une implémentation réelle, cela calculerait le rank
+	// dans la partition et l'ordre définis
+	return &object.Integer{Value: 1}
+}
 
 // Fonctions utilitaires
 func containsRow(rows []map[string]object.Object, row map[string]object.Object) bool {
@@ -1412,24 +1463,6 @@ func arrayRemove(arr *object.Array, index int64) object.Object {
 	return &object.Array{Elements: newElements}
 }
 
-// Mettre à jour evalInfixExpression pour supporter la concaténation de tableaux
-func evalInfixExpression(operator string, left, right object.Object) object.Object {
-	switch {
-	case left.Type() == object.INTEGER_OBJ && right.Type() == object.INTEGER_OBJ:
-		return evalIntegerInfixExpression(operator, left, right)
-	case left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ:
-		return evalStringInfixExpression(operator, left, right)
-	case left.Type() == object.ARRAY_OBJ && right.Type() == object.ARRAY_OBJ:
-		return evalArrayInfixExpression(operator, left, right)
-	case operator == "==":
-		return &object.Boolean{Value: objectsEqual(left, right)}
-	case operator == "!=":
-		return &object.Boolean{Value: !objectsEqual(left, right)}
-	default:
-		return newError("Type mismatch: %s %s %s", left.Type(), operator, right.Type())
-	}
-}
-
 func evalArrayInfixExpression(operator string, left, right object.Object) object.Object {
 	leftArray := left.(*object.Array)
 	rightArray := right.(*object.Array)
@@ -1457,44 +1490,6 @@ func evalArrayInfixExpression(operator string, left, right object.Object) object
 	}
 }
 
-// Mettre à jour Eval pour les nouvelles expressions
-func Eval(node ast.Node, env *object.Environment) object.Object {
-	switch node := node.(type) {
-	// ... cas existants ...
-
-	case *ast.ArrayLiteral:
-		return evalArrayLiteral(node, env)
-	case *ast.IndexExpression:
-		return evalIndexExpression(node, env)
-	case *ast.SliceExpression:
-		return evalSliceExpression(node, env)
-	case *ast.InExpression:
-		return evalInExpression(node, env)
-	case *ast.ArrayFunctionCall:
-		return evalArrayFunctionCall(node, env)
-	}
-
-	return nil
-}
-
-// Mettre à jour getDefaultValue pour les tableaux
-func getDefaultValue(typeName string) object.Object {
-	switch typeName {
-	// ... cas existants ...
-	case "array":
-		return &object.Array{Elements: []object.Object{}}
-	default:
-		// Vérifier si c'est un type tableau
-		if strings.HasPrefix(typeName, "array") {
-			return &object.Array{
-				Elements:    []object.Object{},
-				ElementType: extractElementType(typeName),
-			}
-		}
-		return object.NULL
-	}
-}
-
 func extractElementType(arrayType string) string {
 	// Extrait le type d'élément d'une chaîne comme "array of integer"
 	parts := strings.Split(arrayType, " of ")
@@ -1505,15 +1500,15 @@ func extractElementType(arrayType string) string {
 }
 
 // Ajouter une fonction pour créer des tableaux avec taille fixe
-func NewFixedSizeArray(size int64, elementType string) *Array {
-	elements := make([]Object, size)
+func NewFixedSizeArray(size int64, elementType string) *object.Array {
+	elements := make([]object.Object, size)
 	defaultElement := getDefaultValue(elementType)
 
 	for i := range elements {
 		elements[i] = defaultElement
 	}
 
-	return &Array{
+	return &object.Array{
 		Elements:    elements,
 		ElementType: elementType,
 		FixedSize:   true,

@@ -256,7 +256,7 @@ func (p *Parser) parseRangeConstraint() (*ast.RangeConstraint, *ParserError) {
 	p.nextToken()
 	rc.Min = p.parseExpression(LOWEST)
 
-	if !p.expectPeek(token.DOT) || !p.expectPeek(token.DOT) {
+	if !p.expectPeek(token.DOT) { //!p.expectPeek(token.DOT) ||
 		return nil, Create("'.' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 

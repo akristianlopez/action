@@ -289,13 +289,13 @@ func (p *Parser) parseFunctionStatement() (*ast.FunctionStatement, *ParserError)
 	if p.peekTokenIs(token.COLON) {
 		p.nextToken() // :
 		p.nextToken() // type
-		if !p.expectPeek(token.LBRACE) {
+		if !p.peekTokenIs(token.LBRACE) {
 			stmt.ReturnType = p.parseTypeAnnotation()
 		}
 	}
 
 	if !p.expectPeek(token.LBRACE) {
-		return nil, Create("'}' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, Create("'{' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	stmt.Body, pe = p.parseBlockStatement()

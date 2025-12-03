@@ -91,7 +91,8 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.GTE, p.parseInfixExpression)
 	p.registerInfix(token.LBRACKET, p.parseIndexOrSliceExpression)
 	p.registerInfix(token.IN, p.parseInExpression)
-	p.registerInfix(token.AS, p.parseAsExpression)
+	p.registerInfix(token.AS, p.parseInfixExpression)
+	// p.registerInfix(token.AS, p.parseAsExpression)
 
 	p.nextToken()
 	p.nextToken()

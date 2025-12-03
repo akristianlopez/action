@@ -538,8 +538,8 @@ const (
 	PRODUCT
 	PREFIX
 	CALL
-	INDEX,
-	AS,
+	INDEX
+	AS
 )
 
 func (p *Parser) parsePrefixObjectValue() ast.Expression {

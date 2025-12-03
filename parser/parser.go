@@ -404,7 +404,7 @@ func (p *Parser) parseForStatement() (*ast.ForStatement, *ParserError) {
 	// }
 
 	//check if the NextToken is '(' if true move to the next token
-	if p.expectPeek(token.LPAREN) {
+	if p.peekTokenIs(token.LPAREN) {
 		p.nextToken()
 	}
 	p.nextToken()
@@ -419,13 +419,18 @@ func (p *Parser) parseForStatement() (*ast.ForStatement, *ParserError) {
 		if stm != nil {
 			stmt.Init = stm
 		}
+		if !p.curTokenIs(token.SEMICOLON) {
+			return nil, Create("';' expected", p.peekToken.Line, p.peekToken.Column)
+		}
 	}
 
-	if !p.expectPeek(token.SEMICOLON) {
-		return nil, Create("';' expected", p.peekToken.Line, p.peekToken.Column)
+	// if !p.expectPeek(token.SEMICOLON) {
+	// 	return nil, Create("';' expected", p.peekToken.Line, p.peekToken.Column)
+	// }
+	// p.nextToken()
+	if p.curTokenIs(token.SEMICOLON) {
+		p.nextToken()
 	}
-
-	p.nextToken()
 
 	// Condition
 	if !p.curTokenIs(token.SEMICOLON) {
@@ -451,12 +456,12 @@ func (p *Parser) parseForStatement() (*ast.ForStatement, *ParserError) {
 	// if !p.expectPeek(token.RPAREN) {
 	// 	return nil
 	// }
-	if p.expectPeek(token.RPAREN) {
+	if p.peekTokenIs(token.RPAREN) {
 		p.nextToken()
 	}
 
 	if !p.expectPeek(token.LBRACE) {
-		return nil, Create("'}' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, Create("'{' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	stmt.Body, pe = p.parseBlockStatement()
@@ -507,7 +512,11 @@ func (p *Parser) parseExpressionStatement() (*ast.ExpressionStatement, *ParserEr
 	stmt := &ast.ExpressionStatement{Token: p.curToken}
 
 	stmt.Expression = p.parseExpression(LOWEST)
-
+	if p.peekTokenIs(token.ASSIGN) {
+		p.nextToken() //read =
+		p.nextToken() //read next token
+		stmt.Expression = p.parseExpression(LOWEST)
+	}
 	if p.peekTokenIs(token.SEMICOLON) {
 		p.nextToken()
 	}

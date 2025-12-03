@@ -289,11 +289,13 @@ func (p *Parser) parseFunctionStatement() (*ast.FunctionStatement, *ParserError)
 	if p.peekTokenIs(token.COLON) {
 		p.nextToken() // :
 		p.nextToken() // type
-		stmt.ReturnType = p.parseTypeAnnotation()
+		if !p.expectPeek(token.LBRACE) {
+			stmt.ReturnType = p.parseTypeAnnotation()
+		}
 	}
 
 	if !p.expectPeek(token.LBRACE) {
-		return nil, Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, Create("'}' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	stmt.Body, pe = p.parseBlockStatement()
@@ -465,9 +467,12 @@ func (p *Parser) parseReturnStatement() (*ast.ReturnStatement, *ParserError) {
 		stmt.ReturnValue = p.parseExpression(LOWEST)
 	}
 
-	if p.curTokenIs(token.SEMICOLON) {
+	if p.peekTokenIs(token.SEMICOLON) {
 		p.nextToken()
 	}
+	// if p.curTokenIs(token.SEMICOLON) {
+	// 	p.nextToken()
+	// }
 
 	return stmt, nil
 }

@@ -1491,6 +1491,7 @@ var precedences = map[token.TokenType]int{
 	token.CONCAT:   SUM,
 	token.IN:       EQUALS,
 	token.NOT:      EQUALS,
+	token.AS:       AS,
 }
 
 func (p *Parser) registerPrefix(tokenType token.TokenType, fn prefixParseFn) {

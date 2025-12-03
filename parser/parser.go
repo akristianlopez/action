@@ -185,7 +185,7 @@ func (p *Parser) parseLetStatement() (*ast.LetStatement, *ParserError) {
 
 	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
-	if !p.expectPeek(token.COLON) && !p.expectPeek(token.ASSIGN) {
+	if !p.peekTokenIs(token.COLON) && !p.peekTokenIs(token.ASSIGN) {
 		return nil, Create("type expected", p.peekToken.Line, p.peekToken.Column)
 	}
 

@@ -58,6 +58,8 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
 	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
 	p.registerPrefix(token.SELECT, p.parseSQLSelect)
+	p.registerPrefix(token.OBJECT, p.parsePrefixObjectValue)
+
 	// Enregistrer les fonctions de fenêtrage
 	p.registerPrefix(token.ROW_NUMBER, p.parseWindowFunction)
 	p.registerPrefix(token.RANK, p.parseWindowFunction)
@@ -182,6 +184,10 @@ func (p *Parser) parseLetStatement() (*ast.LetStatement, *ParserError) {
 	}
 
 	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	if !p.expectPeek(token.COLON) && !p.expectPeek(token.ASSIGN) {
+		return nil, Create("type expected", p.peekToken.Line, p.peekToken.Column)
+	}
 
 	// Vérifier s'il y a une annotation de type
 	if p.peekTokenIs(token.COLON) {
@@ -523,6 +529,13 @@ const (
 	CALL
 	INDEX
 )
+
+func (p *Parser) parsePrefixObjectValue() ast.Expression {
+	ident := &ast.Identifier{Token: p.curToken, Value: ""}
+	p.nextToken()
+	ident.Value = p.curToken.Literal
+	return ident
+}
 
 func (p *Parser) parseExpression(precedence int) ast.Expression {
 	prefix := p.prefixParseFns[p.curToken.Type]

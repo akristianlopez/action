@@ -1,6 +1,7 @@
 package lexer
 
 import (
+	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -152,7 +153,7 @@ func (l *Lexer) NextToken() token.Token {
 	default:
 		if isLetter(l.ch) {
 			tok.Literal = l.readIdentifier()
-			tok.Type = token.LookupIdent(tok.Literal)
+			tok.Type = token.LookupIdent(strings.ToLower(tok.Literal))
 			tok.Line = l.line
 			tok.Column = l.column
 			return tok

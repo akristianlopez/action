@@ -91,6 +91,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.GTE, p.parseInfixExpression)
 	p.registerInfix(token.LBRACKET, p.parseIndexOrSliceExpression)
 	p.registerInfix(token.IN, p.parseInExpression)
+	p.registerInfix(token.AS, p.parseAsExpression)
 
 	p.nextToken()
 	p.nextToken()
@@ -536,7 +537,8 @@ const (
 	PRODUCT
 	PREFIX
 	CALL
-	INDEX
+	INDEX,
+	AS,
 )
 
 func (p *Parser) parsePrefixObjectValue() ast.Expression {
@@ -568,7 +570,16 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 }
 
 func (p *Parser) parseIdentifier() ast.Expression {
-	return &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	//	return &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	tok := p.curToken
+	if p.peekToken.Type == token.DOT {
+		p.nextToken() // .
+		if p.peekToken.Type == token.IDENT {
+			p.nextToken() // ident
+			tok.Literal = fmt.Sprintf("%s.%s", tok.Literal, p.curToken.Literal)
+		}
+	}
+	return &ast.Identifier{Token: tok, Value: tok.Literal}
 }
 
 func (p *Parser) parseIntegerLiteral() ast.Expression {
@@ -1399,6 +1410,15 @@ func (p *Parser) parseSelectList() []ast.Expression {
 	}
 
 	expressions = append(expressions, p.parseExpression(LOWEST))
+	if p.curToken.Type == token.IDENT && p.peekToken.Type == token.DOT {
+		tok := p.curToken
+		tok.Literal = tok.Literal + "."
+		p.nextToken() //lecture .
+		p.nextToken() //
+		tok.Literal = tok.Literal + "." + p.curToken.Literal
+		exp := p.parseExpression(LOWEST)
+		expressions[len(expressions)-1] = exp
+	}
 
 	for p.peekTokenIs(token.COMMA) {
 		p.nextToken()
@@ -2007,6 +2027,13 @@ func (p *Parser) parseInExpression(left ast.Expression) ast.Expression {
 	p.nextToken()
 	exp.Right = p.parseExpression(LOWEST)
 
+	return exp
+}
+
+func (p *Parser) parseAsExpression(left ast.Expression) ast.Expression {
+	exp := &ast.InExpression{Token: p.curToken, Left: left}
+	p.nextToken()
+	exp.Right = p.parseExpression(LOWEST)
 	return exp
 }
 

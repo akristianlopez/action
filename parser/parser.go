@@ -270,10 +270,11 @@ func (p *Parser) parseRangeConstraint() (*ast.RangeConstraint, *ParserError) {
 	if !p.expectPeek(token.DOT) { //!p.expectPeek(token.DOT) ||
 		return nil, Create("',' expected", p.peekToken.Line, p.peekToken.Column)
 	}
+	p.nextToken()
+
 	if !p.expectPeek(token.DOT) { //!p.expectPeek(token.DOT) ||
 		return nil, Create("',' expected", p.peekToken.Line, p.peekToken.Column)
 	}
-
 	p.nextToken()
 	rc.Max = p.parseExpression(LOWEST)
 

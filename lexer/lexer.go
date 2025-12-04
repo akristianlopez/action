@@ -250,7 +250,7 @@ func (l *Lexer) readNumber() token.Token {
 		l.readChar()
 	}
 
-	if l.ch == '.' {
+	if l.ch == '.' && isDigit(l.peekChar()) {
 		tokType = token.FLOAT_LIT
 		l.readChar()
 		for isDigit(l.ch) {

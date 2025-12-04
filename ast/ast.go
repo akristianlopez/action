@@ -1162,3 +1162,72 @@ func (ta *TypeAnnotation) String() string {
 	}
 	return out
 }
+
+// SwitchStatement - Instruction switch
+type SwitchStatement struct {
+	Token       token.Token
+	Expression  Expression
+	Cases       []*SwitchCase
+	DefaultCase *BlockStatement
+}
+
+func (ss *SwitchStatement) statementNode()       {}
+func (ss *SwitchStatement) TokenLiteral() string { return ss.Token.Literal }
+func (ss *SwitchStatement) String() string {
+	out := "switch " + ss.Expression.String() + " {\n"
+	for _, caseStmt := range ss.Cases {
+		out += caseStmt.String() + "\n"
+	}
+	if ss.DefaultCase != nil {
+		out += "default:\n"
+		for _, stmt := range ss.DefaultCase.Statements {
+			out += "  " + stmt.String() + "\n"
+		}
+	}
+	out += "}"
+	return out
+}
+
+// SwitchCase - Cas d'un switch
+type SwitchCase struct {
+	Token       token.Token
+	Expressions []Expression
+	Body        *BlockStatement
+}
+
+func (sc *SwitchCase) String() string {
+	out := "case "
+	for i, expr := range sc.Expressions {
+		if i > 0 {
+			out += ", "
+		}
+		out += expr.String()
+	}
+	out += ":\n"
+	for _, stmt := range sc.Body.Statements {
+		out += "  " + stmt.String() + "\n"
+	}
+	return out
+}
+
+// BreakStatement - Instruction break
+type BreakStatement struct {
+	Token token.Token
+}
+
+func (bs *BreakStatement) statementNode()       {}
+func (bs *BreakStatement) TokenLiteral() string { return bs.Token.Literal }
+func (bs *BreakStatement) String() string {
+	return "break;"
+}
+
+// FallthroughStatement - Instruction fallthrough
+type FallthroughStatement struct {
+	Token token.Token
+}
+
+func (fs *FallthroughStatement) statementNode()       {}
+func (fs *FallthroughStatement) TokenLiteral() string { return fs.Token.Literal }
+func (fs *FallthroughStatement) String() string {
+	return "fallthrough;"
+}

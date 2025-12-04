@@ -181,6 +181,11 @@ const (
 	REMOVE   = "REMOVE"
 	SLICE    = "SLICE"
 	CONTAINS = "CONTAINS"
+
+	SWITCH      = "SWITCH"
+	CASE        = "CASE"
+	BREAK       = "BREAK"
+	FALLTHROUGH = "FALLTHROUGH"
 )
 
 var keywords = map[string]TokenType{
@@ -301,6 +306,12 @@ var keywords = map[string]TokenType{
 	"remove":      REMOVE,
 	"slice":       SLICE,
 	"contains":    CONTAINS,
+
+	// Switch statement
+	"switch":      SWITCH,
+	"case":        CASE,
+	"break":       BREAK,
+	"fallthrough": FALLTHROUGH,
 }
 
 func LookupIdent(ident string) TokenType {

@@ -17,6 +17,7 @@ const (
 	LET      = "LET"
 	FUNCTION = "FUNCTION"
 	STRUCT   = "STRUCT"
+	TYPE     = "TYPE"
 	FOR      = "FOR"
 	IF       = "IF"
 	ELSE     = "ELSE"
@@ -189,6 +190,7 @@ var keywords = map[string]TokenType{
 	"let":      LET,
 	"function": FUNCTION,
 	"struct":   STRUCT,
+	"type":     TYPE,
 	"for":      FOR,
 	"if":       IF,
 	"else":     ELSE,

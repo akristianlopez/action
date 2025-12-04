@@ -94,7 +94,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.LBRACKET, p.parseIndexOrSliceExpression)
 	p.registerInfix(token.IN, p.parseInExpression)
 	p.registerInfix(token.AS, p.parseInfixExpression)
-	// p.registerInfix(token.AS, p.parseAsExpression)
+	p.registerInfix(token.DOT, p.parseInfixExpression)
 
 	p.nextToken()
 	p.nextToken()
@@ -573,16 +573,16 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 }
 
 func (p *Parser) parseIdentifier() ast.Expression {
-	//	return &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
-	tok := p.curToken
-	if p.peekToken.Type == token.DOT {
-		p.nextToken() // .
-		if p.peekToken.Type == token.IDENT {
-			p.nextToken() // ident
-			tok.Literal = fmt.Sprintf("%s.%s", tok.Literal, p.curToken.Literal)
-		}
-	}
-	return &ast.Identifier{Token: tok, Value: tok.Literal}
+	return &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	// tok := p.curToken
+	// if p.peekToken.Type == token.DOT {
+	// 	p.nextToken() // .
+	// 	if p.peekToken.Type == token.IDENT {
+	// 		p.nextToken() // ident
+	// 		tok.Literal = fmt.Sprintf("%s.%s", tok.Literal, p.curToken.Literal)
+	// 	}
+	// }
+	// return &ast.Identifier{Token: tok, Value: tok.Literal}
 }
 
 func (p *Parser) parseIntegerLiteral() ast.Expression {

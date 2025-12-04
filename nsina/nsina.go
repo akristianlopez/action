@@ -71,6 +71,12 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalInExpression(node, env)
 	case *ast.ArrayFunctionCall:
 		return evalArrayFunctionCall(node, env)
+	case *ast.SwitchStatement:
+		return evalSwitchStatement(node, env)
+	case *ast.BreakStatement:
+		return evalBreakStatement(node, env)
+	case *ast.FallthroughStatement:
+		return evalFallthroughStatement(node, env)
 	}
 
 	return nil
@@ -174,7 +180,11 @@ func evalBlockStatement(block *ast.BlockStatement, env *object.Environment) obje
 
 		if result != nil {
 			rt := result.Type()
-			if rt == object.RETURN_VALUE_OBJ || rt == object.ERROR_OBJ {
+
+			// Gérer break, continue, fallthrough dans les blocs
+			if rt == object.BREAK_OBJ || rt == object.FALLTHROUGH_OBJ ||
+				rt == object.CONTINUE_OBJ || rt == object.RETURN_VALUE_OBJ ||
+				rt == object.ERROR_OBJ {
 				return result
 			}
 		}
@@ -184,9 +194,11 @@ func evalBlockStatement(block *ast.BlockStatement, env *object.Environment) obje
 }
 
 func evalForStatement(forStmt *ast.ForStatement, env *object.Environment) object.Object {
-	// Évaluer l'initialisation
 	if forStmt.Init != nil {
-		Eval(forStmt.Init, env)
+		initResult := Eval(forStmt.Init, env)
+		if isError(initResult) {
+			return initResult
+		}
 	}
 
 	for {
@@ -203,16 +215,32 @@ func evalForStatement(forStmt *ast.ForStatement, env *object.Environment) object
 		}
 
 		// Évaluer le corps
-		result := Eval(forStmt.Body, env)
+		result := evalForBody(forStmt.Body, env)
+
 		if result != nil {
-			if result.Type() == object.RETURN_VALUE_OBJ || result.Type() == object.ERROR_OBJ {
+			rt := result.Type()
+
+			if rt == object.BREAK_OBJ {
+				break
+			}
+
+			if rt == object.CONTINUE_OBJ {
+				// Continue passe à l'itération suivante
+				goto update
+			}
+
+			if rt == object.RETURN_VALUE_OBJ || rt == object.ERROR_OBJ {
 				return result
 			}
 		}
 
+	update:
 		// Évaluer l'update
 		if forStmt.Update != nil {
-			Eval(forStmt.Update, env)
+			updateResult := Eval(forStmt.Update, env)
+			if isError(updateResult) {
+				return updateResult
+			}
 		}
 	}
 
@@ -1514,4 +1542,126 @@ func NewFixedSizeArray(size int64, elementType string) *object.Array {
 		FixedSize:   true,
 		Size:        size,
 	}
+}
+func evalSwitchStatement(node *ast.SwitchStatement, env *object.Environment) object.Object {
+	// Évaluer l'expression du switch
+	switchValue := Eval(node.Expression, env)
+	if isError(switchValue) {
+		return switchValue
+	}
+
+	var result object.Object
+	matched := false
+
+	// Vérifier chaque case
+	for _, caseStmt := range node.Cases {
+		if !matched {
+			// Vérifier si l'une des expressions du case correspond
+			for _, caseExpr := range caseStmt.Expressions {
+				caseValue := Eval(caseExpr, env)
+				if isError(caseValue) {
+					return caseValue
+				}
+
+				// Comparer les valeurs
+				if objectsEqual(switchValue, caseValue) {
+					matched = true
+					result = evalSwitchCaseBody(caseStmt.Body, env)
+					if isError(result) || isBreakOrReturn(result) {
+						return cleanReturn(result)
+					}
+					break
+				}
+			}
+		}
+	}
+
+	// Si aucun case ne correspond, exécuter le default
+	if !matched && node.DefaultCase != nil {
+		result = evalBlockStatement(node.DefaultCase, env)
+		if isError(result) {
+			return result
+		}
+	}
+
+	if result == nil {
+		return object.NULL
+	}
+
+	return result
+}
+
+func evalSwitchCaseBody(body *ast.BlockStatement, env *object.Environment) object.Object {
+	var result object.Object
+
+	for _, stmt := range body.Statements {
+		result = Eval(stmt, env)
+
+		if result != nil {
+			rt := result.Type()
+
+			// Si on rencontre un break, on sort du switch
+			if rt == object.BREAK_OBJ {
+				return object.NULL
+			}
+
+			// Si on rencontre un return ou une erreur, on propage
+			if rt == object.RETURN_VALUE_OBJ || rt == object.ERROR_OBJ {
+				return result
+			}
+
+			// Si on rencontre un fallthrough, on continue au case suivant
+			if rt == object.FALLTHROUGH_OBJ {
+				// fallthrough se comporte comme si on n'avait pas de break
+				// mais continue à vérifier les cases suivants
+				return &object.Fallthrough{Value: true}
+			}
+		}
+	}
+
+	return result
+}
+
+func evalBreakStatement(node *ast.BreakStatement, env *object.Environment) object.Object {
+	return &object.Break{}
+}
+
+func evalFallthroughStatement(node *ast.FallthroughStatement, env *object.Environment) object.Object {
+	return &object.Fallthrough{Value: true}
+}
+
+// Fonctions utilitaires
+func isBreakOrReturn(obj object.Object) bool {
+	if obj == nil {
+		return false
+	}
+	rt := obj.Type()
+	return rt == object.BREAK_OBJ || rt == object.RETURN_VALUE_OBJ
+}
+
+func cleanReturn(obj object.Object) object.Object {
+	if obj != nil && obj.Type() == object.BREAK_OBJ {
+		return object.NULL
+	}
+	return obj
+}
+
+func evalForBody(body *ast.BlockStatement, env *object.Environment) object.Object {
+	var result object.Object
+
+	for _, statement := range body.Statements {
+		result = Eval(statement, env)
+
+		if result != nil {
+			rt := result.Type()
+
+			// Gérer les instructions de contrôle de flux
+			if rt == object.BREAK_OBJ || rt == object.CONTINUE_OBJ ||
+				rt == object.RETURN_VALUE_OBJ || rt == object.ERROR_OBJ {
+				return result
+			}
+		}
+	}
+
+	return result
 }

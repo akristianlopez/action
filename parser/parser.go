@@ -542,6 +542,7 @@ const (
 	CALL
 	INDEX
 	AS
+	DOT
 )
 
 func (p *Parser) parsePrefixObjectValue() ast.Expression {
@@ -1494,6 +1495,7 @@ var precedences = map[token.TokenType]int{
 	token.IN:       EQUALS,
 	token.NOT:      EQUALS,
 	token.AS:       AS,
+	token.DOT:      DOT,
 }
 
 func (p *Parser) registerPrefix(tokenType token.TokenType, fn prefixParseFn) {

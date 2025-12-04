@@ -24,6 +24,9 @@ const (
 	STRUCT_OBJ       = "STRUCT"
 	SQL_RESULT_OBJ   = "SQL_RESULT"
 	ARRAY_OBJ        = "ARRAY"
+	BREAK_OBJ        = "BREAK"
+	FALLTHROUGH_OBJ  = "FALLTHROUGH"
+	CONTINUE_OBJ     = "CONTINUE"
 )
 
 type Object interface {
@@ -244,3 +247,22 @@ func (a *Array) Inspect() string {
 	out.WriteString("]")
 	return out.String()
 }
+
+type Break struct{}
+
+func (b *Break) Type() ObjectType { return BREAK_OBJ }
+func (b *Break) Inspect() string  { return "break" }
+
+// Fallthrough - Type fallthrough
+type Fallthrough struct {
+	Value bool
+}
+
+func (f *Fallthrough) Type() ObjectType { return FALLTHROUGH_OBJ }
+func (f *Fallthrough) Inspect() string  { return "fallthrough" }
+
+// Continue - Type continue (pour les boucles)
+type Continue struct{}
+
+func (c *Continue) Type() ObjectType { return CONTINUE_OBJ }
+func (c *Continue) Inspect() string  { return "continue" }

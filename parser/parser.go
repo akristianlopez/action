@@ -21,6 +21,8 @@ type Parser struct {
 	infixParseFns  map[token.TokenType]infixParseFn
 }
 
+var _position, _currentPosition int
+
 type (
 	prefixParseFn func() ast.Expression
 	infixParseFn  func(ast.Expression) ast.Expression
@@ -135,7 +137,7 @@ func (p *Parser) ParseProgram() *ast.Program {
 
 	// Parser les déclarations jusqu'à 'start'
 	for !p.curTokenIs(token.START) && !p.curTokenIs(token.EOF) {
-		stmt, pe := p.parseStatement()
+		stmt, pe := p.parseStatement(false)
 		if pe != nil {
 			p.errors = append(p.errors, *pe)
 		}
@@ -149,7 +151,7 @@ func (p *Parser) ParseProgram() *ast.Program {
 	if p.curTokenIs(token.START) {
 		p.nextToken()
 		for !p.curTokenIs(token.STOP) && !p.curTokenIs(token.EOF) {
-			stmt, pe := p.parseStatement()
+			stmt, pe := p.parseStatement(true)
 			if pe != nil {
 				p.errors = append(p.errors, *pe)
 			}
@@ -162,26 +164,81 @@ func (p *Parser) ParseProgram() *ast.Program {
 
 	return program
 }
+func (p *Parser) parseStmStartSection() (ast.Statement, *ParserError) {
+	switch p.curToken.Type {
+	case token.FOR:
+		return p.parseForStatement()
+	case token.RETURN:
+		return p.parseReturnStatement()
+	case token.CREATE:
+		if p.peekTokenIs(token.OBJECT) {
+			return p.parseSQLCreateObject()
+		} else if p.peekTokenIs(token.INDEX) {
+			return p.parseSQLCreateIndex()
+		}
+	case token.DROP:
+		if p.peekTokenIs(token.OBJECT) {
+			return p.parseSQLDropObject()
+		}
+		return nil, Create("token 'object' is missing", p.peekToken.Line, p.peekToken.Column)
+	case token.ALTER:
+		if p.peekTokenIs(token.OBJECT) {
+			return p.parseSQLAlterObject()
+		}
+		return nil, Create("token 'object' is missing", p.peekToken.Line, p.peekToken.Column)
+	case token.INSERT:
+		return p.parseSQLInsert()
+	case token.UPDATE:
+		return p.parseSQLUpdate()
+	case token.DELETE:
+		return p.parseSQLDelete()
+	case token.TRUNCATE:
+		if p.peekTokenIs(token.OBJECT) {
+			return p.parseSQLTruncate()
+		}
+		return nil, Create("token 'object' is missing", p.peekToken.Line, p.peekToken.Column)
+	case token.SELECT:
+		return p.parseSQLSelectStatement()
+	case token.LET:
+		return p.parseLetStatement()
+	case token.SWITCH:
+		return p.parseSwitchStatement()
+	case token.BREAK:
+		return p.parseBreakStatement()
+	case token.FALLTHROUGH:
+		return p.parseFallthroughStatement()
+	default:
+		return p.parseExpressionStatement()
+	}
+	return nil, Create(fmt.Sprintf("'%s' is not expected", p.curToken.Type), p.curToken.Line, p.curToken.Column)
+}
 
-func (p *Parser) parseStatement() (ast.Statement, *ParserError) {
+func (p *Parser) parseStmDeclarationSection() (ast.Statement, *ParserError) {
 	switch p.curToken.Type {
 	case token.LET:
 		return p.parseLetStatement()
 	case token.FUNCTION:
 		return p.parseFunctionStatement()
-	case token.STRUCT:
+	case token.TYPE:
 		return p.parseStructStatement()
-	case token.FOR:
-		return p.parseForStatement()
-	case token.RETURN:
-		return p.parseReturnStatement()
-	case token.CREATE, token.DROP, token.ALTER,
-		token.INSERT, token.UPDATE, token.DELETE,
-		token.TRUNCATE, token.SELECT:
-		return p.parseSQLStatement()
-	default:
-		return p.parseExpressionStatement()
 	}
+	return nil, Create(fmt.Sprintf("'%s' is not expected", p.curToken.Type), p.curToken.Line, p.curToken.Column)
+}
+func (p *Parser) parseStatement(startSts bool) (ast.Statement, *ParserError) {
+	if startSts {
+		return p.parseStmStartSection()
+	}
+	return p.parseStmDeclarationSection()
+	// switch p.curToken.Type {
+	// case token.LET:
+	// 	return p.parseLetStatement()
+	// case token.FUNCTION:
+	// 	return p.parseFunctionStatement()
+	// case token.TYPE:
+	// 	return p.parseStructStatement()
+	// default:
+	// 	return p.parseStmStartSection()
+	// }
 }
 
 func (p *Parser) parseLetStatement() (*ast.LetStatement, *ParserError) {
@@ -375,6 +432,10 @@ func (p *Parser) parseStructStatement() (*ast.StructStatement, *ParserError) {
 
 	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
+	if !p.expectPeek(token.STRUCT) {
+		return nil, Create("token 'struc' expected", p.peekToken.Line, p.peekToken.Column)
+	}
+
 	if !p.expectPeek(token.LBRACE) {
 		return nil, Create("'{' expected", p.peekToken.Line, p.peekToken.Column)
 	}
@@ -425,7 +486,7 @@ func (p *Parser) parseForStatement() (*ast.ForStatement, *ParserError) {
 	// Initialisation
 	if !p.curTokenIs(token.SEMICOLON) {
 		var stm ast.Statement
-		stm, pe = p.parseStatement()
+		stm, pe = p.parseStatement(true)
 		if pe != nil {
 			p.errors = append(p.errors, *pe)
 		}
@@ -459,7 +520,7 @@ func (p *Parser) parseForStatement() (*ast.ForStatement, *ParserError) {
 	// Update
 	if !p.curTokenIs(token.RPAREN) {
 		var tp ast.Statement
-		tp, pe = p.parseStatement()
+		tp, pe = p.parseStatement(true)
 		if pe != nil {
 			p.errors = append(p.errors, *pe)
 		}
@@ -508,7 +569,7 @@ func (p *Parser) parseBlockStatement() (*ast.BlockStatement, *ParserError) {
 	p.nextToken()
 
 	for !p.curTokenIs(token.RBRACE) && !p.curTokenIs(token.EOF) {
-		stmt, pe := p.parseStatement()
+		stmt, pe := p.parseStatement(true)
 		if pe != nil {
 			p.errors = append(p.errors, *pe)
 		}
@@ -530,6 +591,138 @@ func (p *Parser) parseExpressionStatement() (*ast.ExpressionStatement, *ParserEr
 		p.nextToken() //read next token
 		stmt.Expression = p.parseExpression(LOWEST)
 	}
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return stmt, nil
+}
+
+func (p *Parser) parseSwitchStatement() (*ast.SwitchStatement, *ParserError) {
+	stmt := &ast.SwitchStatement{Token: p.curToken}
+
+	// Expression du switch
+	if !p.expectPeek(token.LPAREN) {
+		return nil, Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
+	}
+
+	p.nextToken()
+	stmt.Expression = p.parseExpression(LOWEST)
+
+	if !p.expectPeek(token.RPAREN) {
+		return nil, Create("')' expected", p.peekToken.Line, p.peekToken.Column)
+	}
+
+	if !p.expectPeek(token.LBRACE) {
+		return nil, Create("'{' expected", p.peekToken.Line, p.peekToken.Column)
+	}
+
+	p.nextToken()
+
+	// Parser les cases et le default
+	for !p.curTokenIs(token.RBRACE) && !p.curTokenIs(token.EOF) {
+		switch p.curToken.Type {
+		case token.CASE:
+			caseStmt := p.parseSwitchCase()
+			if caseStmt != nil {
+				stmt.Cases = append(stmt.Cases, caseStmt)
+			}
+		case token.DEFAULT:
+			if stmt.DefaultCase != nil {
+				// p.errors = append(p.errors, "Multiple default cases in switch")
+				return nil, Create("Multiple default cases in switch", p.peekToken.Line, p.peekToken.Column)
+			}
+			stmt.DefaultCase = p.parseDefaultCase()
+		default:
+			// p.errors = append(p.errors, fmt.Sprintf("Unexpected token in switch: %s", p.curToken.Type))
+			return nil, Create(fmt.Sprintf("Unexpected token in switch: %s", p.curToken.Type), p.peekToken.Line, p.peekToken.Column)
+		}
+		p.nextToken()
+	}
+
+	return stmt, nil
+}
+
+func (p *Parser) parseSwitchCase() *ast.SwitchCase {
+	caseStmt := &ast.SwitchCase{Token: p.curToken}
+
+	p.nextToken()
+
+	// Parser les expressions du case (peut être multiple avec virgule)
+	caseStmt.Expressions = append(caseStmt.Expressions, p.parseExpression(LOWEST))
+
+	for p.peekTokenIs(token.COMMA) {
+		p.nextToken() // ,
+		p.nextToken()
+		caseStmt.Expressions = append(caseStmt.Expressions, p.parseExpression(LOWEST))
+	}
+
+	if !p.expectPeek(token.COLON) {
+		return nil
+	}
+
+	p.nextToken()
+
+	// Parser le body du case
+	caseStmt.Body = &ast.BlockStatement{Token: p.curToken}
+
+	for !p.curTokenIs(token.CASE) && !p.curTokenIs(token.DEFAULT) &&
+		!p.curTokenIs(token.RBRACE) && !p.curTokenIs(token.EOF) {
+		stmt, pe := p.parseStatement(true)
+		p.addError(pe)
+		if stmt != nil {
+			caseStmt.Body.Statements = append(caseStmt.Body.Statements, stmt)
+		}
+		p.nextToken()
+	}
+	_position, _currentPosition = p.l.GetCursorPosition()
+	// Revenir d'un token car on a avancé trop loin
+	_currentPosition -= len(p.curToken.Literal)
+	p.l.SetCursorPosition(_currentPosition, _currentPosition)
+	return caseStmt
+}
+
+func (p *Parser) parseDefaultCase() *ast.BlockStatement {
+	if !p.expectPeek(token.COLON) {
+		return nil
+	}
+
+	block := &ast.BlockStatement{Token: p.curToken}
+	p.nextToken()
+
+	for !p.curTokenIs(token.CASE) && !p.curTokenIs(token.DEFAULT) &&
+		!p.curTokenIs(token.RBRACE) && !p.curTokenIs(token.EOF) {
+		stmt, pe := p.parseStatement(true)
+		p.addError(pe)
+		if stmt != nil {
+			block.Statements = append(block.Statements, stmt)
+		}
+		p.nextToken()
+	}
+
+	// Revenir d'un token car on a avancé trop loin
+	_position, _currentPosition = p.l.GetCursorPosition()
+	if !p.curTokenIs(token.RBRACE) {
+		_currentPosition -= len(p.curToken.Literal)
+		p.l.SetCursorPosition(_currentPosition, _currentPosition)
+	}
+
+	return block
+}
+
+func (p *Parser) parseBreakStatement() (*ast.BreakStatement, *ParserError) {
+	stmt := &ast.BreakStatement{Token: p.curToken}
+
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return stmt, nil
+}
+
+func (p *Parser) parseFallthroughStatement() (*ast.FallthroughStatement, *ParserError) {
+	stmt := &ast.FallthroughStatement{Token: p.curToken}
+
 	if p.peekTokenIs(token.SEMICOLON) {
 		p.nextToken()
 	}
@@ -733,37 +926,37 @@ func (p *Parser) parseSQLSelect() ast.Expression {
 	return selectStmt
 }
 
-func (p *Parser) parseSQLStatement() (ast.Statement, *ParserError) {
-	switch p.curToken.Type {
-	case token.CREATE:
-		if p.peekTokenIs(token.OBJECT) {
-			return p.parseSQLCreateObject()
-		} else if p.peekTokenIs(token.INDEX) {
-			return p.parseSQLCreateIndex()
-		}
-	case token.DROP:
-		if p.peekTokenIs(token.OBJECT) {
-			return p.parseSQLDropObject()
-		}
-	case token.ALTER:
-		if p.peekTokenIs(token.OBJECT) {
-			return p.parseSQLAlterObject()
-		}
-	case token.INSERT:
-		return p.parseSQLInsert()
-	case token.UPDATE:
-		return p.parseSQLUpdate()
-	case token.DELETE:
-		return p.parseSQLDelete()
-	case token.TRUNCATE:
-		if p.peekTokenIs(token.OBJECT) {
-			return p.parseSQLTruncate()
-		}
-	case token.SELECT:
-		return p.parseSQLSelectStatement()
-	}
-	return nil, Create("Invalid SQL statement", p.curToken.Line, p.curToken.Column)
-}
+// func (p *Parser) parseSQLStatement() (ast.Statement, *ParserError) {
+// 	switch p.curToken.Type {
+// 	case token.CREATE:
+// 		if p.peekTokenIs(token.OBJECT) {
+// 			return p.parseSQLCreateObject()
+// 		} else if p.peekTokenIs(token.INDEX) {
+// 			return p.parseSQLCreateIndex()
+// 		}
+// 	case token.DROP:
+// 		if p.peekTokenIs(token.OBJECT) {
+// 			return p.parseSQLDropObject()
+// 		}
+// 	case token.ALTER:
+// 		if p.peekTokenIs(token.OBJECT) {
+// 			return p.parseSQLAlterObject()
+// 		}
+// 	case token.INSERT:
+// 		return p.parseSQLInsert()
+// 	case token.UPDATE:
+// 		return p.parseSQLUpdate()
+// 	case token.DELETE:
+// 		return p.parseSQLDelete()
+// 	case token.TRUNCATE:
+// 		if p.peekTokenIs(token.OBJECT) {
+// 			return p.parseSQLTruncate()
+// 		}
+// 	case token.SELECT:
+// 		return p.parseSQLSelectStatement()
+// 	}
+// 	return nil, Create("Invalid SQL statement", p.curToken.Line, p.curToken.Column)
+// }
 
 func (p *Parser) parseSQLCreateObject() (*ast.SQLCreateObjectStatement, *ParserError) {
 	stmt := &ast.SQLCreateObjectStatement{Token: p.curToken}
@@ -2127,7 +2320,7 @@ func (p *Parser) parseTypeAnnotation() *ast.TypeAnnotation {
 // Nouvelle méthode pour gérer à la fois l'index et le slice
 func (p *Parser) parseIndexOrSliceExpression(left ast.Expression) ast.Expression {
 	// Sauvegarder la position pour vérifier si c'est un slice
-	_, currentPosition := p.l.GetCursorPosition()
+	position, currentPosition := p.l.GetCursorPosition()
 
 	p.nextToken()
 

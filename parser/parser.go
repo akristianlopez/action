@@ -268,7 +268,10 @@ func (p *Parser) parseRangeConstraint() (*ast.RangeConstraint, *ParserError) {
 	rc.Min = p.parseExpression(LOWEST)
 
 	if !p.expectPeek(token.DOT) { //!p.expectPeek(token.DOT) ||
-		return nil, Create("'.' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, Create("',' expected", p.peekToken.Line, p.peekToken.Column)
+	}
+	if !p.expectPeek(token.DOT) { //!p.expectPeek(token.DOT) ||
+		return nil, Create("',' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	p.nextToken()
@@ -1391,7 +1394,6 @@ func (p *Parser) parseExpressionList(stopTokens ...token.TokenType) []ast.Expres
 	var expressions []ast.Expression
 
 	expressions = append(expressions, p.parseExpression(LOWEST))
-
 	for p.peekTokenIs(token.COMMA) {
 		p.nextToken()
 		p.nextToken()
@@ -1414,16 +1416,6 @@ func (p *Parser) parseSelectList() []ast.Expression {
 	}
 
 	expressions = append(expressions, p.parseExpression(LOWEST))
-	if p.curToken.Type == token.IDENT && p.peekToken.Type == token.DOT {
-		tok := p.curToken
-		tok.Literal = tok.Literal + "."
-		p.nextToken() //lecture .
-		p.nextToken() //
-		tok.Literal = tok.Literal + "." + p.curToken.Literal
-		exp := p.parseExpression(LOWEST)
-		expressions[len(expressions)-1] = exp
-	}
-
 	for p.peekTokenIs(token.COMMA) {
 		p.nextToken()
 		p.nextToken()

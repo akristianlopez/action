@@ -49,10 +49,10 @@ for let i = 0; i < 10; i = i + 1 {
 let résultats = SELECT e.nom, e.salaire 
                 FROM employés AS e 
                 WHERE e.salaire > 50000 
-                AND e.actif = true;
+                AND e.actif == true;
 
 (* Traitement avec date et time *)
-let aujourdhui = #2024-01-15#;
+let aujourdhui =#2024-01-15#;
 let maintenant = #14:30:00#;
 
 (* Instructions multiples sur une ligne *)
@@ -81,7 +81,7 @@ stop
 	if len(p.Errors()) != 0 {
 		fmt.Println("Erreurs de parsing:")
 		for _, msg := range p.Errors() {
-			fmt.Printf("\t%s\n", msg)
+			fmt.Printf("\n\t%s line:%d, column:%d", msg.Message(), msg.Line(), msg.Column())
 		}
 		os.Exit(1)
 	}

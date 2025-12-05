@@ -140,6 +140,8 @@ const (
 	DECIMAL   = "DECIMAL"
 	TIMESTAMP = "TIMESTAMP"
 	DATETIME  = "DATETIME"
+	TEXT      = "TEXT"
+	JSON      = "JSON"
 
 	// SQL récursif
 	WITH        = "WITH"
@@ -280,6 +282,8 @@ var keywords = map[string]TokenType{
 	"decimal":   DECIMAL,
 	"timestamp": TIMESTAMP,
 	"datetime":  DATETIME,
+	"text":      TEXT,
+	"json":      JSON,
 
 	// SQL récursif et analytique
 	"with":        WITH,

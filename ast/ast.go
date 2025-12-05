@@ -319,6 +319,27 @@ func (ws *WhileStatement) String() string {
 	return out
 }
 
+// ForStatement - ForEach
+type ForEachStatement struct {
+	Token    token.Token
+	Variable *Identifier
+	Iterator Expression
+	Body     Statement
+}
+
+func (fe *ForEachStatement) statementNode()       {}
+func (fe *ForEachStatement) TokenLiteral() string { return fe.Token.Literal }
+func (fe *ForEachStatement) String() string {
+	var out string
+	out += "ForEach "
+	if fe.Variable != nil {
+		out += fe.Variable.String()
+	}
+	out += fmt.Sprintf(" IN (%s)", fe.Iterator.String())
+	out += " " + fe.Body.String()
+	return out
+}
+
 // FunctionStatement - déclaration de fonction
 type FunctionStatement struct {
 	Token      token.Token

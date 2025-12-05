@@ -1,6 +1,10 @@
 package ast
 
-import "github.com/akristianlopez/action/token"
+import (
+	"fmt"
+
+	"github.com/akristianlopez/action/token"
+)
 
 // Node interface de base pour tous les nœuds AST
 type Node interface {
@@ -63,6 +67,27 @@ func (ls *LetStatement) String() string {
 	}
 	out += ";"
 	return out
+}
+
+// Type liste de declarations exemple Let a:type1, b:type2
+type LetStatements []LetStatement
+
+func (lm *LetStatements) statementNode()       {}
+func (lm *LetStatements) TokenLiteral() string { return "" }
+func (lm *LetStatements) String() string {
+	var out string = ""
+	for _, ls := range *lm {
+		out += ls.TokenLiteral() + " "
+		out += ls.Name.String()
+		if ls.Type != nil {
+			out += " : " + ls.Type.String()
+		}
+		if ls.Value != nil {
+			out += " = " + ls.Value.String()
+		}
+		out += ", "
+	}
+	return fmt.Sprintf("Let %s", out)
 }
 
 // TypeConstraints - contraintes de type

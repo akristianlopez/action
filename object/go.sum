@@ -1,4 +1,4 @@
-github.com/akristianlopez/action/ast v0.0.0-20251202104846-1a25d905e47e h1:EGfa8siuxbXCfiSqmhbsCNTrIROrE0VAxWrTxj1eJEM=
-github.com/akristianlopez/action/ast v0.0.0-20251202104846-1a25d905e47e/go.mod h1:Bek0HtWaKnuFKgGC3tFcWmg9pk3Wgp+KgbNoTkResfw=
-github.com/akristianlopez/action/token v0.0.0-20251202095412-e2c37902fb0b h1:cz8lJRHZypjdzqq/ek3bW28t+4zrMXzTqmopAo+dO9c=
-github.com/akristianlopez/action/token v0.0.0-20251202095412-e2c37902fb0b/go.mod h1:n7cAip7Q5h0VfgSZT3ykRIPU5D8HKnm8R2pEtrvrC9s=
+github.com/akristianlopez/action/ast v0.0.0-20251205170506-4fd7ffcbdbe6 h1:GFFDAaiCKuIy51NP5Z2gSUChW6BniuMccUEnNpvSvAQ=
+github.com/akristianlopez/action/ast v0.0.0-20251205170506-4fd7ffcbdbe6/go.mod h1:o9w9Ja6nK5zgCpsn7X5DnKosq1amema6ZLMe0g0k6iI=
+github.com/akristianlopez/action/token v0.0.0-20251205155234-4429eae06440 h1:eXj2EUIJ2jPFucXMFgqX1LPybeBPidIwL1ZBREJSXzU=
+github.com/akristianlopez/action/token v0.0.0-20251205155234-4429eae06440/go.mod h1:n7cAip7Q5h0VfgSZT3ykRIPU5D8HKnm8R2pEtrvrC9s=

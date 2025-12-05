@@ -299,6 +299,26 @@ func (is *IfStatement) String() string {
 	return out
 }
 
+// ForStatement - While
+type WhileStatement struct {
+	Token     token.Token
+	Condition Expression
+	Body      Statement
+}
+
+func (ws *WhileStatement) statementNode()       {}
+func (ws *WhileStatement) TokenLiteral() string { return ws.Token.Literal }
+func (ws *WhileStatement) String() string {
+	var out string
+	out += "While ("
+	if ws.Condition != nil {
+		out += ws.Condition.String()
+	}
+	out += ") "
+	out += " " + ws.Body.String()
+	return out
+}
+
 // FunctionStatement - déclaration de fonction
 type FunctionStatement struct {
 	Token      token.Token

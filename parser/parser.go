@@ -166,6 +166,12 @@ func (p *Parser) ParseProgram() *ast.Program {
 }
 func (p *Parser) parseStmStartSection() (ast.Statement, *ParserError) {
 	switch p.curToken.Type {
+	case token.IF:
+		return p.parseIfStatement()
+	case token.WHILE:
+		return p.parseWhileStatement()
+	case token.FOREACH:
+		return p.parseForEachStatement()
 	case token.FOR:
 		return p.parseForStatement()
 	case token.RETURN:
@@ -200,7 +206,9 @@ func (p *Parser) parseStmStartSection() (ast.Statement, *ParserError) {
 	case token.SELECT:
 		return p.parseSQLSelectStatement()
 	case token.LET:
-		return p.parseLetStatement()
+		return p.parseLetStatements()
+	case token.TYPE:
+		return p.parseStructStatement()
 	case token.SWITCH:
 		return p.parseSwitchStatement()
 	case token.BREAK:
@@ -216,7 +224,7 @@ func (p *Parser) parseStmStartSection() (ast.Statement, *ParserError) {
 func (p *Parser) parseStmDeclarationSection() (ast.Statement, *ParserError) {
 	switch p.curToken.Type {
 	case token.LET:
-		return p.parseLetStatement()
+		return p.parseLetStatements()
 	case token.FUNCTION:
 		return p.parseFunctionStatement()
 	case token.TYPE:
@@ -241,11 +249,70 @@ func (p *Parser) parseStatement(startSts bool) (ast.Statement, *ParserError) {
 	// }
 }
 
+func (p *Parser) parseLetStatements() (*ast.LetStatements, *ParserError) {
+	var stms ast.LetStatements
+	stms = make([]ast.LetStatement, 0)
+	// stms = &stmts
+
+	tok := p.curToken
+	if !p.expectPeek(token.IDENT) {
+		return nil, nil //Create("Identifier expected", p.peekToken.Line, p.peekToken.Column)
+	}
+	// var flag bool
+	for p.curTokenIs(token.IDENT) && !p.peekTokenIs(token.EOF) &&
+		!p.peekTokenIs(token.SEMICOLON) {
+		flag := true
+		stmt := ast.LetStatement{Token: tok}
+		stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+		if !p.peekTokenIs(token.COLON) && !p.peekTokenIs(token.ASSIGN) {
+			return nil, Create("type expected", p.peekToken.Line, p.peekToken.Column)
+		}
+		// Vérifier s'il y a une annotation de type
+		if p.peekTokenIs(token.COLON) {
+			p.nextToken() // :
+			p.nextToken() // type
+			if !p.peekTokenIs(token.ASSIGN) {
+				_, cur := p.l.GetCursorPosition()
+				flag = p.curToken.Type == token.IDENT // type defined by the user
+				stmt.Type = p.parseTypeAnnotation()
+				_, _cur := p.l.GetCursorPosition()
+				flag = flag && cur != _cur
+			}
+		}
+		if p.peekTokenIs(token.ASSIGN) {
+			p.nextToken() // =
+			p.nextToken() // valeur
+			// flag = true
+			stmt.Value = p.parseExpression(LOWEST)
+		}
+		if p.peekTokenIs(token.COMMA) {
+			p.nextToken() // ,
+			// flag = true
+			if !p.expectPeek(token.IDENT) {
+				return nil, nil
+			}
+		}
+		stms = append(stms, stmt)
+		if !flag {
+			//after reading the type if there is not any other operation that modifies the cursor
+			//position, we stopped parsing to go to the next statement
+			// p.nextToken()
+			break
+		}
+	}
+
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return &stms, nil
+}
+
 func (p *Parser) parseLetStatement() (*ast.LetStatement, *ParserError) {
 	stmt := &ast.LetStatement{Token: p.curToken}
 
 	if !p.expectPeek(token.IDENT) {
-		return nil, Create("Identifier expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("Identifier expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
@@ -306,7 +373,7 @@ func (p *Parser) parseTypeConstraints() (*ast.TypeConstraints, *ParserError) {
 				constraints.MaxLength = maxLength
 			}
 			if !p.expectPeek(token.RPAREN) {
-				return nil, Create("')'", p.peekToken.Line, p.peekToken.Column)
+				return nil, nil //Create("')'", p.peekToken.Line, p.peekToken.Column)
 			}
 		case token.LBRACKET:
 			constraints.IntegerRange, pe = p.parseRangeConstraint()
@@ -314,7 +381,7 @@ func (p *Parser) parseTypeConstraints() (*ast.TypeConstraints, *ParserError) {
 				p.errors = append(p.errors, *pe)
 			}
 			if !p.expectPeek(token.RBRACKET) {
-				return nil, Create("']'", p.peekToken.Line, p.peekToken.Column)
+				return nil, nil //Create("']'", p.peekToken.Line, p.peekToken.Column)
 			}
 		}
 	}
@@ -329,13 +396,13 @@ func (p *Parser) parseRangeConstraint() (*ast.RangeConstraint, *ParserError) {
 	rc.Min = p.parseExpression(LOWEST)
 
 	if !p.expectPeek(token.DOT) { //!p.expectPeek(token.DOT) ||
-		return nil, Create("',' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("',' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 	p.nextToken()
 
 	if !p.peekTokenIs(token.INT_LIT) && !p.peekTokenIs(token.FLOAT_LIT) &&
 		!p.peekTokenIs(token.DATE_LIT) && !p.peekTokenIs(token.TIME_LIT) { //!p.expectPeek(token.DOT) ||
-		return nil, Create("'number' is missing", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'number' is missing", p.peekToken.Line, p.peekToken.Column)
 	}
 	p.nextToken()
 	rc.Max = p.parseExpression(LOWEST)
@@ -348,13 +415,13 @@ func (p *Parser) parseFunctionStatement() (*ast.FunctionStatement, *ParserError)
 	var pe *ParserError
 
 	if !p.expectPeek(token.IDENT) {
-		return nil, Create("Identifier expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("Identifier expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 	if !p.expectPeek(token.LPAREN) {
-		return nil, Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	stmt.Parameters, pe = p.parseFunctionParameters()
@@ -371,7 +438,7 @@ func (p *Parser) parseFunctionStatement() (*ast.FunctionStatement, *ParserError)
 	}
 
 	if !p.expectPeek(token.LBRACE) {
-		return nil, Create("'{' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'{' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	stmt.Body, pe = p.parseBlockStatement()
@@ -393,7 +460,7 @@ func (p *Parser) parseFunctionParameters() ([]*ast.FunctionParameter, *ParserErr
 	param.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 	if !p.expectPeek(token.COLON) {
-		return nil, Create("':' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("':' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	p.nextToken()
@@ -408,7 +475,7 @@ func (p *Parser) parseFunctionParameters() ([]*ast.FunctionParameter, *ParserErr
 		param.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 		if !p.expectPeek(token.COLON) {
-			return nil, Create("':' expected", p.peekToken.Line, p.peekToken.Column)
+			return nil, nil //Create("':' expected", p.peekToken.Line, p.peekToken.Column)
 		}
 
 		p.nextToken()
@@ -417,7 +484,7 @@ func (p *Parser) parseFunctionParameters() ([]*ast.FunctionParameter, *ParserErr
 	}
 
 	if !p.expectPeek(token.RPAREN) {
-		return nil, Create("')' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("')' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	return params, nil
@@ -427,17 +494,17 @@ func (p *Parser) parseStructStatement() (*ast.StructStatement, *ParserError) {
 	stmt := &ast.StructStatement{Token: p.curToken}
 
 	if !p.expectPeek(token.IDENT) {
-		return nil, Create("Identifier expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("Identifier expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 	if !p.expectPeek(token.STRUCT) {
-		return nil, Create("token 'struc' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("token 'struc' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	if !p.expectPeek(token.LBRACE) {
-		return nil, Create("'{' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'{' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	p.nextToken()
@@ -448,7 +515,7 @@ func (p *Parser) parseStructStatement() (*ast.StructStatement, *ParserError) {
 		field.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 		if !p.expectPeek(token.COLON) {
-			return nil, Create("':' expected", p.peekToken.Line, p.peekToken.Column)
+			return nil, nil //Create("':' expected", p.peekToken.Line, p.peekToken.Column)
 		}
 
 		p.nextToken()
@@ -462,6 +529,43 @@ func (p *Parser) parseStructStatement() (*ast.StructStatement, *ParserError) {
 	}
 
 	return stmt, nil
+}
+
+func (p *Parser) parseIfStatement() (*ast.IfStatement, *ParserError) {
+	stmt := &ast.IfStatement{Token: p.curToken}
+	var pe *ParserError
+
+	if p.expectPeek(token.LPAREN) {
+		p.nextToken()
+	}
+
+	// Condition
+	stmt.Condition = p.parseExpression(LOWEST)
+
+	if !p.expectPeek(token.RPAREN) {
+		return nil, nil //Create("';' expected", p.peekToken.Line, p.peekToken.Column)
+	}
+	p.nextToken()
+
+	// Then
+	if !p.curTokenIs(token.LBRACE) {
+		var tp *ast.BlockStatement
+		tp, pe = p.parseBlockStatement()
+		if pe != nil {
+			p.errors = append(p.errors, *pe)
+		}
+		stmt.Then = tp
+	}
+	if p.peekTokenIs(token.ELSE) {
+		var tp *ast.BlockStatement
+		tp, pe = p.parseBlockStatement()
+		if pe != nil {
+			p.errors = append(p.errors, *pe)
+		}
+		stmt.Else = tp
+	}
+
+	return stmt, pe
 }
 
 func (p *Parser) parseForStatement() (*ast.ForStatement, *ParserError) {
@@ -512,7 +616,7 @@ func (p *Parser) parseForStatement() (*ast.ForStatement, *ParserError) {
 	}
 
 	if !p.expectPeek(token.SEMICOLON) {
-		return nil, Create("';' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("';' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	p.nextToken()
@@ -535,7 +639,53 @@ func (p *Parser) parseForStatement() (*ast.ForStatement, *ParserError) {
 	}
 
 	if !p.expectPeek(token.LBRACE) {
-		return nil, Create("'{' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'{' expected", p.peekToken.Line, p.peekToken.Column)
+	}
+
+	stmt.Body, pe = p.parseBlockStatement()
+
+	return stmt, pe
+}
+
+func (p *Parser) parseForEachStatement() (*ast.ForEachStatement, *ParserError) {
+	stmt := &ast.ForEachStatement{Token: p.curToken}
+	var pe *ParserError
+
+	if !p.expectPeek(token.IDENT) {
+		return nil, nil
+	}
+	stmt.Variable = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	if p.expectPeek(token.IN) {
+		return nil, nil
+	}
+	p.nextToken()
+	stmt.Iterator = p.parseExpression(LOWEST)
+	stmt.Body, pe = p.parseBlockStatement()
+
+	return stmt, pe
+}
+
+func (p *Parser) parseWhileStatement() (*ast.WhileStatement, *ParserError) {
+	stmt := &ast.WhileStatement{Token: p.curToken}
+	var pe *ParserError
+
+	//check if the NextToken is '(' if true move to the next token
+	if p.peekTokenIs(token.LPAREN) {
+		p.nextToken()
+	}
+	p.nextToken()
+
+	// Condition
+	if !p.curTokenIs(token.SEMICOLON) {
+		stmt.Condition = p.parseExpression(LOWEST)
+	}
+	if p.peekTokenIs(token.RPAREN) {
+		p.nextToken()
+	}
+
+	if !p.expectPeek(token.LBRACE) {
+		return nil, nil
 	}
 
 	stmt.Body, pe = p.parseBlockStatement()
@@ -565,7 +715,7 @@ func (p *Parser) parseReturnStatement() (*ast.ReturnStatement, *ParserError) {
 func (p *Parser) parseBlockStatement() (*ast.BlockStatement, *ParserError) {
 	block := &ast.BlockStatement{Token: p.curToken}
 	// var pe *ParserError
-
+	// flag := len(arg) == 0
 	p.nextToken()
 
 	for !p.curTokenIs(token.RBRACE) && !p.curTokenIs(token.EOF) {
@@ -603,18 +753,18 @@ func (p *Parser) parseSwitchStatement() (*ast.SwitchStatement, *ParserError) {
 
 	// Expression du switch
 	if !p.expectPeek(token.LPAREN) {
-		return nil, Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	p.nextToken()
 	stmt.Expression = p.parseExpression(LOWEST)
 
 	if !p.expectPeek(token.RPAREN) {
-		return nil, Create("')' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("')' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	if !p.expectPeek(token.LBRACE) {
-		return nil, Create("'{' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'{' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	p.nextToken()
@@ -777,16 +927,12 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 }
 
 func (p *Parser) parseIdentifier() ast.Expression {
-	return &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
-	// tok := p.curToken
-	// if p.peekToken.Type == token.DOT {
-	// 	p.nextToken() // .
-	// 	if p.peekToken.Type == token.IDENT {
-	// 		p.nextToken() // ident
-	// 		tok.Literal = fmt.Sprintf("%s.%s", tok.Literal, p.curToken.Literal)
-	// 	}
-	// }
-	// return &ast.Identifier{Token: tok, Value: tok.Literal}
+	// return &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	tok := p.curToken
+	if p.peekToken.Type == token.LPAREN {
+		return p.parseArrayFunctionCall()
+	}
+	return &ast.Identifier{Token: tok, Value: tok.Literal}
 }
 
 func (p *Parser) parseIntegerLiteral() ast.Expression {
@@ -963,7 +1109,7 @@ func (p *Parser) parseSQLCreateObject() (*ast.SQLCreateObjectStatement, *ParserE
 
 	// CREATE
 	if !p.expectPeek(token.OBJECT) {
-		return nil, Create("'object' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'object' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	// IF NOT EXISTS optionnel
@@ -976,13 +1122,13 @@ func (p *Parser) parseSQLCreateObject() (*ast.SQLCreateObjectStatement, *ParserE
 
 	// Nom de l'objet
 	if !p.expectPeek(token.IDENT) {
-		return nil, Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 	stmt.ObjectName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 	// (
 	if !p.expectPeek(token.LPAREN) {
-		return nil, Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	p.nextToken()
@@ -1018,7 +1164,7 @@ func (p *Parser) parseSQLColumnDefinition() (*ast.SQLColumnDefinition, *ParserEr
 
 	// Type de données
 	if !p.expectPeek(token.IDENT) {
-		return nil, Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 	var pi *ParserError
 	col.DataType, pi = p.parseSQLDataType()
@@ -1068,7 +1214,7 @@ func (p *Parser) parseSQLDataType() (*ast.SQLDataType, *ParserError) {
 		}
 
 		if !p.expectPeek(token.RPAREN) {
-			return nil, Create("')' expected", p.peekToken.Line, p.peekToken.Column)
+			return nil, nil //Create("')' expected", p.peekToken.Line, p.peekToken.Column)
 		}
 	}
 
@@ -1081,14 +1227,14 @@ func (p *Parser) parseSQLColumnConstraint() (*ast.SQLColumnConstraint, *ParserEr
 	switch p.curToken.Type {
 	case token.NOT:
 		if !p.expectPeek(token.NULL) {
-			return nil, Create("token 'null' expected", p.peekToken.Line, p.peekToken.Column)
+			return nil, nil //Create("token 'null' expected", p.peekToken.Line, p.peekToken.Column)
 		}
 		constraint.Type = "NOT NULL"
 	case token.UNIQUE:
 		constraint.Type = "UNIQUE"
 	case token.PRIMARY:
 		if !p.expectPeek(token.KEY) {
-			return nil, Create("token 'key' expected", p.peekToken.Line, p.peekToken.Column)
+			return nil, nil //Create("token 'key' expected", p.peekToken.Line, p.peekToken.Column)
 		}
 		constraint.Type = "PRIMARY KEY"
 	case token.DEFAULT:
@@ -1111,7 +1257,7 @@ func (p *Parser) parseSQLConstraint() (*ast.SQLConstraint, *ParserError) {
 	var pe *ParserError = nil
 
 	if !p.expectPeek(token.IDENT) {
-		return nil, Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 	constraint.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
@@ -1121,32 +1267,32 @@ func (p *Parser) parseSQLConstraint() (*ast.SQLConstraint, *ParserError) {
 	case token.PRIMARY:
 		constraint.Type = "PRIMARY KEY"
 		if !p.expectPeek(token.KEY) {
-			return nil, Create("token 'key' expected", p.peekToken.Line, p.peekToken.Column)
+			return nil, nil //Create("token 'key' expected", p.peekToken.Line, p.peekToken.Column)
 		}
 		if !p.expectPeek(token.LPAREN) {
-			return nil, Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
+			return nil, nil //Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
 		}
 		constraint.Columns, pe = p.parseColumnList()
 		p.addError(pe)
 	case token.FOREIGN:
 		constraint.Type = "FOREIGN KEY"
 		if !p.expectPeek(token.KEY) {
-			return nil, Create("token 'key' expected", p.peekToken.Line, p.peekToken.Column)
+			return nil, nil //Create("token 'key' expected", p.peekToken.Line, p.peekToken.Column)
 		}
 		if !p.expectPeek(token.LPAREN) {
-			return nil, Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
+			return nil, nil //Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
 		}
 		constraint.Columns, pe = p.parseColumnList()
 		p.addError(pe)
 		if !p.expectPeek(token.REFERENCES) {
-			return nil, Create("token 'references' expected", p.peekToken.Line, p.peekToken.Column)
+			return nil, nil //Create("token 'references' expected", p.peekToken.Line, p.peekToken.Column)
 		}
 		constraint.References, pe = p.parseSQLReference()
 		p.addError(pe)
 	case token.UNIQUE:
 		constraint.Type = "UNIQUE"
 		if !p.expectPeek(token.LPAREN) {
-			return nil, Create("token 'unique' expected", p.peekToken.Line, p.peekToken.Column)
+			return nil, nil //Create("token 'unique' expected", p.peekToken.Line, p.peekToken.Column)
 		}
 		constraint.Columns, pe = p.parseColumnList()
 		p.addError(pe)
@@ -1172,7 +1318,7 @@ func (p *Parser) parseColumnList() ([]*ast.Identifier, *ParserError) {
 	}
 
 	if !p.expectPeek(token.RPAREN) {
-		return nil, Create("')' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("')' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	return columns, nil
@@ -1182,7 +1328,7 @@ func (p *Parser) parseSQLReference() (*ast.SQLReference, *ParserError) {
 	ref := &ast.SQLReference{Token: p.curToken}
 
 	if !p.expectPeek(token.IDENT) {
-		return nil, Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 	ref.TableName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 	var pe *ParserError = nil
@@ -1199,7 +1345,7 @@ func (p *Parser) parseSQLDropObject() (*ast.SQLDropObjectStatement, *ParserError
 	stmt := &ast.SQLDropObjectStatement{Token: p.curToken}
 
 	if !p.expectPeek(token.OBJECT) {
-		return nil, Create("'object' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'object' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	// IF EXISTS optionnel
@@ -1211,7 +1357,7 @@ func (p *Parser) parseSQLDropObject() (*ast.SQLDropObjectStatement, *ParserError
 
 	// Nom de l'objet
 	if !p.expectPeek(token.IDENT) {
-		return nil, Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 	stmt.ObjectName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
@@ -1228,12 +1374,12 @@ func (p *Parser) parseSQLAlterObject() (*ast.SQLAlterObjectStatement, *ParserErr
 	stmt := &ast.SQLAlterObjectStatement{Token: p.curToken}
 
 	if !p.expectPeek(token.OBJECT) {
-		return nil, Create("'object' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'object' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	// Nom de l'objet
 	if !p.expectPeek(token.IDENT) {
-		return nil, Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 	stmt.ObjectName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
@@ -1288,12 +1434,12 @@ func (p *Parser) parseSQLInsert() (*ast.SQLInsertStatement, *ParserError) {
 	stmt := &ast.SQLInsertStatement{Token: p.curToken}
 
 	if !p.expectPeek(token.INTO) {
-		return nil, Create("token 'INTO' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("token 'INTO' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	// Nom de l'objet
 	if !p.expectPeek(token.IDENT) {
-		return nil, Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 	stmt.ObjectName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
@@ -1347,12 +1493,12 @@ func (p *Parser) parseSQLUpdate() (*ast.SQLUpdateStatement, *ParserError) {
 
 	// Nom de l'objet
 	if !p.expectPeek(token.IDENT) {
-		return nil, Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 	stmt.ObjectName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 	if !p.expectPeek(token.SET) {
-		return nil, Create("token 'set' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("token 'set' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	p.nextToken()
@@ -1363,7 +1509,7 @@ func (p *Parser) parseSQLUpdate() (*ast.SQLUpdateStatement, *ParserError) {
 		setClause.Column = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 		if !p.expectPeek(token.ASSIGN) {
-			return nil, Create("'=' expected", p.peekToken.Line, p.peekToken.Column)
+			return nil, nil //Create("'=' expected", p.peekToken.Line, p.peekToken.Column)
 		}
 
 		p.nextToken()
@@ -1389,12 +1535,12 @@ func (p *Parser) parseSQLDelete() (*ast.SQLDeleteStatement, *ParserError) {
 	stmt := &ast.SQLDeleteStatement{Token: p.curToken}
 
 	if !p.expectPeek(token.FROM) {
-		return nil, Create("token 'from' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("token 'from' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	// Nom de l'objet
 	if !p.expectPeek(token.IDENT) {
-		return nil, Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 	stmt.From = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
@@ -1412,12 +1558,12 @@ func (p *Parser) parseSQLTruncate() (*ast.SQLTruncateStatement, *ParserError) {
 	stmt := &ast.SQLTruncateStatement{Token: p.curToken}
 
 	if !p.expectPeek(token.OBJECT) {
-		return nil, Create("'object' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'object' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	// Nom de l'objet
 	if !p.expectPeek(token.IDENT) {
-		return nil, Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 	stmt.ObjectName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
@@ -1434,27 +1580,27 @@ func (p *Parser) parseSQLCreateIndex() (*ast.SQLCreateIndexStatement, *ParserErr
 	}
 
 	if !p.expectPeek(token.INDEX) {
-		return nil, Create("token 'index' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("token 'index' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	// Nom de l'index
 	if !p.expectPeek(token.IDENT) {
-		return nil, Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 	stmt.IndexName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 	if !p.expectPeek(token.ON) {
-		return nil, Create("token 'on' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("token 'on' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	// Nom de l'objet
 	if !p.expectPeek(token.IDENT) {
-		return nil, Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 	stmt.ObjectName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 	if !p.expectPeek(token.LPAREN) {
-		return nil, Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	var pe *ParserError
@@ -1662,7 +1808,7 @@ func (p *Parser) Errors() []ParserError {
 }
 
 func (p *Parser) peekError(t token.TokenType) {
-	msg := fmt.Sprintf("Attendu %s, got %s", t, p.peekToken.Type)
+	msg := fmt.Sprintf("Expected %s, got %s", t, p.peekToken.Type)
 	p.errors = append(p.errors, *Create(msg, p.peekToken.Line, p.peekToken.Column))
 }
 
@@ -1731,7 +1877,7 @@ func (p *Parser) parseSQLWithStatement() (*ast.SQLWithStatement, *ParserError) {
 
 	// Requête principale
 	if !p.expectPeek(token.SELECT) {
-		return nil, Create("token 'select' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("token 'select' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 	p.nextToken()
 	stmt.Select, pe = p.parseSQLSelectStatement() //.(*ast.SQLSelectStatement)
@@ -1777,11 +1923,11 @@ func (p *Parser) parseCommonTableExpression() (*ast.SQLCommonTableExpression, *P
 	}
 	p.addError(pe)
 	if !p.expectPeek(token.AS) {
-		return nil, Create("token 'AS' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("token 'AS' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	if !p.expectPeek(token.LPAREN) {
-		return nil, Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	p.nextToken()
@@ -1791,7 +1937,7 @@ func (p *Parser) parseCommonTableExpression() (*ast.SQLCommonTableExpression, *P
 	}
 
 	if !p.expectPeek(token.RPAREN) {
-		return nil, Create("')' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("')' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	return cte, pe
@@ -1812,11 +1958,11 @@ func (p *Parser) parseRecursiveCTE() (*ast.SQLRecursiveCTE, *ParserError) {
 	}
 
 	if !p.expectPeek(token.AS) {
-		return nil, Create("token 'as' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("token 'as' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	if !p.expectPeek(token.LPAREN) {
-		return nil, Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	p.nextToken()
@@ -1843,7 +1989,7 @@ func (p *Parser) parseRecursiveCTE() (*ast.SQLRecursiveCTE, *ParserError) {
 	}
 
 	if !p.expectPeek(token.RPAREN) {
-		return nil, Create("')' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("')' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 
 	return cte, pe
@@ -2033,7 +2179,7 @@ func (p *Parser) parseSQLSelectStatement() (*ast.SQLSelectStatement, *ParserErro
 
 	// FROM
 	if !p.expectPeek(token.FROM) {
-		return nil, Create("token 'from' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil //Create("token 'from' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 	p.nextToken()
 	selectStmt.From = p.parseExpression(LOWEST)
@@ -2049,7 +2195,7 @@ func (p *Parser) parseSQLSelectStatement() (*ast.SQLSelectStatement, *ParserErro
 		if p.curTokenIs(token.IDENT) {
 			join.Type = p.curToken.Literal
 			if !p.expectPeek(token.JOIN) {
-				return nil, Create("token 'join' expected", p.peekToken.Line, p.peekToken.Column)
+				return nil, nil //Create("token 'join' expected", p.peekToken.Line, p.peekToken.Column)
 			}
 			p.nextToken()
 		} else {
@@ -2059,7 +2205,7 @@ func (p *Parser) parseSQLSelectStatement() (*ast.SQLSelectStatement, *ParserErro
 		join.Table = p.parseExpression(LOWEST)
 
 		if !p.expectPeek(token.ON) {
-			return nil, Create("token 'on' expected", p.peekToken.Line, p.peekToken.Column)
+			return nil, nil //Create("token 'on' expected", p.peekToken.Line, p.peekToken.Column)
 		}
 		p.nextToken()
 		join.On = p.parseExpression(LOWEST)
@@ -2084,7 +2230,7 @@ func (p *Parser) parseSQLSelectStatement() (*ast.SQLSelectStatement, *ParserErro
 	if p.peekTokenIs(token.GROUP) {
 		p.nextToken() // GROUP
 		if !p.expectPeek(token.BY) {
-			return nil, Create("'group' expected", p.peekToken.Line, p.peekToken.Column)
+			return nil, nil //Create("'group' expected", p.peekToken.Line, p.peekToken.Column)
 		}
 		p.nextToken()
 		selectStmt.GroupBy = p.parseExpressionList(token.HAVING, token.ORDER, token.LIMIT, token.WINDOW)
@@ -2107,7 +2253,7 @@ func (p *Parser) parseSQLSelectStatement() (*ast.SQLSelectStatement, *ParserErro
 	if p.peekTokenIs(token.ORDER) {
 		p.nextToken() // ORDER
 		if !p.expectPeek(token.BY) {
-			return nil, Create("'order' expected", p.peekToken.Line, p.peekToken.Column)
+			return nil, nil //Create("'order' expected", p.peekToken.Line, p.peekToken.Column)
 		}
 		p.nextToken()
 		selectStmt.OrderBy = p.parseOrderByList()
@@ -2263,13 +2409,6 @@ func (p *Parser) parseInExpression(left ast.Expression) ast.Expression {
 	return exp
 }
 
-func (p *Parser) parseAsExpression(left ast.Expression) ast.Expression {
-	exp := &ast.InExpression{Token: p.curToken, Left: left}
-	p.nextToken()
-	exp.Right = p.parseExpression(LOWEST)
-	return exp
-}
-
 func (p *Parser) parseArrayFunctionCall() ast.Expression {
 	call := &ast.ArrayFunctionCall{Token: p.curToken}
 	call.Function = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
@@ -2320,7 +2459,7 @@ func (p *Parser) parseTypeAnnotation() *ast.TypeAnnotation {
 // Nouvelle méthode pour gérer à la fois l'index et le slice
 func (p *Parser) parseIndexOrSliceExpression(left ast.Expression) ast.Expression {
 	// Sauvegarder la position pour vérifier si c'est un slice
-	position, currentPosition := p.l.GetCursorPosition()
+	_, currentPosition := p.l.GetCursorPosition()
 
 	p.nextToken()
 

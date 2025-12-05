@@ -22,6 +22,8 @@ const (
 	IF       = "IF"
 	ELSE     = "ELSE"
 	RETURN   = "RETURN"
+	WHILE    = "WHILE"
+	FOREACH  = "FOREACH"
 
 	// Types
 	INTEGER = "INTEGER"
@@ -215,6 +217,8 @@ var keywords = map[string]TokenType{
 	"as":       AS,
 	"true":     BOOL_LIT,
 	"false":    BOOL_LIT,
+	"while":    WHILE,
+	"foreach":  FOREACH,
 
 	// SQL DDL
 	"create":     CREATE,

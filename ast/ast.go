@@ -273,6 +273,32 @@ func (fs *ForStatement) String() string {
 	return out
 }
 
+// ForStatement - If
+type IfStatement struct {
+	Token     token.Token
+	Condition Expression
+	Then      *BlockStatement
+	Else      *BlockStatement
+}
+
+func (is *IfStatement) statementNode()       {}
+func (is *IfStatement) TokenLiteral() string { return is.Token.Literal }
+func (is *IfStatement) String() string {
+	var out string
+	out += "if("
+	if is.Condition != nil {
+		out += is.Condition.String()
+	}
+	out += ")\n"
+	if is.Then != nil {
+		out += is.Then.String()
+	}
+	if is.Else != nil {
+		out += " Else\n " + is.Else.String()
+	}
+	return out
+}
+
 // FunctionStatement - déclaration de fonction
 type FunctionStatement struct {
 	Token      token.Token

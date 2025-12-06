@@ -18,6 +18,27 @@ type Lexer struct {
 	column       int
 }
 
+var cnt *Lexer = nil
+
+func (l *Lexer) SaveCnt() {
+	cnt = &Lexer{
+		position:     l.position,
+		readPosition: l.readPosition,
+		ch:           l.ch,
+		line:         l.line,
+		column:       l.column,
+	}
+}
+func (l *Lexer) RestoreCnt() {
+	if cnt != nil {
+		l.position = cnt.position
+		l.readPosition = cnt.readPosition
+		l.ch = cnt.ch
+		l.line = cnt.line
+		l.column = cnt.column
+		cnt = nil
+	}
+}
 func (l *Lexer) GetCursorPosition() (int, int) {
 	return l.position, l.readPosition
 }

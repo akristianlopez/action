@@ -1323,3 +1323,39 @@ func (fs *FallthroughStatement) TokenLiteral() string { return fs.Token.Literal 
 func (fs *FallthroughStatement) String() string {
 	return "fallthrough;"
 }
+
+// StructLiteral - Littéral de structure
+type StructLiteral struct {
+	Token  token.Token
+	Name   *Identifier
+	Fields []StructFieldLit
+}
+
+func (sl *StructLiteral) expressionNode()      {}
+func (sl *StructLiteral) TokenLiteral() string { return sl.Token.Literal }
+func (sl *StructLiteral) String() string {
+	var out string
+	if sl.Name != nil {
+		out += sl.Name.String()
+	}
+	out += "{\n"
+	for i, el := range sl.Fields {
+		if i > 0 {
+			out += "\n "
+		}
+		out += el.String()
+	}
+	out += "}"
+	return out
+}
+
+// StructField - champ de structure
+type StructFieldLit struct {
+	Token token.Token
+	Name  *Identifier
+	value Expression
+}
+
+func (sl *StructFieldLit) String() string {
+	return sl.Name.String() + " : " + sl.value.String()
+}

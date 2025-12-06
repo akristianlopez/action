@@ -39,6 +39,7 @@ func (l *Lexer) RestoreCnt() {
 		cnt = nil
 	}
 }
+
 func (l *Lexer) GetCursorPosition() (int, int) {
 	return l.position, l.readPosition
 }

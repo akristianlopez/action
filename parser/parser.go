@@ -22,6 +22,30 @@ type Parser struct {
 }
 
 var _position, _currentPosition int
+var _scr, _spk *token.Token = nil, nil
+
+func (p *Parser) Save() {
+	if p.l == nil {
+		return
+	}
+	p.l.SaveCnt()
+	_scr = &token.Token{Type: p.curToken.Type, Literal: p.curToken.Literal,
+		Line: p.curToken.Line, Column: p.curToken.Column}
+	_spk = &token.Token{Type: p.peekToken.Type, Literal: p.peekToken.Literal,
+		Line: p.peekToken.Line, Column: p.peekToken.Column}
+}
+func (p *Parser) Restore() {
+	if p.l == nil {
+		return
+	}
+	p.l.RestoreCnt()
+	if _scr != nil && _spk != nil {
+		p.curToken = *_scr
+		_scr = nil
+		p.peekToken = *_spk
+		_spk = nil
+	}
+}
 
 type (
 	prefixParseFn func() ast.Expression
@@ -428,6 +452,7 @@ func (p *Parser) parseFunctionStatement() (*ast.FunctionStatement, *ParserError)
 	if pe != nil {
 		p.errors = append(p.errors, *pe)
 	}
+
 	// Type de retour optionnel
 	if p.peekTokenIs(token.COLON) {
 		p.nextToken() // :
@@ -534,63 +559,78 @@ func (p *Parser) parseStructStatement() (*ast.StructStatement, *ParserError) {
 func (p *Parser) parseIfStatement() (*ast.IfStatement, *ParserError) {
 	stmt := &ast.IfStatement{Token: p.curToken}
 	var pe *ParserError
+	var reqParen bool = false
 
-	if p.expectPeek(token.LPAREN) {
+	// if !p.expectPeek(token.LPAREN) {
+	// 	return nil, nil
+	// }
+	if p.peekTokenIs(token.LPAREN) {
 		p.nextToken()
+		reqParen = true
 	}
+	p.nextToken()
 
 	// Condition
 	stmt.Condition = p.parseExpression(LOWEST)
 
-	if !p.expectPeek(token.RPAREN) {
-		return nil, nil //Create("';' expected", p.peekToken.Line, p.peekToken.Column)
+	if reqParen && !p.expectPeek(token.RPAREN) {
+		return nil, nil
 	}
-	p.nextToken()
+	if !p.expectPeek(token.LBRACE) {
+		return nil, nil
+	}
 
 	// Then
-	if !p.curTokenIs(token.LBRACE) {
+	if !p.peekTokenIs(token.RBRACE) {
 		var tp *ast.BlockStatement
 		tp, pe = p.parseBlockStatement()
-		if pe != nil {
-			p.errors = append(p.errors, *pe)
-		}
+		p.addError(pe)
 		stmt.Then = tp
 	}
+
+	stmt.Else = nil
 	if p.peekTokenIs(token.ELSE) {
 		var tp *ast.BlockStatement
-		tp, pe = p.parseBlockStatement()
-		if pe != nil {
-			p.errors = append(p.errors, *pe)
+		p.nextToken() //lecture de Else
+		p.nextToken()
+		switch p.curToken.Type {
+		case token.LBRACE:
+			tp, pe = p.parseBlockStatement()
+		default:
+			var stm ast.Statement
+			stm, pe = p.parseStatement(true)
+			if stm != nil {
+				tp = &ast.BlockStatement{Token: p.curToken}
+				tp.Statements = append(tp.Statements, stm)
+			}
 		}
+		p.addError(pe)
 		stmt.Else = tp
 	}
-
 	return stmt, pe
 }
 
 func (p *Parser) parseForStatement() (*ast.ForStatement, *ParserError) {
 	stmt := &ast.ForStatement{Token: p.curToken}
 	var pe *ParserError
+	var reParen, reSecol bool = false, false
 
 	//this modification is important insofar as it allows not to oblige
 	//developper to put absolutely the parentheses when they wrote the
 	//statement for. But the brace is the one thing obligatory to show
 	//the beginning of the list of statements
 
-	// if !p.expectPeek(token.LPAREN) {
-	// 	return nil
-	// }
-
 	//check if the NextToken is '(' if true move to the next token
 	if p.peekTokenIs(token.LPAREN) {
 		p.nextToken()
+		reParen = true
 	}
 	p.nextToken()
 
 	// Initialisation
 	if !p.curTokenIs(token.SEMICOLON) {
 		var stm ast.Statement
-		stm, pe = p.parseStatement(true)
+		stm, pe = p.parseLetStatement() //p.parseStatement(true)
 		if pe != nil {
 			p.errors = append(p.errors, *pe)
 		}
@@ -598,16 +638,14 @@ func (p *Parser) parseForStatement() (*ast.ForStatement, *ParserError) {
 			stmt.Init = stm
 		}
 		if !p.curTokenIs(token.SEMICOLON) {
-			return nil, Create("';' expected", p.peekToken.Line, p.peekToken.Column)
+			p.curError(token.SEMICOLON)
+			return nil, nil
 		}
 	}
 
-	// if !p.expectPeek(token.SEMICOLON) {
-	// 	return nil, Create("';' expected", p.peekToken.Line, p.peekToken.Column)
-	// }
-	// p.nextToken()
 	if p.curTokenIs(token.SEMICOLON) {
 		p.nextToken()
+		reSecol = true
 	}
 
 	// Condition
@@ -615,15 +653,14 @@ func (p *Parser) parseForStatement() (*ast.ForStatement, *ParserError) {
 		stmt.Condition = p.parseExpression(LOWEST)
 	}
 
-	if !p.expectPeek(token.SEMICOLON) {
-		return nil, nil //Create("';' expected", p.peekToken.Line, p.peekToken.Column)
+	if reSecol && !p.expectPeek(token.SEMICOLON) {
+		return nil, nil
 	}
 
-	p.nextToken()
-
 	// Update
-	if !p.curTokenIs(token.RPAREN) {
+	if !p.peekTokenIs(token.RPAREN) && !p.peekTokenIs(token.LBRACE) {
 		var tp ast.Statement
+		p.nextToken()
 		tp, pe = p.parseStatement(true)
 		if pe != nil {
 			p.errors = append(p.errors, *pe)
@@ -631,12 +668,12 @@ func (p *Parser) parseForStatement() (*ast.ForStatement, *ParserError) {
 		stmt.Update = tp
 	}
 
-	// if !p.expectPeek(token.RPAREN) {
-	// 	return nil
-	// }
-	if p.peekTokenIs(token.RPAREN) {
-		p.nextToken()
+	if reParen && !p.expectPeek(token.RPAREN) {
+		return nil, nil
 	}
+	// if p.peekTokenIs(token.RPAREN) && reParen {
+	// 	p.nextToken()
+	// }
 
 	if !p.expectPeek(token.LBRACE) {
 		return nil, nil //Create("'{' expected", p.peekToken.Line, p.peekToken.Column)
@@ -669,19 +706,20 @@ func (p *Parser) parseForEachStatement() (*ast.ForEachStatement, *ParserError) {
 func (p *Parser) parseWhileStatement() (*ast.WhileStatement, *ParserError) {
 	stmt := &ast.WhileStatement{Token: p.curToken}
 	var pe *ParserError
-
+	var reqParen bool = false
 	//check if the NextToken is '(' if true move to the next token
 	if p.peekTokenIs(token.LPAREN) {
 		p.nextToken()
+		reqParen = true
 	}
 	p.nextToken()
 
 	// Condition
-	if !p.curTokenIs(token.SEMICOLON) {
-		stmt.Condition = p.parseExpression(LOWEST)
-	}
-	if p.peekTokenIs(token.RPAREN) {
-		p.nextToken()
+	stmt.Condition = p.parseExpression(LOWEST)
+
+	if reqParen && !p.expectPeek(token.RPAREN) {
+		// p.nextToken()
+		return nil, nil
 	}
 
 	if !p.expectPeek(token.LBRACE) {
@@ -699,7 +737,15 @@ func (p *Parser) parseReturnStatement() (*ast.ReturnStatement, *ParserError) {
 	p.nextToken()
 
 	if !p.curTokenIs(token.SEMICOLON) {
-		stmt.ReturnValue = p.parseExpression(LOWEST)
+		switch p.curToken.Type {
+		case token.LBRACE:
+			stmt.ReturnValue = p.parseStructLiteral()
+		// case token.LBRACKET:
+		// 	stmt.ReturnValue = p.parseArrayLiteral()
+		default:
+			stmt.ReturnValue = p.parseExpression(LOWEST)
+		}
+		// stmt.ReturnValue = p.parseExpression(LOWEST)
 	}
 
 	if p.peekTokenIs(token.SEMICOLON) {
@@ -716,6 +762,10 @@ func (p *Parser) parseBlockStatement() (*ast.BlockStatement, *ParserError) {
 	block := &ast.BlockStatement{Token: p.curToken}
 	// var pe *ParserError
 	// flag := len(arg) == 0
+	if !p.curTokenIs(token.LBRACE) {
+		p.curError(token.LBRACE)
+		return nil, nil
+	}
 	p.nextToken()
 
 	for !p.curTokenIs(token.RBRACE) && !p.curTokenIs(token.EOF) {
@@ -728,7 +778,10 @@ func (p *Parser) parseBlockStatement() (*ast.BlockStatement, *ParserError) {
 		}
 		p.nextToken()
 	}
-
+	if !p.curTokenIs(token.RBRACE) {
+		p.curError(token.RBRACE)
+		return nil, nil
+	}
 	return block, nil
 }
 
@@ -739,7 +792,14 @@ func (p *Parser) parseExpressionStatement() (*ast.ExpressionStatement, *ParserEr
 	if p.peekTokenIs(token.ASSIGN) {
 		p.nextToken() //read =
 		p.nextToken() //read next token
-		stmt.Expression = p.parseExpression(LOWEST)
+		switch p.curToken.Type {
+		case token.LBRACE:
+			stmt.Expression = p.parseStructLiteral()
+		case token.LBRACKET:
+			stmt.Expression = p.parseArrayLiteral()
+		default:
+			stmt.Expression = p.parseExpression(LOWEST)
+		}
 	}
 	if p.peekTokenIs(token.SEMICOLON) {
 		p.nextToken()
@@ -929,8 +989,19 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 func (p *Parser) parseIdentifier() ast.Expression {
 	// return &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 	tok := p.curToken
+	// pok := p.peekToken
 	if p.peekToken.Type == token.LPAREN {
 		return p.parseArrayFunctionCall()
+	}
+	if p.peekToken.Type == token.LBRACE {
+		p.Save()
+		p.nextToken() // {
+		p.nextToken() // next
+		if p.curTokenIs(token.IDENT) && p.peekTokenIs(token.COLON) {
+			p.Restore()
+			return p.parseStructLiteral()
+		}
+		p.Restore()
 	}
 	return &ast.Identifier{Token: tok, Value: tok.Literal}
 }
@@ -1812,8 +1883,12 @@ func (p *Parser) peekError(t token.TokenType) {
 	p.errors = append(p.errors, *Create(msg, p.peekToken.Line, p.peekToken.Column))
 }
 
+func (p *Parser) curError(t token.TokenType) {
+	msg := fmt.Sprintf("Expected %s, got %s", t, p.curToken.Type)
+	p.errors = append(p.errors, *Create(msg, p.curToken.Line, p.curToken.Column))
+}
 func (p *Parser) noPrefixParseFnError(t token.TokenType) {
-	msg := fmt.Sprintf("Aucune fonction prefix parse pour %s", t)
+	msg := fmt.Sprintf("Unexpected here %s", t)
 	p.errors = append(p.errors, *Create(msg, p.peekToken.Line, p.peekToken.Column))
 }
 
@@ -2330,6 +2405,46 @@ func (p *Parser) parseArrayLiteral() ast.Expression {
 	}
 
 	return array
+}
+func (p *Parser) parseStructLiteral() ast.Expression {
+	strt := &ast.StructLiteral{Token: p.curToken, Name: nil}
+	if p.curTokenIs(token.IDENT) {
+		strt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+		if !p.expectPeek(token.LBRACE) {
+			return nil
+		}
+	}
+	if p.peekTokenIs(token.RBRACE) {
+		p.nextToken()
+		// p.nextToken()
+		return strt
+	}
+	p.nextToken() //
+
+	for !p.curTokenIs(token.RBRACE) && !p.curTokenIs(token.EOF) {
+		field := &ast.StructFieldLit{Token: p.curToken}
+		field.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+		if !p.expectPeek(token.COLON) {
+			return nil
+		}
+		p.nextToken()
+		field.Value = p.parseExpression(LOWEST)
+
+		strt.Fields = append(strt.Fields, *field)
+
+		if p.peekTokenIs(token.COMMA) {
+			p.nextToken()
+		}
+		p.nextToken()
+	}
+
+	if !p.curTokenIs(token.RBRACE) {
+		p.curError(token.RBRACE)
+		return nil
+	}
+
+	return strt
 }
 
 func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {

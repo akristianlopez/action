@@ -1353,9 +1353,9 @@ func (sl *StructLiteral) String() string {
 type StructFieldLit struct {
 	Token token.Token
 	Name  *Identifier
-	value Expression
+	Value Expression
 }
 
 func (sl *StructFieldLit) String() string {
-	return sl.Name.String() + " : " + sl.value.String()
+	return sl.Name.String() + " : " + sl.Value.String()
 }

@@ -416,6 +416,28 @@ func build_args() []testCase {
 			 `,
 		status: 0,
 	})
+	res = append(res, testCase{
+		name: "Test 4.14 : Test des tableaux : instruction d'affectation (access to one element)",
+		src: `action "Check expression with arrays  "
+			 start
+			 	let res=nombres[i]
+			 	return res
+			 stop
+			 `,
+		status: 0,
+	})
+	res = append(res, testCase{
+		name: "Test 4.14 : Test des tableaux : instruction d'affectation (get a slice from an array)",
+		src: `action "Check expression with arrays  "
+			 start
+				let element = matrice[1][0];
+				matrice[0] = [10, 20];
+				matrice=matrice[1][0];
+				return matrice
+			 stop
+			 `,
+		status: 0,
+	})
 
 	return res
 }

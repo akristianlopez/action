@@ -179,7 +179,7 @@ const (
 	CONCAT = "||"
 	NOT_IN = "NOT IN"
 
-	// Fonctions de tableau
+	// Fonctions de tableau ces fonctions seront supprimees comme token
 	LENGTH   = "LENGTH"
 	APPEND   = "APPEND"
 	PREPEND  = "PREPEND"

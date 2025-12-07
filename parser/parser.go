@@ -100,7 +100,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.APPEND, p.parseArrayFunctionCall)
 	p.registerPrefix(token.PREPEND, p.parseArrayFunctionCall)
 	p.registerPrefix(token.REMOVE, p.parseArrayFunctionCall)
-	p.registerPrefix(token.SLICE, p.parseArrayFunctionCall)
+	// p.registerPrefix(token.SLICE, p.parseArrayFunctionCall)
 	p.registerPrefix(token.CONTAINS, p.parseArrayFunctionCall)
 
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
@@ -121,6 +121,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.IN, p.parseInExpression)
 	p.registerInfix(token.AS, p.parseInfixExpression)
 	p.registerInfix(token.DOT, p.parseInfixExpression)
+	p.registerInfix(token.CONCAT, p.parseInfixExpression)
 
 	p.nextToken()
 	p.nextToken()
@@ -2392,12 +2393,22 @@ func (p *Parser) parseArrayLiteral() ast.Expression {
 	}
 
 	p.nextToken()
-	array.Elements = append(array.Elements, p.parseExpression(LOWEST))
+
+	if p.curTokenIs(token.LBRACE) {
+		array.Elements = append(array.Elements, p.parseStructLiteral())
+	} else {
+		array.Elements = append(array.Elements, p.parseExpression(LOWEST))
+	}
 
 	for p.peekTokenIs(token.COMMA) {
 		p.nextToken()
 		p.nextToken()
-		array.Elements = append(array.Elements, p.parseExpression(LOWEST))
+		if p.curTokenIs(token.LBRACE) {
+			array.Elements = append(array.Elements, p.parseStructLiteral())
+		} else {
+			array.Elements = append(array.Elements, p.parseExpression(LOWEST))
+		}
+		// array.Elements = append(array.Elements, p.parseExpression(LOWEST))
 	}
 
 	if !p.expectPeek(token.RBRACKET) {
@@ -2461,15 +2472,18 @@ func (p *Parser) parseIndexExpression(left ast.Expression) ast.Expression {
 }
 
 func (p *Parser) parseSliceExpression(left ast.Expression) ast.Expression {
-	exp := &ast.SliceExpression{Token: p.curToken, Left: left}
+	exp := &ast.SliceExpression{Token: p.curToken, Left: left, Start: nil, End: nil}
 
 	p.nextToken()
 
 	if !p.curTokenIs(token.COLON) {
 		exp.Start = p.parseExpression(LOWEST)
+		if !p.expectPeek(token.COLON) {
+			return nil
+		}
 	}
 
-	if p.curTokenIs(token.COLON) {
+	if p.curTokenIs(token.COLON) && !p.peekTokenIs(token.RBRACKET) {
 		p.nextToken()
 
 		if !p.curTokenIs(token.RBRACKET) {
@@ -2575,6 +2589,7 @@ func (p *Parser) parseTypeAnnotation() *ast.TypeAnnotation {
 func (p *Parser) parseIndexOrSliceExpression(left ast.Expression) ast.Expression {
 	// Sauvegarder la position pour vérifier si c'est un slice
 	p.Save()
+	// tok := p.curToken
 
 	p.nextToken()
 
@@ -2583,6 +2598,11 @@ func (p *Parser) parseIndexOrSliceExpression(left ast.Expression) ast.Expression
 
 	// Avancer pour vérifier
 	for !p.curTokenIs(token.RBRACKET) && !p.curTokenIs(token.EOF) {
+		// if p.curTokenIs(token.COLON) {
+		// 	isSlice = true
+		// 	break
+		// }
+		// p.nextToken()
 		if p.curTokenIs(token.COLON) {
 			isSlice = true
 			break

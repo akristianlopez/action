@@ -49,6 +49,7 @@ const (
 	ASTERISK = "*"
 	SLASH    = "/"
 	MOD      = "%"
+	LAR      = "<-"
 
 	// Comparaisons
 	EQ     = "=="

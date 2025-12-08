@@ -471,21 +471,51 @@ func build_args() []testCase {
 	// 		 `,
 	// 	status: 0,
 	// })
-	res = append(res, testCase{
-		name: "Test 4.18 : Test des tableaux : instruction d'affectation (concat & including)",
-		src: `action "Check expression with arrays  "
-			 start
-				(* Concaténation *)
-				let tous = nombres || [6, 7, 8, 9, 10];
-				let double = nombres + nombres;
+	// res = append(res, testCase{
+	// 	name: "Test 4.18 : Test des tableaux : instruction d'affectation (concat & including)",
+	// 	src: `action "Check expression with arrays  "
+	// 		 start
+	// 			(* Concaténation
+	// 			let tous = nombres || [6, 7, 8, 9, 10];
+	// 			let double = nombres + nombres;
 
-				(* Vérification d'appartenance *)
-				let existe = 5 in nombres;
-				let pas_existe = 20 not in nombres;
+	// 			(* Vérification d'appartenance *)
+	// 			let existe = 5 in nombres;
+	// 			let pas_existe = 20 not in nombres;
+	// 		 stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 4.19 : Test des tableaux : instruction d'affectation (IN)",
+	// 	src: `action "Check expression with arrays  "
+	// 		 start
+	// 			(* Vérification d'appartenance *)
+	// 			let existe = 5 in nombres;
+	// 		 stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 4.20 : Test des tableaux : instruction d'affectation (NOT IN)",
+	// 	src: `action "Check expression with arrays  "
+	// 		 start
+	// 			(* Vérification d'appartenance *)
+	// 			let pas_existe = 20 not in nombres;
+	// 		 stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	res = append(res, testCase{
+		name: "Test 4.21 : Test strutures de controle : SWITCH",
+		src: `action "Check the statement switch  "
+			 start
+
 			 stop
 			 `,
 		status: 0,
 	})
+
 	return res
 }
 

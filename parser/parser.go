@@ -46,6 +46,10 @@ func (p *Parser) Restore() {
 		_spk = nil
 	}
 }
+func (p *Parser) Clear() {
+	_scr = nil
+	_spk = nil
+}
 
 type (
 	prefixParseFn func() ast.Expression
@@ -975,6 +979,14 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 	}
 
 	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
+		if p.peekTokenIs(token.NOT) {
+			p.Save()
+			p.nextToken()
+			if !p.peekTokenIs(token.IN) {
+				p.Restore()
+			}
+			p.Clear()
+		}
 		infix := p.infixParseFns[p.peekToken.Type]
 		if infix == nil {
 			return leftExp

@@ -980,7 +980,8 @@ func (p *Parser) parseExpression(precedence int) ast.Expression {
 		return nil
 	}
 	leftExp := prefix()
-	if p.curToken.Type != token.IDENT && p.peekToken.Type == token.DOT {
+	if !p.curTokenIs(token.IDENT) && !p.curTokenIs(token.DATE_LIT) &&
+		p.peekToken.Type == token.DOT {
 		return leftExp
 	}
 
@@ -2563,8 +2564,12 @@ func (p *Parser) parseArrayFunctionCall() ast.Expression {
 	if !p.expectPeek(token.LPAREN) {
 		return nil
 	}
-
 	p.nextToken()
+	if p.curTokenIs(token.RPAREN) {
+		call.Arguments = nil
+		call.Array = nil
+		return call
+	}
 	call.Array = p.parseExpression(LOWEST)
 
 	// Arguments optionnels

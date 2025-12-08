@@ -597,32 +597,230 @@ func build_args() []testCase {
 	// 		 `,
 	// 	status: 0,
 	// })
+	// res = append(res, testCase{
+	// 	name: "Test 4.25 : Test strutures de controle : SWITCH (fn(b)) with string value",
+	// 	src: `action "Check the statement switch(x)  "
+	// 		(* Switch avec différents types *)
+	// 		function describeValue(valeur: any): string {
+	// 			switch (typeOf(valeur)) {
+	// 				case "integer":
+	// 					return "Nombre entier: " + valeur;
+	// 				case "float":
+	// 					return "Nombre décimal: " + valeur;
+	// 				case "string":
+	// 					return 'Chaîne:' + valeur + "'";
+	// 				case "boolean":
+	// 					if (valeur) {
+	// 						return "Vrai";
+	// 					} else {
+	// 						return "Faux";
+	// 					}
+	// 				case "array":
+	// 					return "Tableau de " + length(valeur) + " éléments";
+	// 				default:
+	// 					return "Type inconnu";
+	// 			}
+	// 		}
+	// 		start
+	// 		  return evalueNote(1)
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 4.26 : Test strutures de controle : SWITCH multiple switch",
+	// 	src: `action "Check the statement switch(x)  "
+	// 		start
+	// 			(* Gestion des commandes *)
+	// 			let statut_commande = "expédiée";
+
+	// 			switch (statut_commande) {
+	// 				case "nouvelle":
+	// 					print("La commande est nouvelle");
+	// 					break;
+	// 				case "traitement":
+	// 					print("La commande est en cours de traitement");
+	// 					break;
+	// 				case "expédiée":
+	// 					print("La commande a été expédiée");
+	// 					fallthrough;
+	// 				case "livraison":
+	// 					print("En cours de livraison");
+	// 					break;
+	// 				case "livrée":
+	// 					print("Commande livrée avec succès");
+	// 					break;
+	// 				case "annulée":
+	// 					print("Commande annulée");
+	// 					break;
+	// 				default:
+	// 					print("Statut inconnu");
+	// 			}
+
+	// 			(* Catégorisation d'âge *)
+	// 			let age = 25;
+	// 			let categorie = "";
+
+	// 			switch (true) {
+	// 				case age < 0:
+	// 					categorie = "Âge invalide";
+	// 					break;
+	// 				case age < 13:
+	// 					categorie = "Enfant";
+	// 					break;
+	// 				case age < 18:
+	// 					categorie = "Adolescent";
+	// 					break;
+	// 				case age < 65:
+	// 					categorie = "Adulte";
+	// 					break;
+	// 				default:
+	// 					categorie = "Senior";
+	// 			}
+
+	// 			print("Catégorie: " + categorie);
+
+	// 			(* Gestion des erreurs HTTP *)
+	// 			let code_http = 404;
+	// 			let message = "";
+
+	// 			switch (code_http) {
+	// 				case 200, 201, 204:
+	// 					message = "Succès";
+	// 					break;
+	// 				case 400:
+	// 					message = "Mauvaise requête";
+	// 					break;
+	// 				case 401:
+	// 					message = "Non autorisé";
+	// 					break;
+	// 				case 403:
+	// 					message = "Interdit";
+	// 					break;
+	// 				case 404:
+	// 					message = "Non trouvé";
+	// 					break;
+	// 				case 500:
+	// 					message = "Erreur serveur";
+	// 					break;
+	// 				default:
+	// 					if (code_http >= 100 and code_http < 200) {
+	// 						message = "Information";
+	// 					} else if (code_http >= 300 and code_http < 400) {
+	// 						message = "Redirection";
+	// 					} else {
+	// 						message = "Code inconnu";
+	// 					}
+	// 			}
+
+	// 			print("Message HTTP: " + message);
+
+	// 			(* Switch avec énumérations *)
+	// 			let couleur = "rouge";
+	// 			let code_couleur = "";
+
+	// 			switch (couleur) {
+	// 				case "rouge":
+	// 					code_couleur = "#FF0000";
+	// 					break;
+	// 				case "vert":
+	// 					code_couleur = "#00FF00";
+	// 					break;
+	// 				case "bleu":
+	// 					code_couleur = "#0000FF";
+	// 					break;
+	// 				case "jaune":
+	// 					code_couleur = "#FFFF00";
+	// 					break;
+	// 				case "violet":
+	// 					code_couleur = "#800080";
+	// 					break;
+	// 				default:
+	// 					code_couleur = "#000000"; (* noir par défaut *)
+	// 			}
+
+	// 			(* Switch dans une boucle *)
+	// 			let nombres = [1, 2, 3, 4, 5, 10, 15, 20];
+	// 			for let i = 0; i < length(nombres); i = i + 1 {
+	// 				switch (nombres[i]) {
+	// 					case 1, 2, 3:
+	// 						print("Petit nombre: " + nombres[i]);
+	// 						break;
+	// 					case 4, 5:
+	// 						print("Nombre moyen: " + nombres[i]);
+	// 						break;
+	// 					case 10:
+	// 						print("Dix");
+	// 						break;
+	// 					case 15:
+	// 						print("Quinze");
+	// 						break;
+	// 					case 20:
+	// 						print("Vingt");
+	// 						break;
+	// 				}
+	// 			}
+
+	// 			(* Switch avec dates *)
+	// 			let jour_semaine = #2024-01-15#.dayOfWeek() ; (* Lundi *)
+	// 			let type_journee = "";
+
+	// 			switch (jour_semaine) {
+	// 				case 1, 2, 3, 4, 5:
+	// 					type_journee = "Jour de travail";
+	// 					break;
+	// 				case 6:
+	// 					type_journee = "Samedi - repos";
+	// 					break;
+	// 				case 7:
+	// 					type_journee = "Dimanche - weekend";
+	// 					break;
+	// 			}
+
+	// 			(* Switch complexe avec conditions *)
+	// 			let temperature = 22;
+	// 			let humidite = 65;
+	// 			let conditions = "";
+
+	// 			switch (true) {
+	// 				case temperature > 30 and humidite > 70:
+	// 					conditions = "Très chaud et humide";
+	// 					break;
+	// 				case temperature > 25 and humidite > 60:
+	// 					conditions = "Chaud et humide";
+	// 					break;
+	// 				case temperature < 0:
+	// 					conditions = "Gel";
+	// 					break;
+	// 				case temperature < 10 and humidite > 80:
+	// 					conditions = "Froid et humide";
+	// 					break;
+	// 				default:
+	// 					conditions = "Conditions normales";
+	// 			}
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 4.27 : Test strutures de controle : DateTime litteral with a function",
+	// 	src: `action "Check the DateTime litteral"
+	// 		(* Switch avec différents types *)
+	// 		start
+	// 			return #2024-01-15#.dayOfWeek();  (* Lundi *)
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
 	res = append(res, testCase{
-		name: "Test 4.25 : Test strutures de controle : SWITCH (fn(b)) with string value",
-		src: `action "Check the statement switch(x)  "
+		name: "Test 4.28 : Test strutures de controle : ForEach",
+		src: `action "Check the DateTime litteral"
 			(* Switch avec différents types *)
-			function describeValue(valeur: any): string {
-				switch (typeOf(valeur)) {
-					case "integer":
-						return "Nombre entier: " + valeur;
-					case "float":
-						return "Nombre décimal: " + valeur;
-					case "string":
-						return "Chaîne: \"" + valeur + "\"";
-					case "boolean":
-						if (valeur) {
-							return "Vrai";
-						} else {
-							return "Faux";
-						}
-					case "array":
-						return "Tableau de " + length(valeur) + " éléments";
-					default:
-						return "Type inconnu";
-				}
-			}
 			start
-			  return evalueNote(1)
+				type mystruct struct{
+					type:Integer(10)
+				}
+			
 			stop
 			 `,
 		status: 0,

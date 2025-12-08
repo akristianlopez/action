@@ -178,6 +178,9 @@ func (l *Lexer) NextToken() token.Token {
 		if isLetter(l.ch) {
 			tok.Literal = l.readIdentifier()
 			tok.Type = token.LookupIdent(strings.ToLower(tok.Literal))
+			if l.isControlToken(token.TYPE) && l.ch == ':' {
+				tok.Type = token.IDENT
+			}
 			tok.Line = l.line
 			tok.Column = l.column
 			return tok
@@ -191,7 +194,15 @@ func (l *Lexer) NextToken() token.Token {
 	l.readChar()
 	return tok
 }
+func (l *Lexer) isControlToken(t token.TokenType) bool {
+	switch t {
+	case token.TYPE:
+		return true
+	default:
+		return false
 
+	}
+}
 func (l *Lexer) readComment() token.Token {
 	position := l.position
 	line := l.line
@@ -298,9 +309,6 @@ func (l *Lexer) readString() string {
 		if l.ch == ch || l.ch == 0 {
 			break
 		}
-		// if l.ch == '"' || l.ch == 0 {
-		// 	break
-		// }
 	}
 	return l.input[position:l.position]
 }

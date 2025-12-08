@@ -164,7 +164,7 @@ func (l *Lexer) NextToken() token.Token {
 			l.readChar()
 			tok = token.Token{Type: token.CONCAT, Literal: "||", Line: l.line, Column: l.column}
 		}
-	case '"':
+	case '"', '\'':
 		tok.Type = token.STRING_LIT
 		tok.Literal = l.readString()
 		tok.Line = l.line
@@ -292,11 +292,15 @@ func (l *Lexer) readNumber() token.Token {
 
 func (l *Lexer) readString() string {
 	position := l.position + 1
+	ch := l.ch
 	for {
 		l.readChar()
-		if l.ch == '"' || l.ch == 0 {
+		if l.ch == ch || l.ch == 0 {
 			break
 		}
+		// if l.ch == '"' || l.ch == 0 {
+		// 	break
+		// }
 	}
 	return l.input[position:l.position]
 }

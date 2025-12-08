@@ -506,12 +506,124 @@ func build_args() []testCase {
 	// 		 `,
 	// 	status: 0,
 	// })
+	// res = append(res, testCase{
+	// 	name: "Test 4.21 : Test strutures de controle : SWITCH (x)",
+	// 	src: `action "Check the statement switch  "
+	// 		 start
+	// 			(* Switch avec constantes *)
+	// 			switch (b) {
+	// 				case 52:
+	// 					print("Valeur attendue");
+	// 					break;
+	// 				default:
+	// 					print("Autre valeur");
+	// 					break
+	// 			}
+	// 		 stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 4.22 : Test strutures de controle : SWITCH (x) dans une function",
+	// 	src: `action "Check the statement switch(x)  "
+	// 			(* Switch simple avec valeurs *)
+	// 			function getJourSemaine(numero: integer): string {
+	// 				switch (numero) {
+	// 					case 1:
+	// 						return "Lundi";
+	// 					case 2:
+	// 						return "Mardi";
+	// 					case 3:
+	// 						return "Mercredi";
+	// 					case 4:
+	// 						return "Jeudi";
+	// 					case 5:
+	// 						return "Vendredi";
+	// 					case 6:
+	// 						return "Samedi";
+	// 					case 7:
+	// 						return "Dimanche";
+	// 					default:
+	// 						return "Numéro invalide";
+	// 				}
+	// 			}
+	// 		start
+	// 		  return getJourSemaine(1)
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 4.23 : Test strutures de controle : SWITCH (x) with case with multiple value",
+	// 	src: `action "Check the statement switch(x)  "
+	// 		(* Switch avec multiples valeurs par case *)
+	// 		function getTypeJour(numero: integer): string {
+	// 			switch (numero) {
+	// 				case 1, 2, 3, 4, 5:
+	// 					return "Jour de semaine";
+	// 				case 6, 7:
+	// 					return "Weekend";
+	// 				default:
+	// 					return "Inconnu";
+	// 			}
+	// 		}
+	// 		start
+	// 		  return getTypeJour(1)
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 4.24 : Test strutures de controle : SWITCH (true) with bool expression",
+	// 	src: `action "Check the statement switch(x)  "
+	// 		(* Switch avec expressions *)
+	// 		function evalueNote(score: integer): string {
+	// 			switch (true) {
+	// 				case score >= 90:
+	// 					return "Excellent";
+	// 				case score >= 80:
+	// 					return "Très bien";
+	// 				case score >= 70:
+	// 					return "Bien";
+	// 				case score >= 60:
+	// 					return "Satisfaisant";
+	// 				default:
+	// 					return "Échec";
+	// 			}
+	// 		}
+	// 		start
+	// 		  return evalueNote(1)
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
 	res = append(res, testCase{
-		name: "Test 4.21 : Test strutures de controle : SWITCH",
-		src: `action "Check the statement switch  "
-			 start
-
-			 stop
+		name: "Test 4.25 : Test strutures de controle : SWITCH (fn(b)) with string value",
+		src: `action "Check the statement switch(x)  "
+			(* Switch avec différents types *)
+			function describeValue(valeur: any): string {
+				switch (typeOf(valeur)) {
+					case "integer":
+						return "Nombre entier: " + valeur;
+					case "float":
+						return "Nombre décimal: " + valeur;
+					case "string":
+						return "Chaîne: \"" + valeur + "\"";
+					case "boolean":
+						if (valeur) {
+							return "Vrai";
+						} else {
+							return "Faux";
+						}
+					case "array":
+						return "Tableau de " + length(valeur) + " éléments";
+					default:
+						return "Type inconnu";
+				}
+			}
+			start
+			  return evalueNote(1)
+			stop
 			 `,
 		status: 0,
 	})

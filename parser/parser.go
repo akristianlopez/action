@@ -825,17 +825,18 @@ func (p *Parser) parseSwitchStatement() (*ast.SwitchStatement, *ParserError) {
 	stmt.Expression = p.parseExpression(LOWEST)
 
 	if !p.expectPeek(token.RPAREN) {
-		return nil, nil //Create("')' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil
 	}
 
 	if !p.expectPeek(token.LBRACE) {
-		return nil, nil //Create("'{' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil
 	}
 
 	p.nextToken()
 
 	// Parser les cases et le default
-	for !p.curTokenIs(token.RBRACE) && !p.curTokenIs(token.EOF) {
+	for !p.curTokenIs(token.RBRACE) && !p.curTokenIs(token.START) &&
+		!p.curTokenIs(token.STOP) && !p.curTokenIs(token.EOF) {
 		switch p.curToken.Type {
 		case token.CASE:
 			caseStmt := p.parseSwitchCase()
@@ -859,6 +860,10 @@ func (p *Parser) parseSwitchStatement() (*ast.SwitchStatement, *ParserError) {
 }
 
 func (p *Parser) parseSwitchCase() *ast.SwitchCase {
+	if !p.curTokenIs(token.CASE) {
+		p.curError(token.CASE)
+		return nil
+	}
 	caseStmt := &ast.SwitchCase{Token: p.curToken}
 
 	p.nextToken()
@@ -888,21 +893,23 @@ func (p *Parser) parseSwitchCase() *ast.SwitchCase {
 		if stmt != nil {
 			caseStmt.Body.Statements = append(caseStmt.Body.Statements, stmt)
 		}
+		p.Save()
 		p.nextToken()
 	}
-	_position, _currentPosition = p.l.GetCursorPosition()
-	// Revenir d'un token car on a avancé trop loin
-	_currentPosition -= len(p.curToken.Literal)
-	p.l.SetCursorPosition(_currentPosition, _currentPosition)
+	// _position, _currentPosition = p.l.GetCursorPosition()
+	// // Revenir d'un token car on a avancé trop loin
+	// _currentPosition -= len(p.curToken.Literal)
+	// p.l.SetCursorPosition(_currentPosition, _currentPosition)
+	p.Restore()
 	return caseStmt
 }
 
 func (p *Parser) parseDefaultCase() *ast.BlockStatement {
+	block := &ast.BlockStatement{Token: p.curToken}
+
 	if !p.expectPeek(token.COLON) {
 		return nil
 	}
-
-	block := &ast.BlockStatement{Token: p.curToken}
 	p.nextToken()
 
 	for !p.curTokenIs(token.CASE) && !p.curTokenIs(token.DEFAULT) &&
@@ -912,16 +919,15 @@ func (p *Parser) parseDefaultCase() *ast.BlockStatement {
 		if stmt != nil {
 			block.Statements = append(block.Statements, stmt)
 		}
+		p.Save()
 		p.nextToken()
 	}
 
-	// Revenir d'un token car on a avancé trop loin
-	_position, _currentPosition = p.l.GetCursorPosition()
-	if !p.curTokenIs(token.RBRACE) {
-		_currentPosition -= len(p.curToken.Literal)
-		p.l.SetCursorPosition(_currentPosition, _currentPosition)
-	}
-
+	// if !p.curTokenIs(token.RBRACE) {
+	// 	p.Restore()
+	// }
+	// p.Clear()
+	p.Restore()
 	return block
 }
 

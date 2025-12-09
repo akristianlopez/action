@@ -56,7 +56,7 @@ func (l *Lexer) SetCursorPosition(pos, cur int) {
 }
 
 func New(input string) *Lexer {
-	l := &Lexer{input: input, line: 1, column: 0}
+	l := &Lexer{input: strings.ReplaceAll(input, "(*)", "( * )"), line: 1, column: 0}
 	l.readChar()
 	return l
 }

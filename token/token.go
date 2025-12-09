@@ -133,6 +133,9 @@ const (
 	OR       = "OR"
 	ASC      = "ASC"
 	DESC     = "DESC"
+	INNER    = "INNER"
+	LEFT     = "LEFT"
+	RIGHT    = "RIGHT"
 
 	// Types SQL
 	VARCHAR   = "VARCHAR"
@@ -315,6 +318,9 @@ var keywords = map[string]TokenType{
 	"remove":      REMOVE,
 	"slice":       SLICE,
 	"contains":    CONTAINS,
+	"inner":       INNER,
+	"left":        LEFT,
+	"right":       RIGHT,
 
 	// Switch statement
 	"switch":      SWITCH,

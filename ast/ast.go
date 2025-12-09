@@ -1373,3 +1373,19 @@ func (fi *FromIdentifier) TokenLiteral() string { return fi.Token.Literal }
 func (fi *FromIdentifier) String() string {
 	return strings.TrimSpace(fmt.Sprintf("%s %s", fi.Value, fi.NewName))
 }
+
+// Select arguments
+type SelectArgs struct {
+	Expr    Expression
+	NewName *Identifier
+}
+
+func (sa *SelectArgs) expressionNode()      {}
+func (sa *SelectArgs) TokenLiteral() string { return sa.Expr.String() }
+func (sa *SelectArgs) String() string {
+	out := sa.Expr.String()
+	if sa.NewName != nil {
+		out += " AS " + sa.NewName.String()
+	}
+	return out
+}

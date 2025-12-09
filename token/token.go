@@ -136,6 +136,7 @@ const (
 	INNER    = "INNER"
 	LEFT     = "LEFT"
 	RIGHT    = "RIGHT"
+	OUTER    = "OUTER"
 
 	// Types SQL
 	VARCHAR   = "VARCHAR"
@@ -321,6 +322,7 @@ var keywords = map[string]TokenType{
 	"inner":       INNER,
 	"left":        LEFT,
 	"right":       RIGHT,
+	"outer":       OUTER,
 
 	// Switch statement
 	"switch":      SWITCH,

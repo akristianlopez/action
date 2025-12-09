@@ -2,6 +2,7 @@ package ast
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/akristianlopez/action/token"
 )
@@ -1358,4 +1359,17 @@ type StructFieldLit struct {
 
 func (sl *StructFieldLit) String() string {
 	return sl.Name.String() + " : " + sl.Value.String()
+}
+
+// Identifier - identifiant
+type FromIdentifier struct {
+	Token   token.Token
+	Value   string
+	NewName string
+}
+
+func (fi *FromIdentifier) expressionNode()      {}
+func (fi *FromIdentifier) TokenLiteral() string { return fi.Token.Literal }
+func (fi *FromIdentifier) String() string {
+	return strings.TrimSpace(fmt.Sprintf("%s %s", fi.Value, fi.NewName))
 }

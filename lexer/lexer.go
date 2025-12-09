@@ -178,7 +178,7 @@ func (l *Lexer) NextToken() token.Token {
 		if isLetter(l.ch) {
 			tok.Literal = l.readIdentifier()
 			tok.Type = token.LookupIdent(strings.ToLower(tok.Literal))
-			if l.isControlToken(token.TYPE) && l.ch == ':' {
+			if l.isControlToken(tok.Type) && l.ch == ':' {
 				tok.Type = token.IDENT
 			}
 			tok.Line = l.line
@@ -200,7 +200,6 @@ func (l *Lexer) isControlToken(t token.TokenType) bool {
 		return true
 	default:
 		return false
-
 	}
 }
 func (l *Lexer) readComment() token.Token {

@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/akristianlopez/action/lexer"
@@ -206,7 +207,6 @@ func build_args() []testCase {
 	// 			let noms: array of string = ["Alice", "Bob", "Charlie"];
 	// 			let matrice: array of array of integer = [[1, 2], [3, 4], [5, 6]];
 	// 			let vide: array of boolean = [];
-
 	// 			(* Tableau avec contraintes *)
 	// 			let scores: array[100] of integer(3)[0..100];
 	// 		 stop
@@ -812,15 +812,111 @@ func build_args() []testCase {
 	// 		 `,
 	// 	status: 0,
 	// })
+	// res = append(res, testCase{
+	// 	name: "Test 4.28 : Test strutures de controle : ForEach (...)",
+	// 	src: `action "Check the DateTime litteral"
+	// 		(* Switch avec différents types *)
+	// 		start
+	// 			ForEach(let a in [1,2,3, 4]) {
+	// 				a=50*10+2
+	// 			}
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 4.29 : Test strutures de controle : ForEach ...",
+	// 	src: `action "Check the DateTime litteral"
+	// 		(* Switch avec différents types *)
+	// 		start
+	// 			ForEach let a in [1,2,3, 4] {
+	// 				a=50*10+2
+	// 			}
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 5.1 : Test of the SQL Statements : SELECT simple sans where",
+	// 	src: `action "Check the DateTime litteral"
+	// 		(* Switch avec différents types *)
+	// 		start
+	// 			SELECT salaire FROM Employés
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 5.2 : Test of the SQL Statements : SELECT simple avec where",
+	// 	src: `action "Check the DateTime litteral"
+	// 		start
+	// 			SELECT id FROM Employés WHERE actif == true;
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 5.3 : Test of the SQL Statements : SELECT simple avec where",
+	// 	src: `action "Check the DateTime litteral"
+	// 		start
+	// 			(* Requêtes SELECT avancées *)
+	// 			SELECT e.nom, e.salaire, d.nom as département
+	// 			FROM Employés e
+	// 				INNER JOIN Départements d ON e.département == d.nom
+	// 			WHERE e.actif == true
+	// 			ORDER BY e.salaire DESC;
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 5.4 : Test of the SQL Statements : SELECT simple avec where",
+	// 	src: `action "Check the DateTime litteral"
+	// 		start
+	// 			(* Requêtes SELECT avancées *)
+	// 			SELECT e.nom, e.salaire, d.nom as département
+	// 			FROM Employés e
+	// 				INNER JOIN Départements d ON e.département == d.nom
+	// 			WHERE e.actif == true
+	// 			ORDER BY e.salaire DESC;
+
+	// 			SELECT e.nom, e.salaire
+	// 			FROM employés e
+	// 			WHERE e.salaire > 50000
+	// 				AND e.actif == true;
+
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 5.5 : Test of the SQL Statements : Advanced SELECT with a function in the clause select",
+	// 	src: `action "Check the DateTime litteral"
+	// 		start
+	// 			(* Requêtes SELECT avancées *)
+	// 			SELECT département, AVG(salaire) as salaire_moyen, COUNT(*) as nb_employes
+	//             FROM Employés
+	//             GROUP BY département
+	//             HAVING AVG(salaire) > 50000;
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
 	res = append(res, testCase{
-		name: "Test 4.28 : Test strutures de controle : ForEach",
+		name: "Test 5.6 : Test of the SQL Statements : Advanced SELECT with a function in the clause select",
 		src: `action "Check the DateTime litteral"
-			(* Switch avec différents types *)
 			start
-				type mystruct struct{
-					type:Integer(10)
-				}
-			
+				(* Requêtes SELECT avancées *)
+				SELECT 
+					o.id,
+					o.nom,
+					o.parent_id,
+					o.niveau,
+					o.budget,
+					ao.niveau_hiérarchique + 1,
+					ao.chemin || ' -> ' || o.nom
+				FROM Organisation o
+				INNER JOIN ArbreOrganisation ao ON o.parent_id = ao.id
 			stop
 			 `,
 		status: 0,
@@ -830,10 +926,10 @@ func build_args() []testCase {
 }
 
 func TestParseProgram(t *testing.T) {
-	var hasError bool
+	has := false
 	for _, tc := range build_args() {
 		fmt.Printf("\n%s is running...", tc.name)
-		hasError = false
+		hasError := false
 		t.Run(tc.name, func(t *testing.T) {
 			l := lexer.New(tc.src)
 			p := New(l)
@@ -842,11 +938,13 @@ func TestParseProgram(t *testing.T) {
 			if tc.status == 0 && len(p.Errors()) > 0 {
 				fmt.Println("Erreurs de parsing:")
 				hasError = true
+				has = true
 				for _, msg := range p.Errors() {
 					fmt.Printf("\n\t%s line:%d, column:%d\n", msg.Message(), msg.Line(), msg.Column())
 				}
 			} else if tc.status >= 1 && len(p.Errors()) == 0 {
 				hasError = true
+				has = true
 				fmt.Printf("\n\tAucune erreur n'a ete idtentifiee. Bien vouloir verifier les parametres de test")
 			}
 		})
@@ -854,5 +952,7 @@ func TestParseProgram(t *testing.T) {
 			fmt.Printf("successful\n\n")
 		}
 	}
-
+	if has {
+		os.Exit(1)
+	}
 }

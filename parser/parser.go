@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/akristianlopez/action/ast"
 	"github.com/akristianlopez/action/lexer"
@@ -123,7 +124,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.OR, p.parseInfixExpression)
 	p.registerInfix(token.LBRACKET, p.parseIndexOrSliceExpression)
 	p.registerInfix(token.IN, p.parseInExpression)
-	p.registerInfix(token.AS, p.parseInfixExpression)
+	// p.registerInfix(token.AS, p.parseInfixExpression)
 	p.registerInfix(token.DOT, p.parseInfixExpression)
 	p.registerInfix(token.CONCAT, p.parseInfixExpression)
 
@@ -691,18 +692,34 @@ func (p *Parser) parseForStatement() (*ast.ForStatement, *ParserError) {
 
 func (p *Parser) parseForEachStatement() (*ast.ForEachStatement, *ParserError) {
 	stmt := &ast.ForEachStatement{Token: p.curToken}
-	var pe *ParserError
+	var (
+		pe    *ParserError
+		hasLP bool = false
+	)
 
+	if p.peekTokenIs(token.LPAREN) {
+		hasLP = true
+		p.nextToken()
+	}
+	if !p.expectPeek(token.LET) {
+		return nil, nil
+	}
 	if !p.expectPeek(token.IDENT) {
 		return nil, nil
 	}
 	stmt.Variable = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
-	if p.expectPeek(token.IN) {
+	if !p.expectPeek(token.IN) {
 		return nil, nil
 	}
 	p.nextToken()
 	stmt.Iterator = p.parseExpression(LOWEST)
+	if hasLP && !p.expectPeek(token.RPAREN) {
+		return nil, nil
+	}
+	if !p.expectPeek(token.LBRACE) {
+		return nil, nil
+	}
 	stmt.Body, pe = p.parseBlockStatement()
 
 	return stmt, pe
@@ -896,10 +913,6 @@ func (p *Parser) parseSwitchCase() *ast.SwitchCase {
 		p.Save()
 		p.nextToken()
 	}
-	// _position, _currentPosition = p.l.GetCursorPosition()
-	// // Revenir d'un token car on a avancé trop loin
-	// _currentPosition -= len(p.curToken.Literal)
-	// p.l.SetCursorPosition(_currentPosition, _currentPosition)
 	p.Restore()
 	return caseStmt
 }
@@ -973,8 +986,11 @@ func (p *Parser) parsePrefixObjectValue() ast.Expression {
 	return ident
 }
 
-func (p *Parser) parseExpression(precedence int) ast.Expression {
+func (p *Parser) parseExpression(precedence int, flag ...bool) ast.Expression {
 	prefix := p.prefixParseFns[p.curToken.Type]
+	if p.curTokenIs(token.IDENT) && len(flag) > 0 {
+		prefix = p.parseFromIdentifier
+	}
 	if prefix == nil {
 		p.noPrefixParseFnError(p.curToken.Type)
 		return nil
@@ -1025,7 +1041,15 @@ func (p *Parser) parseIdentifier() ast.Expression {
 	}
 	return &ast.Identifier{Token: tok, Value: tok.Literal}
 }
-
+func (p *Parser) parseFromIdentifier() ast.Expression {
+	var res = ast.FromIdentifier{
+		Token:   p.curToken,
+		Value:   p.curToken.Literal,
+		NewName: p.peekToken.Literal,
+	}
+	p.nextToken()
+	return &res
+}
 func (p *Parser) parseIntegerLiteral() ast.Expression {
 	lit := &ast.IntegerLiteral{Token: p.curToken}
 
@@ -1859,30 +1883,51 @@ func (p *Parser) parseSelectList() []ast.Expression {
 	var expressions []ast.Expression
 
 	if p.curTokenIs(token.ASTERISK) {
-		expressions = append(expressions, &ast.Identifier{
-			Token: p.curToken,
-			Value: "*",
+		expressions = append(expressions, &ast.SelectArgs{
+			Expr:    &ast.Identifier{Token: p.curToken, Value: "*"},
+			NewName: nil,
 		})
 		p.nextToken()
 		return expressions
 	}
-
-	expressions = append(expressions, p.parseExpression(LOWEST))
+	arg := ast.SelectArgs{}
+	arg.Expr = p.parseExpression(LOWEST)
+	if p.peekTokenIs(token.AS) {
+		p.nextToken()
+		p.nextToken() //move to the new name
+		arg.NewName = p.parseIdentifier().(*ast.Identifier)
+	}
+	expressions = append(expressions, &arg)
 	for p.peekTokenIs(token.COMMA) {
 		p.nextToken()
 		p.nextToken()
-		expressions = append(expressions, p.parseExpression(LOWEST))
+		arg = ast.SelectArgs{Expr: p.parseExpression(LOWEST), NewName: nil}
+		if p.peekTokenIs(token.AS) {
+			p.nextToken() //as
+			p.nextToken() //move to the new name
+			arg.NewName = p.parseIdentifier().(*ast.Identifier)
+		}
+		expressions = append(expressions, &arg)
+
+		// expressions = append(expressions, p.parseExpression(LOWEST))
 	}
 
 	return expressions
 }
-
-func (p *Parser) curTokenIs(t token.TokenType) bool {
-	return p.curToken.Type == t
+func (p *Parser) contains(tab []token.TokenType, element token.TokenType) bool {
+	for _, v := range tab {
+		if v == element {
+			return true
+		}
+	}
+	return false
+}
+func (p *Parser) curTokenIs(t ...token.TokenType) bool {
+	return p.contains(t, p.curToken.Type)
 }
 
-func (p *Parser) peekTokenIs(t token.TokenType) bool {
-	return p.peekToken.Type == t
+func (p *Parser) peekTokenIs(t ...token.TokenType) bool {
+	return p.contains(t, p.peekToken.Type)
 }
 
 func (p *Parser) expectPeek(t token.TokenType) bool {
@@ -1944,8 +1989,8 @@ var precedences = map[token.TokenType]int{
 	token.CONCAT:   SUM,
 	token.IN:       EQUALS,
 	token.NOT:      EQUALS,
-	token.AS:       EQUALS,
-	token.DOT:      EQUALS,
+	// token.AS:       EQUALS,
+	token.DOT: EQUALS,
 }
 
 func (p *Parser) registerPrefix(tokenType token.TokenType, fn prefixParseFn) {
@@ -2277,18 +2322,20 @@ func (p *Parser) parseSQLSelectStatement() (*ast.SQLSelectStatement, *ParserErro
 		return nil, nil //Create("token 'from' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 	p.nextToken()
-	selectStmt.From = p.parseExpression(LOWEST)
 
+	selectStmt.From = p.parseExpression(LOWEST, true)
 	// JOINs optionnels
 	for p.peekTokenIs(token.JOIN) ||
 		(p.peekTokenIs(token.IDENT) &&
-			(p.peekToken.Literal == "INNER" || p.peekToken.Literal == "LEFT" ||
-				p.peekToken.Literal == "RIGHT" || p.peekToken.Literal == "FULL")) {
+			(strings.ToUpper(p.peekToken.Literal) == "INNER" ||
+				strings.ToUpper(p.peekToken.Literal) == "LEFT" ||
+				strings.ToUpper(p.peekToken.Literal) == "RIGHT" ||
+				strings.ToUpper(p.peekToken.Literal) == "FULL")) {
 		p.nextToken()
 		join := &ast.SQLJoin{Token: p.curToken}
 
 		if p.curTokenIs(token.IDENT) {
-			join.Type = p.curToken.Literal
+			join.Type = strings.ToUpper(p.curToken.Literal)
 			if !p.expectPeek(token.JOIN) {
 				return nil, nil //Create("token 'join' expected", p.peekToken.Line, p.peekToken.Column)
 			}
@@ -2297,7 +2344,7 @@ func (p *Parser) parseSQLSelectStatement() (*ast.SQLSelectStatement, *ParserErro
 			join.Type = "INNER"
 		}
 
-		join.Table = p.parseExpression(LOWEST)
+		join.Table = p.parseExpression(LOWEST, true)
 
 		if !p.expectPeek(token.ON) {
 			return nil, nil //Create("token 'on' expected", p.peekToken.Line, p.peekToken.Column)
@@ -2322,8 +2369,8 @@ func (p *Parser) parseSQLSelectStatement() (*ast.SQLSelectStatement, *ParserErro
 	}
 
 	// GROUP BY optionnel
-	if p.peekTokenIs(token.GROUP) {
-		p.nextToken() // GROUP
+	if p.curTokenIs(token.GROUP) {
+		// p.nextToken() // GROUP
 		if !p.expectPeek(token.BY) {
 			return nil, nil //Create("'group' expected", p.peekToken.Line, p.peekToken.Column)
 		}
@@ -2379,7 +2426,9 @@ func (p *Parser) parseSQLSelectStatement() (*ast.SQLSelectStatement, *ParserErro
 		p.nextToken()
 		selectStmt.Union, pe = p.parseSQLSelectStatement() //.(*ast.SQLSelectStatement)
 	}
-
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
 	return selectStmt, pe
 }
 
@@ -2568,6 +2617,13 @@ func (p *Parser) parseArrayFunctionCall() ast.Expression {
 	if p.curTokenIs(token.RPAREN) {
 		call.Arguments = nil
 		call.Array = nil
+		return call
+	}
+	//Check if the function has asterisk as unique argument
+	if p.curTokenIs(token.ASTERISK) && p.peekTokenIs(token.RPAREN) {
+		call.Array = &ast.Identifier{Token: p.curToken, Value: "*"}
+		call.Arguments = nil
+		p.nextToken()
 		return call
 	}
 	call.Array = p.parseExpression(LOWEST)

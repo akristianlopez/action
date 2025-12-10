@@ -222,7 +222,6 @@ func build_args() []testCase {
 	// 			let noms: array of string = ["Alice", "Bob", "Charlie"];
 	// 			let matrice: array of array of integer = [[1, 2], [3, 4], [5, 6]];
 	// 			let vide: array of boolean = [];
-
 	// 			(* Tableau avec contraintes *)
 	// 			let scores: array[100] of integer(3)[0..100];
 	// 			return []
@@ -430,7 +429,6 @@ func build_args() []testCase {
 	// 	name: "Test 4.15 : Test des tableaux : instruction d'affectation (get a slice [x:y])",
 	// 	src: `action "Check expression with arrays  "
 	// 		 start
-
 	// 			let points: array of Point = [
 	// 				{x: 1, y: 2},
 	// 				{x: 3, y: 4},
@@ -456,7 +454,6 @@ func build_args() []testCase {
 	// 	src: `action "Check expression with arrays  "
 	// 		 start
 	// 			let debut = nombres[:3];
-
 	// 		 stop
 	// 		 `,
 	// 	status: 0,
@@ -466,7 +463,6 @@ func build_args() []testCase {
 	// 	src: `action "Check expression with arrays  "
 	// 		 start
 	// 			let copie = nombres[:];
-
 	// 		 stop
 	// 		 `,
 	// 	status: 0,
@@ -478,7 +474,6 @@ func build_args() []testCase {
 	// 			(* Concaténation
 	// 			let tous = nombres || [6, 7, 8, 9, 10];
 	// 			let double = nombres + nombres;
-
 	// 			(* Vérification d'appartenance *)
 	// 			let existe = 5 in nombres;
 	// 			let pas_existe = 20 not in nombres;
@@ -633,7 +628,6 @@ func build_args() []testCase {
 	// 		start
 	// 			(* Gestion des commandes *)
 	// 			let statut_commande = "expédiée";
-
 	// 			switch (statut_commande) {
 	// 				case "nouvelle":
 	// 					print("La commande est nouvelle");
@@ -656,11 +650,9 @@ func build_args() []testCase {
 	// 				default:
 	// 					print("Statut inconnu");
 	// 			}
-
 	// 			(* Catégorisation d'âge *)
 	// 			let age = 25;
 	// 			let categorie = "";
-
 	// 			switch (true) {
 	// 				case age < 0:
 	// 					categorie = "Âge invalide";
@@ -677,13 +669,10 @@ func build_args() []testCase {
 	// 				default:
 	// 					categorie = "Senior";
 	// 			}
-
 	// 			print("Catégorie: " + categorie);
-
 	// 			(* Gestion des erreurs HTTP *)
 	// 			let code_http = 404;
 	// 			let message = "";
-
 	// 			switch (code_http) {
 	// 				case 200, 201, 204:
 	// 					message = "Succès";
@@ -712,13 +701,10 @@ func build_args() []testCase {
 	// 						message = "Code inconnu";
 	// 					}
 	// 			}
-
 	// 			print("Message HTTP: " + message);
-
 	// 			(* Switch avec énumérations *)
 	// 			let couleur = "rouge";
 	// 			let code_couleur = "";
-
 	// 			switch (couleur) {
 	// 				case "rouge":
 	// 					code_couleur = "#FF0000";
@@ -738,7 +724,6 @@ func build_args() []testCase {
 	// 				default:
 	// 					code_couleur = "#000000"; (* noir par défaut *)
 	// 			}
-
 	// 			(* Switch dans une boucle *)
 	// 			let nombres = [1, 2, 3, 4, 5, 10, 15, 20];
 	// 			for let i = 0; i < length(nombres); i = i + 1 {
@@ -760,11 +745,9 @@ func build_args() []testCase {
 	// 						break;
 	// 				}
 	// 			}
-
 	// 			(* Switch avec dates *)
 	// 			let jour_semaine = #2024-01-15#.dayOfWeek() ; (* Lundi *)
 	// 			let type_journee = "";
-
 	// 			switch (jour_semaine) {
 	// 				case 1, 2, 3, 4, 5:
 	// 					type_journee = "Jour de travail";
@@ -776,12 +759,10 @@ func build_args() []testCase {
 	// 					type_journee = "Dimanche - weekend";
 	// 					break;
 	// 			}
-
 	// 			(* Switch complexe avec conditions *)
 	// 			let temperature = 22;
 	// 			let humidite = 65;
 	// 			let conditions = "";
-
 	// 			switch (true) {
 	// 				case temperature > 30 and humidite > 70:
 	// 					conditions = "Très chaud et humide";
@@ -879,12 +860,10 @@ func build_args() []testCase {
 	// 				INNER JOIN Départements d ON e.département == d.nom
 	// 			WHERE e.actif == true
 	// 			ORDER BY e.salaire DESC;
-
 	// 			SELECT e.nom, e.salaire
 	// 			FROM employés e
 	// 			WHERE e.salaire > 50000
 	// 				AND e.actif == true;
-
 	// 		stop
 	// 		 `,
 	// 	status: 0,
@@ -900,27 +879,213 @@ func build_args() []testCase {
 	//             HAVING AVG(salaire) > 50000;
 	// 		stop
 	// 		 `,
+	// 	status: 1, //due to the comment mark '(*' but if you want the compilation
+	// 	// process to go smoothly then surround asterisk with space.
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 5.6 : Test of the SQL Statements : Advanced SELECT with a function in the clause select",
+	// 	src: `action "Requêtes SELECT avancées"
+	// 		start
+	// 			(* Requêtes SELECT avancées *)
+	// 			SELECT
+	// 				o.id,
+	// 				o.nom,
+	// 				o.parent_id,
+	// 				o.niveau,
+	// 				o.budget,
+	// 				ao.niveau_hiérarchique + 1,
+	// 				ao.chemin || ' -> ' || o.nom
+	// 			FROM Organisation o
+	// 			INNER JOIN ArbreOrganisation ao ON o.parent_id == ao.id;
+	// 		stop
+	// 		 `,
 	// 	status: 0,
 	// })
-	res = append(res, testCase{
-		name: "Test 5.6 : Test of the SQL Statements : Advanced SELECT with a function in the clause select",
-		src: `action "Check the DateTime litteral"
-			start
-				(* Requêtes SELECT avancées *)
-				SELECT 
-					o.id,
-					o.nom,
-					o.parent_id,
-					o.niveau,
-					o.budget,
-					ao.niveau_hiérarchique + 1,
-					ao.chemin || ' -> ' || o.nom
-				FROM Organisation o
-				INNER JOIN ArbreOrganisation ao ON o.parent_id = ao.id
-			stop
-			 `,
-		status: 0,
-	})
+	// res = append(res, testCase{
+	// 	name: "Test 5.7 : Test of the SQL Statements : assign advanced select to the variable",
+	// 	src: `action "Requêtes SELECT avancées"
+	// 		start
+	// 			(* Requêtes SELECT avancées *)
+	// 			let employes_actifs = SELECT e.nom, e.salaire, d.nom as département
+	// 								FROM Employés e
+	// 								INNER JOIN Départements d ON e.département == d.nom
+	// 								WHERE e.actif == true
+	// 								ORDER BY e.salaire DESC;
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 5.8 : Test of the SQL Statements : Advanced SELECT Recursive select",
+	// 	src: `action "Requête récursive pour l'arbre complet de l'organisation"
+	// 		start
+	// 			(* Requête récursive pour l'arbre complet de l'organisation *)
+	// 			WITH RECURSIVE ArbreOrganisation AS (
+	// 				(* -- Anchor : les racines (sans parent) *)
+	// 				SELECT
+	// 					id,
+	// 					nom,
+	// 					parent_id,
+	// 					niveau,
+	// 					budget,
+	// 					0 as niveau_hiérarchique,
+	// 					'' as chemin
+	// 				FROM Organisation
+	// 				WHERE parent_id IS NULL
+	// 				UNION ALL
+	// 				(* -- Partie récursive : les enfants *)
+	// 				SELECT
+	// 					o.id,
+	// 					o.nom,
+	// 					o.parent_id,
+	// 					o.niveau,
+	// 					o.budget,
+	// 					ao.niveau_hiérarchique + 1,
+	// 					ao.chemin || ' -> ' || o.nom
+	// 				FROM Organisation o
+	// 				INNER JOIN ArbreOrganisation ao ON o.parent_id == ao.id
+	// 			)
+	// 			SELECT
+	// 				niveau_hiérarchique,
+	// 				nom,
+	// 				niveau,
+	// 				budget,
+	// 				chemin
+	// 			FROM ArbreOrganisation
+	// 			ORDER BY niveau_hiérarchique, nom;
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 5.9 : Test of the SQL Statements : assign advanced select to the variable",
+	// 	src: `action "Requêtes SELECT avancées"
+	// 		start
+	// 			(* Détection des cycles avec requête récursive *)
+	// 			WITH RECURSIVE DetectionCycle AS (
+	// 				SELECT
+	// 					id,
+	// 					nom,
+	// 					parent_id,
+	// 					(* ARRAY[id] as chemin, *)
+	// 					false as cycle
+	// 				FROM Organisation
+	// 				UNION ALL
+	// 				SELECT
+	// 					o.id,
+	// 					o.nom,
+	// 					o.parent_id,
+	// 					dc.chemin || o.id (*,
+	// 					o.id = ANY(dc.chemin) as cycle *)
+	// 				FROM Organisation o
+	// 				INNER JOIN DetectionCycle dc ON o.parent_id == dc.id
+	// 				WHERE NOT dc.cycle
+	// 			)
+	// 			SELECT DISTINCT
+	// 				nom,
+	// 				chemin
+	// 			FROM DetectionCycle
+	// 			WHERE cycle == true;
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 5.9 : Test of the SQL Statements : INSERT ",
+	// 	src: `action "Requêtes INSERT INTO"
+	// 		start
+	// 			(* Insertion de données *)
+	// 			INSERT INTO Départements (id, nom, budget)
+	// 			VALUES (1, 'IT', 1000000.00),
+	// 				(2, 'RH', 500000.00),
+	// 				(3, 'Finance', 750000.00);
+	// 			INSERT INTO Employés (id, nom, salaire, département, date_embauche)
+	// 			VALUES (1, 'Alice Dupont', 55000.00, 'IT', #2023-01-15#),
+	// 				(2, 'Bob Martin', 48000.00, 'RH', #2023-03-20#),
+	// 				(3, 'Charlie Durand', 62000.00, 'IT', #2022-11-10#);
+	// 			INSERT INTO Organisation (id, nom, parent_id, niveau, budget) VALUES
+	// 			(1, 'Entreprise', NULL, 'Direction', 10000000.00),
+	// 			(2, 'IT', 1, 'Département', 2000000.00),
+	// 			(3, 'RH', 1, 'Département', 800000.00),
+	// 			(4, 'Développement', 2, 'Service', 1200000.00),
+	// 			(5, 'Infrastructure', 2, 'Service', 800000.00),
+	// 			(6, 'Recrutement', 3, 'Service', 400000.00),
+	// 			(7, 'Formation', 3, 'Service', 300000.00),
+	// 			(8, 'Backend', 4, 'Équipe', 600000.00),
+	// 			(9, 'Frontend', 4, 'Équipe', 400000.00),
+	// 			(10, 'Base de données', 5, 'Équipe', 300000.00);
+	//  		stop
+	//  		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 5.10 : Test of the SQL Statements : UPDATE ",
+	// 	src: `action "Requêtes UPDATE"
+	// 		start
+	// 			(* Mise à jour *)
+	// 			UPDATE Employés
+	// 			SET salaire = salaire * 1.05
+	// 			WHERE département == 'IT';
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 5.11 : Test of the SQL Statements : DELETE ",
+	// 	src: `action "Requêtes DELETE"
+	// 		start
+	// 			(* Suppression *)
+	// 			DELETE FROM Employés
+	// 			WHERE actif == false;
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 5.12 : Test of the SQL Statements : CREATE OBJECT ",
+	// 	src: `action "Requêtes CREATE OBJECT"
+	// 		start
+	// 			(* Création des objets *)
+	// 			CREATE OBJECT IF NOT EXISTS Employés (
+	// 				id INTEGER PRIMARY KEY,
+	// 				nom VARCHAR(50) NOT NULL,
+	// 				salaire NUMERIC(10,2),
+	// 				département VARCHAR(30),
+	// 				date_embauche DATE,
+	// 				actif BOOLEAN DEFAULT true
+	// 			);
+	// 			CREATE OBJECT Départements (
+	// 				id INTEGER PRIMARY KEY,
+	// 				nom VARCHAR(50) UNIQUE NOT NULL,
+	// 				budget NUMERIC(12,2)
+	// 			);
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 5.13 : Test of the SQL Statements : CREATE AN INDEX ",
+	// 	src: `action "Requêtes CREATE AN INDEX"
+	// 		start
+	// 			(* Création d'index *)
+	// 			 CREATE INDEX idx_employes_departement ON Employés(département);
+	// 			 CREATE UNIQUE INDEX idx_employes_nom ON Employés(nom);
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 5.14 : Test of the SQL Statements : ALTER ",
+	// 	src: `action "Requêtes SQl ALTER"
+	// 		start
+	// 			(* ALTER TABLE *)
+	// 			ALTER OBJECT Employés
+	// 			ADD COLUMN email VARCHAR(100),
+	// 			ADD CONSTRAINT fk_departement FOREIGN KEY (département) REFERENCES Départements(nom);
+	// 			stop
+	// 		 `,
+	// 	status: 0,
+	// })
 
 	return res
 }

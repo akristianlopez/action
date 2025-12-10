@@ -80,10 +80,11 @@ func (l *Lexer) readChar() {
 
 func (l *Lexer) skipComment() {
 	// Vérifier les commentaires
-	if l.ch == '(' && l.peekChar() == '*' {
+	for l.ch == '(' && l.peekChar() == '*' {
 		l.readChar()
 		l.readChar()
 		l.readComment()
+		l.skipWhitespace()
 		// return l.readComment()
 	}
 	l.skipWhitespace()

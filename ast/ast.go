@@ -1389,3 +1389,12 @@ func (sa *SelectArgs) String() string {
 	}
 	return out
 }
+
+// NullLiteral - littéral null
+type NullLiteral struct {
+	Token token.Token
+}
+
+func (nl *NullLiteral) expressionNode()      {}
+func (nl *NullLiteral) TokenLiteral() string { return nl.Token.Literal }
+func (nl *NullLiteral) String() string       { return nl.Token.Literal }

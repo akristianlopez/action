@@ -196,7 +196,8 @@ func foldInfixExpression(expr *ast.InfixExpression) ast.Expression {
 
 func isConstant(expr ast.Expression) bool {
 	switch expr.(type) {
-	case *ast.IntegerLiteral, *ast.FloatLiteral, *ast.StringLiteral, *ast.BooleanLiteral:
+	case *ast.IntegerLiteral, *ast.FloatLiteral, *ast.StringLiteral,
+		*ast.BooleanLiteral, *ast.DurationLiteral:
 		return true
 	default:
 		return false

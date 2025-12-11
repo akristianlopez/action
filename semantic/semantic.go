@@ -2,6 +2,7 @@ package semantic
 
 import (
 	"fmt"
+	// "go/ast"
 
 	"github.com/akristianlopez/action/ast"
 	// "github.com/akristianlopez/action/object"
@@ -61,7 +62,8 @@ func NewSemanticAnalyzer() *SemanticAnalyzer {
 		Warnings:     []string{},
 		TypeTable:    make(map[string]*TypeInfo),
 	}
-
+	returnType := &TypeInfo{}
+	analyzer.registerSymbol("append", FunctionSymbol, returnType, ast.NullLiteral)
 	// Enregistrer les types de base
 	analyzer.registerBuiltinTypes()
 
@@ -88,7 +90,7 @@ func (sa *SemanticAnalyzer) Analyze(program *ast.Program) []string {
 func (sa *SemanticAnalyzer) visitProgram(node *ast.Program) {
 	// Vérifier la structure du programme
 	if node.ActionName == "" {
-		sa.addError("Le programme doit commencer par 'action <nom>'")
+		sa.addError("Then action must start by 'action <nom>'")
 	}
 
 	// Visiter toutes les déclarations
@@ -101,6 +103,8 @@ func (sa *SemanticAnalyzer) visitStatement(stmt ast.Statement) {
 	switch s := stmt.(type) {
 	case *ast.LetStatement:
 		sa.visitLetStatement(s)
+	case *ast.LetStatements:
+		sa.visitLetStatements(s)
 	case *ast.FunctionStatement:
 		sa.visitFunctionStatement(s)
 	case *ast.StructStatement:
@@ -128,33 +132,84 @@ func (sa *SemanticAnalyzer) visitStatement(stmt ast.Statement) {
 	}
 }
 
+func (sa *SemanticAnalyzer) visitSQLDeleteStatement(s *ast.SQLDeleteStatement) {
+	panic("unimplemented")
+}
+
+func (sa *SemanticAnalyzer) visitSQLUpdateStatement(s *ast.SQLUpdateStatement) {
+	panic("unimplemented")
+}
+
+func (sa *SemanticAnalyzer) visitSQLInsertStatement(s *ast.SQLInsertStatement) {
+	panic("unimplemented")
+}
+
+func (sa *SemanticAnalyzer) visitSQLCreateObjectStatement(s *ast.SQLCreateObjectStatement) {
+	panic("unimplemented")
+}
+
+func (sa *SemanticAnalyzer) visitExpressionStatement(s *ast.ExpressionStatement) {
+	panic("unimplemented")
+}
+
+func (sa *SemanticAnalyzer) visitSQLSelectStatement(s *ast.SQLSelectStatement) {
+	panic("unimplemented")
+	// return &TypeInfo{Name: "sql_result"}
+}
+
+func (sa *SemanticAnalyzer) visitLetStatements(nodes *ast.LetStatements) {
+	// Vérifier si la variable est déjà déclarée
+	var varType *TypeInfo
+	for _, node := range *nodes {
+		if sa.lookupSymbol(node.Name.Value) != nil {
+			sa.addError("Variable '%s' already declared. line:%d column:%d",
+				node.Name.Value, node.Name.Token.Line, node.Name.Token.Column)
+			return
+		}
+		if node.Type != nil {
+			varType = sa.resolveTypeAnnotation(node.Type)
+		}
+		// Si une valeur est fournie, vérifier la compatibilité des types
+		if node.Value != nil {
+			valueType := sa.visitExpression(node.Value)
+
+			if varType != nil && !sa.areTypesCompatible(varType, valueType) {
+				sa.addError("Type mismatch for the variable '%s': expected %s, got %s. line:%d column:%d",
+					node.Name.Value, varType.Name, valueType.Name, node.Token.Line, node.Token.Column)
+			}
+			// Si le type n'est pas spécifié, l'inférer
+			if varType == nil {
+				varType = valueType
+			}
+		}
+		// Enregistrer la variable
+		sa.registerSymbol(node.Name.Value, VariableSymbol, varType, &node)
+	}
+}
 func (sa *SemanticAnalyzer) visitLetStatement(node *ast.LetStatement) {
 	// Vérifier si la variable est déjà déclarée
+	var varType *TypeInfo
 	if sa.lookupSymbol(node.Name.Value) != nil {
-		sa.addError("Variable '%s' déjà déclarée", node.Name.Value)
+		sa.addError("Variable '%s' already declared. line:%d column:%d",
+			node.Name.Value, node.Name.Token.Line, node.Name.Token.Column)
 		return
 	}
-
-	var varType *TypeInfo
 	if node.Type != nil {
 		varType = sa.resolveTypeAnnotation(node.Type)
 	}
-
 	// Si une valeur est fournie, vérifier la compatibilité des types
 	if node.Value != nil {
 		valueType := sa.visitExpression(node.Value)
 
 		if varType != nil && !sa.areTypesCompatible(varType, valueType) {
-			sa.addError("Type incompatible pour la variable '%s': attendu %s, got %s",
-				node.Name.Value, varType.Name, valueType.Name)
+			sa.addError("Type mismatch for the variable '%s': expected %s, got %s. line:%d column:%d",
+				node.Name.Value, varType.Name, valueType.Name, node.Token.Line, node.Token.Column)
 		}
-
 		// Si le type n'est pas spécifié, l'inférer
 		if varType == nil {
 			varType = valueType
 		}
 	}
-
 	// Enregistrer la variable
 	sa.registerSymbol(node.Name.Value, VariableSymbol, varType, node)
 }
@@ -162,7 +217,7 @@ func (sa *SemanticAnalyzer) visitLetStatement(node *ast.LetStatement) {
 func (sa *SemanticAnalyzer) visitFunctionStatement(node *ast.FunctionStatement) {
 	// Vérifier si la fonction est déjà déclarée
 	if sa.lookupSymbol(node.Name.Value) != nil {
-		sa.addError("Fonction '%s' déjà déclarée", node.Name.Value)
+		sa.addError("Function '%s' already declared", node.Name.Value)
 		return
 	}
 
@@ -203,7 +258,8 @@ func (sa *SemanticAnalyzer) visitFunctionStatement(node *ast.FunctionStatement) 
 func (sa *SemanticAnalyzer) visitStructStatement(node *ast.StructStatement) {
 	// Vérifier si la structure est déjà déclarée
 	if sa.lookupSymbol(node.Name.Value) != nil {
-		sa.addError("Structure '%s' déjà déclarée", node.Name.Value)
+		sa.addError("Type '%s' already declared. line:%d column:%d", node.Name.Value,
+			node.Token.Line, node.Token.Column)
 		return
 	}
 
@@ -244,7 +300,8 @@ func (sa *SemanticAnalyzer) visitForStatement(node *ast.ForStatement) {
 	if node.Condition != nil {
 		condType := sa.visitExpression(node.Condition)
 		if condType.Name != "boolean" && condType.Name != "any" {
-			sa.addError("La condition d'une boucle for doit être booléenne")
+			sa.addError("The condition of a for loop must be boolean. line:%d column:%d",
+				node.Token.Line, node.Token.Column)
 		}
 	}
 
@@ -323,6 +380,10 @@ func (sa *SemanticAnalyzer) visitExpression(expr ast.Expression) *TypeInfo {
 		return &TypeInfo{Name: "duration"}
 	case *ast.ArrayLiteral:
 		return sa.visitArrayLiteral(e)
+	case *ast.StructLiteral:
+		return &TypeInfo{Name: "struct"}
+	case *ast.NullLiteral:
+		return &TypeInfo{Name: "null"}
 	case *ast.InfixExpression:
 		return sa.visitInfixExpression(e)
 	case *ast.PrefixExpression:
@@ -335,17 +396,37 @@ func (sa *SemanticAnalyzer) visitExpression(expr ast.Expression) *TypeInfo {
 		return sa.visitInExpression(e)
 	case *ast.ArrayFunctionCall:
 		return sa.visitArrayFunctionCall(e)
-	case *ast.SQLSelectStatement:
+	case *ast.SQLSelectStatement, *ast.SQLWithStatement:
 		return &TypeInfo{Name: "sql_result"}
+	case *ast.SQLInsertStatement, *ast.SQLUpdateStatement,
+		*ast.SQLDeleteStatement:
+		return &TypeInfo{Name: "integer"}
 	default:
 		return &TypeInfo{Name: "any"}
 	}
 }
 
+func (sa *SemanticAnalyzer) visitSliceExpression(e *ast.SliceExpression) *TypeInfo {
+	//retrouver sa definition et retourner son type
+	return &TypeInfo{Name: "array"}
+}
+
+func (sa *SemanticAnalyzer) visitArrayFunctionCall(e *ast.ArrayFunctionCall) *TypeInfo {
+	//retrouver la fonction dans le scope et retourner son type
+	symbol := sa.lookupSymbol(e.Function.String())
+	if symbol == nil {
+		sa.addError("Non declared function: %s, line:%d column:%d", e.Function.Value,
+			e.Function.Token.Line, e.Function.Token.Column)
+		return &TypeInfo{Name: "any"}
+	}
+	return symbol.DataType
+}
+
 func (sa *SemanticAnalyzer) visitIdentifier(node *ast.Identifier) *TypeInfo {
 	symbol := sa.lookupSymbol(node.Value)
 	if symbol == nil {
-		sa.addError("Identifiant non déclaré: %s", node.Value)
+		sa.addError("Non declared identifier: %s line:%d column:%d", node.Value, node.Token.Line,
+			node.Token.Column)
 		return &TypeInfo{Name: "any"}
 	}
 	return symbol.DataType
@@ -376,6 +457,69 @@ func (sa *SemanticAnalyzer) visitArrayLiteral(node *ast.ArrayLiteral) *TypeInfo 
 	}
 }
 
+func (sa *SemanticAnalyzer) visitPrefixExpression(node *ast.PrefixExpression) *TypeInfo {
+	rightType := sa.visitExpression(node.Right)
+	switch node.Operator {
+	case "-", "+":
+		if rightType.Name == "integer" {
+			return &TypeInfo{Name: "integer"}
+		}
+		if rightType.Name == "float" ||
+			rightType.Name == "numeric" || rightType.Name == "decimal" {
+			return &TypeInfo{Name: "float"}
+		}
+		sa.addError("'%s' non supported operation on %s",
+			node.Operator, rightType.Name)
+	case "not":
+		if rightType.Name == "boolean" {
+			return &TypeInfo{Name: rightType.Name}
+		}
+	case "is":
+		if rightType.Name == "null" {
+			return &TypeInfo{Name: "object"}
+		}
+	case "object":
+		return &TypeInfo{Name: "table"}
+	default:
+		sa.addError("'%s' non supported operation on %s",
+			node.Operator, rightType.Name)
+	}
+
+	/*
+		p.registerPrefix(token.IDENT, p.parseIdentifier)
+		p.registerPrefix(token.INT_LIT, p.parseIntegerLiteral)
+		p.registerPrefix(token.FLOAT_LIT, p.parseFloatLiteral)
+		p.registerPrefix(token.STRING_LIT, p.parseStringLiteral)
+		p.registerPrefix(token.BOOL_LIT, p.parseBooleanLiteral)
+		p.registerPrefix(token.TIME_LIT, p.parseDateTimeLiteral)
+		p.registerPrefix(token.DATE_LIT, p.parseDateTimeLiteral)
+		p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
+		p.registerPrefix(token.MINUS, p.parsePrefixExpression)
+		p.registerPrefix(token.SELECT, p.parseSQLSelect)
+		p.registerPrefix(token.OBJECT, p.parsePrefixObjectValue)
+
+		// Enregistrer les fonctions de fenêtrage
+		p.registerPrefix(token.ROW_NUMBER, p.parseWindowFunction)
+		p.registerPrefix(token.RANK, p.parseWindowFunction)
+		p.registerPrefix(token.DENSE_RANK, p.parseWindowFunction)
+		p.registerPrefix(token.LAG, p.parseWindowFunction)
+		p.registerPrefix(token.LEAD, p.parseWindowFunction)
+		p.registerPrefix(token.FIRST_VALUE, p.parseWindowFunction)
+		p.registerPrefix(token.LAST_VALUE, p.parseWindowFunction)
+		p.registerPrefix(token.NTILE, p.parseWindowFunction)
+		p.registerPrefix(token.LBRACKET, p.parseArrayLiteral)
+		p.registerPrefix(token.LENGTH, p.parseArrayFunctionCall)
+		p.registerPrefix(token.APPEND, p.parseArrayFunctionCall)
+		p.registerPrefix(token.PREPEND, p.parseArrayFunctionCall)
+		p.registerPrefix(token.REMOVE, p.parseArrayFunctionCall)
+		p.registerPrefix(token.NULL, p.parseNullLiteral)
+		// p.registerPrefix(token.SLICE, p.parseArrayFunctionCall)
+		p.registerPrefix(token.CONTAINS, p.parseArrayFunctionCall)
+		p.registerPrefix(token.DURATION_LIT, p.parseDurationLiteral)
+
+	*/
+	return &TypeInfo{Name: "any"}
+}
 func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *TypeInfo {
 	leftType := sa.visitExpression(node.Left)
 	rightType := sa.visitExpression(node.Right)

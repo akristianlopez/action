@@ -249,7 +249,28 @@ func (l *Lexer) readDateTimeLiteral() token.Token {
 	if isTimeLiteral(literal) {
 		return token.Token{Type: token.TIME_LIT, Literal: literal, Line: line, Column: column}
 	}
-	return token.Token{Type: token.DATE_LIT, Literal: literal, Line: line, Column: column}
+	if isDateLiteral(literal) {
+		return token.Token{Type: token.DATE_LIT, Literal: literal, Line: line, Column: column}
+	}
+	return token.Token{Type: token.DURATION_LIT, Literal: literal, Line: line, Column: column}
+}
+
+func isDateLiteral(literal string) bool {
+	if len(literal) < 4 {
+		return false
+	}
+	dateStr := literal[1 : len(literal)-1] // enlever les #
+
+	_, err := time.Parse("2006-01-02", dateStr)
+	if err == nil {
+		return true
+	}
+	_, err = time.Parse("2006-01-02 15:04:05", dateStr)
+	if err == nil {
+		return true
+	}
+	_, err = time.Parse("2006-01-02 15:04", dateStr)
+	return err == nil
 }
 
 func isTimeLiteral(literal string) bool {

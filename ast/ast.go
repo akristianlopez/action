@@ -379,6 +379,9 @@ type FunctionParameter struct {
 func (fp *FunctionParameter) String() string {
 	return fp.Name.String() + " : " + fp.Type.String()
 }
+func (fp *FunctionParameter) TokenLiteral() string {
+	return fp.Token.Literal
+}
 
 // StructStatement - déclaration de structure
 type StructStatement struct {

@@ -1398,3 +1398,24 @@ type NullLiteral struct {
 func (nl *NullLiteral) expressionNode()      {}
 func (nl *NullLiteral) TokenLiteral() string { return nl.Token.Literal }
 func (nl *NullLiteral) String() string       { return nl.Token.Literal }
+
+type DurationLiteral struct {
+	Token          token.Token
+	Value          string
+	ParsedDuration *Duration // Parsé lors de l'évaluation
+}
+
+func (dl *DurationLiteral) expressionNode()      {}
+func (dl *DurationLiteral) TokenLiteral() string { return dl.Token.Literal }
+func (dl *DurationLiteral) String() string       { return dl.Token.Literal }
+
+// Structure Duration pour stocker la durée parsée
+type Duration struct {
+	Years   int64
+	Months  int64
+	Days    int64
+	Hours   int64
+	Minutes int64
+	Seconds int64
+	Nanos   int64
+}

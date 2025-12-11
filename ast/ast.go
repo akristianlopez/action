@@ -651,6 +651,7 @@ func (si *SQLInsertStatement) String() string {
 	}
 	return out
 }
+func (ss *SQLInsertStatement) expressionNode() {}
 
 // SQLValues - Valeurs pour INSERT
 type SQLValues struct {
@@ -693,6 +694,7 @@ func (su *SQLUpdateStatement) String() string {
 	}
 	return out
 }
+func (ss *SQLUpdateStatement) expressionNode() {}
 
 // SQLSetClause - Clause SET pour UPDATE
 type SQLSetClause struct {
@@ -721,6 +723,7 @@ func (sd *SQLDeleteStatement) String() string {
 	}
 	return out
 }
+func (ss *SQLDeleteStatement) expressionNode() {}
 
 // SQLTruncateStatement - TRUNCATE
 type SQLTruncateStatement struct {
@@ -829,6 +832,7 @@ func (sw *SQLWithStatement) String() string {
 	out += " " + sw.Select.String()
 	return out
 }
+func (ss *SQLWithStatement) expressionNode() {}
 
 // SQLCommonTableExpression - CTE
 type SQLCommonTableExpression struct {

@@ -22,7 +22,7 @@ const (
 type Symbol struct {
 	Name     string
 	Type     SymbolType
-	DataType string
+	DataType *TypeInfo
 	Scope    *Scope
 	Node     ast.Node
 }
@@ -77,6 +77,7 @@ func (sa *SemanticAnalyzer) registerBuiltinTypes() {
 	sa.TypeTable["time"] = &TypeInfo{Name: "time"}
 	sa.TypeTable["date"] = &TypeInfo{Name: "date"}
 	sa.TypeTable["any"] = &TypeInfo{Name: "any"} // Type générique
+	sa.TypeTable["duration"] = &TypeInfo{Name: "duration"}
 }
 
 func (sa *SemanticAnalyzer) Analyze(program *ast.Program) []string {
@@ -318,6 +319,8 @@ func (sa *SemanticAnalyzer) visitExpression(expr ast.Expression) *TypeInfo {
 			return &TypeInfo{Name: "time"}
 		}
 		return &TypeInfo{Name: "date"}
+	case *ast.DurationLiteral:
+		return &TypeInfo{Name: "duration"}
 	case *ast.ArrayLiteral:
 		return sa.visitArrayLiteral(e)
 	case *ast.InfixExpression:
@@ -378,7 +381,7 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 	rightType := sa.visitExpression(node.Right)
 
 	switch node.Operator {
-	case "+", "-", "*", "/", "%":
+	case "%":
 		// Opérations arithmétiques
 		if leftType.Name == "integer" && rightType.Name == "integer" {
 			return &TypeInfo{Name: "integer"}
@@ -393,7 +396,78 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 		sa.addError("Opération '%s' non supportée entre %s et %s",
 			node.Operator, leftType.Name, rightType.Name)
 
+	case "+", "-":
+		// Opérations Date/Time + Duration
+		if (leftType.Name == "date" || leftType.Name == "time") && rightType.Name == "duration" {
+			return leftType
+		}
+		if leftType.Name == "duration" && (rightType.Name == "date" || rightType.Name == "time") {
+			return rightType
+		}
+		// Duration + Duration
+		if leftType.Name == "duration" && rightType.Name == "duration" {
+			return &TypeInfo{Name: "duration"}
+		}
+		// Duration + Number = Duration
+		if leftType.Name == "duration" && (rightType.Name == "integer" || rightType.Name == "float") {
+			return &TypeInfo{Name: "duration"}
+		}
+		if (leftType.Name == "integer" || leftType.Name == "float") && rightType.Name == "duration" {
+			return &TypeInfo{Name: "duration"}
+		}
+		if leftType.Name == "integer" && rightType.Name == "integer" {
+			return &TypeInfo{Name: "integer"}
+		}
+		if (leftType.Name == "integer" || leftType.Name == "float") &&
+			(rightType.Name == "integer" || rightType.Name == "float") {
+			return &TypeInfo{Name: "float"}
+		}
+		if leftType.Name == "string" && rightType.Name == "string" && node.Operator == "+" {
+			return &TypeInfo{Name: "string"}
+		}
+		sa.addError("Opération '%s' non supportée entre %s et %s",
+			node.Operator, leftType.Name, rightType.Name)
+
+	case "*", "/":
+		// Duration * Number = Duration
+		if leftType.Name == "duration" && (rightType.Name == "integer" || rightType.Name == "float") {
+			return &TypeInfo{Name: "duration"}
+		}
+		if (leftType.Name == "integer" || leftType.Name == "float") && rightType.Name == "duration" {
+			return &TypeInfo{Name: "duration"}
+		}
+		// Duration / Duration = Number
+		if leftType.Name == "duration" && rightType.Name == "duration" {
+			return &TypeInfo{Name: "float"}
+		}
+		// Duration / Number = Duration
+		if leftType.Name == "duration" && (rightType.Name == "integer" || rightType.Name == "float") {
+			return &TypeInfo{Name: "duration"}
+		}
+		if leftType.Name == "integer" && rightType.Name == "integer" {
+			return &TypeInfo{Name: "integer"}
+		}
+		if (leftType.Name == "integer" || leftType.Name == "float") &&
+			(rightType.Name == "integer" || rightType.Name == "float") {
+			return &TypeInfo{Name: "float"}
+		}
+		if leftType.Name == "string" && rightType.Name == "string" && node.Operator == "+" {
+			return &TypeInfo{Name: "string"}
+		}
+		sa.addError("Opération '%s' non supportée entre %s et %s",
+			node.Operator, leftType.Name, rightType.Name)
+
 	case "==", "!=", "<", ">", "<=", ">=":
+		// Comparaisons de durées
+		if leftType.Name == "duration" && rightType.Name == "duration" {
+			return &TypeInfo{Name: "boolean"}
+		}
+		// Comparaisons Date/Time + Duration
+		if (leftType.Name == "date" || leftType.Name == "time") && rightType.Name == "duration" {
+			sa.addWarning("Comparaison Date/Time avec Duration - conversion implicite")
+			return &TypeInfo{Name: "boolean"}
+		}
+
 		// Opérations de comparaison
 		if !sa.areTypesCompatible(leftType, rightType) {
 			sa.addError("Comparaison impossible entre %s et %s",

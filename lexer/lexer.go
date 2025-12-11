@@ -197,7 +197,7 @@ func (l *Lexer) NextToken() token.Token {
 }
 func (l *Lexer) isControlToken(t token.TokenType) bool {
 	switch t {
-	case token.TYPE:
+	case token.TYPE, token.DATE, token.DURATION:
 		return true
 	default:
 		return false

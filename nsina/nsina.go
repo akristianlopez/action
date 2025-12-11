@@ -75,6 +75,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalSwitchStatement(node, env)
 	case *ast.BreakStatement:
 		return evalBreakStatement(node, env)
+	case *ast.DurationLiteral:
+		return evalDurationLiteral(node, env)
 	case *ast.FallthroughStatement:
 		return evalFallthroughStatement(node, env)
 	}
@@ -136,6 +138,8 @@ func getDefaultValue(typeName string) object.Object {
 		return &object.Date{Value: time.Now()}
 	case "array":
 		return &object.Array{Elements: []object.Object{}}
+	case "duration":
+		return &object.Duration{Nanoseconds: 0}
 	default:
 		// Vérifier si c'est un type tableau
 		if strings.HasPrefix(typeName, "array") {
@@ -359,6 +363,12 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 		return &object.Boolean{Value: objectsEqual(left, right)}
 	case operator == "!=":
 		return &object.Boolean{Value: !objectsEqual(left, right)}
+	case left.Type() == object.DURATION_OBJ && right.Type() == object.DURATION_OBJ:
+		return evalDurationInfixExpression(operator, left, right)
+	case left.Type() == object.DURATION_OBJ && (right.Type() == object.INTEGER_OBJ || right.Type() == object.FLOAT_OBJ):
+		return evalDurationInfixExpression(operator, left, right)
+	case (left.Type() == object.INTEGER_OBJ || left.Type() == object.FLOAT_OBJ) && right.Type() == object.DURATION_OBJ:
+		return evalDurationInfixExpression(operator, left, right)
 	default:
 		return newError("Type mismatch: %s %s %s", left.Type(), operator, right.Type())
 	}
@@ -1665,3 +1675,129 @@ func evalForBody(body *ast.BlockStatement, env *object.Environment) object.Objec
 
 	return result
 }
+
+// Ajouter l'évaluation des littéraux de durée
+func evalDurationLiteral(node *ast.DurationLiteral, env *object.Environment) object.Object {
+	duration, err := object.ParseDuration(node.Value)
+	if err != nil {
+		return newError("Invalid duration : %s", err)
+	}
+	return duration
+}
+
+// Ajouter les opérations sur les durées
+func evalDurationInfixExpression(operator string, left, right object.Object) object.Object {
+	leftDuration := left.(*object.Duration)
+	rightDuration := right.(*object.Duration)
+
+	switch operator {
+	case "+":
+		return &object.Duration{
+			Nanoseconds: leftDuration.Nanoseconds + rightDuration.Nanoseconds,
+		}
+	case "-":
+		return &object.Duration{
+			Nanoseconds: leftDuration.Nanoseconds - rightDuration.Nanoseconds,
+		}
+	case "*":
+		// Multiplication par un entier
+		if right.Type() == object.INTEGER_OBJ {
+			return &object.Duration{
+				Nanoseconds: leftDuration.Nanoseconds * right.(*object.Integer).Value,
+			}
+		}
+		if right.Type() == object.FLOAT_OBJ {
+			return &object.Duration{
+				Nanoseconds: int64(float64(leftDuration.Nanoseconds) * right.(*object.Float).Value),
+			}
+		}
+		return newError("Impossible to multiply a duration with %s", right.Type())
+	case "/":
+		// Division par un nombre
+		if right.Type() == object.INTEGER_OBJ {
+			if right.(*object.Integer).Value == 0 {
+				return newError("Division by zero")
+			}
+			return &object.Duration{
+				Nanoseconds: leftDuration.Nanoseconds / right.(*object.Integer).Value,
+			}
+		}
+		if right.Type() == object.FLOAT_OBJ {
+			if right.(*object.Float).Value == 0 {
+				return newError("Division by zero")
+			}
+			return &object.Duration{
+				Nanoseconds: int64(float64(leftDuration.Nanoseconds) / right.(*object.Float).Value),
+			}
+		}
+		// Division de deux durées donne un ratio
+		if right.Type() == object.DURATION_OBJ {
+			if rightDuration.Nanoseconds == 0 {
+				return newError("Division by zero")
+			}
+			return &object.Float{
+				Value: float64(leftDuration.Nanoseconds) / float64(rightDuration.Nanoseconds),
+			}
+		}
+		return newError("Impossible to divide a duration by %s", right.Type())
+	case "==":
+		return &object.Boolean{Value: leftDuration.Nanoseconds == rightDuration.Nanoseconds}
+	case "!=":
+		return &object.Boolean{Value: leftDuration.Nanoseconds != rightDuration.Nanoseconds}
+	case "<":
+		return &object.Boolean{Value: leftDuration.Nanoseconds < rightDuration.Nanoseconds}
+	case ">":
+		return &object.Boolean{Value: leftDuration.Nanoseconds > rightDuration.Nanoseconds}
+	case "<=":
+		return &object.Boolean{Value: leftDuration.Nanoseconds <= rightDuration.Nanoseconds}
+	case ">=":
+		return &object.Boolean{Value: leftDuration.Nanoseconds >= rightDuration.Nanoseconds}
+	default:
+		return newError("Unknown operation: %s %s %s", left.Type(), operator, right.Type())
+	}
+}
+
+// Ajouter l'évaluation des opérations avec Date/Time et Duration
+func evalDateTimeDurationOperations(left, right object.Object, operator string) object.Object {
+	switch left := left.(type) {
+	case *object.Date:
+		if right.Type() == object.DURATION_OBJ {
+			duration := right.(*object.Duration)
+			// Ajouter la durée à la date
+			newTime := left.Value.Add(time.Duration(duration.Nanoseconds))
+			return &object.Date{Value: newTime}
+		}
+	case *object.Time:
+		if right.Type() == object.DURATION_OBJ {
+			duration := right.(*object.Duration)
+			// Ajouter la durée au temps
+			newTime := left.Value.Add(time.Duration(duration.Nanoseconds))
+			return &object.Time{Value: newTime}
+		}
+	}
+	return newError("Non supported operation entre %s et %s", left.Type(), right.Type())
+}
+
+/* Fonctions utilitaires supplémentaires
+function toHours(d: duration): float {
+    return d / #1h#;
+}
+
+function toDays(d: duration): float {
+    return d / #1d#;
+}
+
+function toMinutes(d: duration): float {
+    return d / #1m#;
+}
+
+(* Formatage personnalisé *)
+function formatDuree(d: duration): string {
+    let jours = d / #1d#;
+    let heures = (d % #1d#) / #1h#;
+    let minutes = (d % #1h#) / #1m#;
+    let secondes = (d % #1m#) / #1s#;
+
+    return jours + "d " + heures + "h " + minutes + "m " + secondes + "s";
+}
+*/

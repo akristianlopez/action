@@ -47,7 +47,7 @@ for let i = 0; i < 10; i = i + 1 {
 
 (* Requête SQL avec OBJECT *)
 let résultats = SELECT e.nom, e.salaire 
-                FROM employés AS e 
+                FROM employés e 
                 WHERE e.salaire > 50000 
                 AND e.actif == true;
 

@@ -26,21 +26,23 @@ const (
 	FOREACH  = "FOREACH"
 
 	// Types
-	INTEGER = "INTEGER"
-	FLOAT   = "FLOAT"
-	STRING  = "STRING"
-	BOOLEAN = "BOOLEAN"
-	TIME    = "TIME"
-	DATE    = "DATE"
+	INTEGER  = "INTEGER"
+	FLOAT    = "FLOAT"
+	STRING   = "STRING"
+	BOOLEAN  = "BOOLEAN"
+	TIME     = "TIME"
+	DATE     = "DATE"
+	DURATION = "DURATION"
 
 	// Identifiants et littéraux
-	IDENT      = "IDENT"
-	INT_LIT    = "INT_LIT"
-	FLOAT_LIT  = "FLOAT_LIT"
-	STRING_LIT = "STRING_LIT"
-	BOOL_LIT   = "BOOL_LIT"
-	TIME_LIT   = "TIME_LIT"
-	DATE_LIT   = "DATE_LIT"
+	IDENT        = "IDENT"
+	INT_LIT      = "INT_LIT"
+	FLOAT_LIT    = "FLOAT_LIT"
+	STRING_LIT   = "STRING_LIT"
+	BOOL_LIT     = "BOOL_LIT"
+	TIME_LIT     = "TIME_LIT"
+	DATE_LIT     = "DATE_LIT"
+	DURATION_LIT = "DURATION_LIT"
 
 	// Opérateurs
 	ASSIGN   = "="
@@ -315,6 +317,7 @@ var keywords = map[string]TokenType{
 	"remove":      REMOVE,
 	"slice":       SLICE,
 	"contains":    CONTAINS,
+	"duration":    DURATION,
 
 	// Switch statement
 	"switch":      SWITCH,

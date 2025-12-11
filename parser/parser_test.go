@@ -1086,12 +1086,165 @@ func build_args() []testCase {
 	// 		 `,
 	// 	status: 0,
 	// })
+	// res = append(res, testCase{
+	// 	name: "Test 5.15 : Test of the duration literal ",
+	// 	src: `action "Gestion des Durées"
+	// 			(* Fonctions avec durées *)
+	// 			function ajouterJours(date1: date, jours: integer): date {
+	// 				return date1 + #1d# * jours;
+	// 			}
+	// 			function dureeTotale(taches: array of duration): duration {
+	// 				let total: duration = #0s#;
+	// 				for let i = 0; i < length(taches); i = i + 1 {
+	// 					total = total + taches[i];
+	// 				}
+	// 				return total;
+	// 			}
+	// 			function formatDureeHumain(d: duration): string {
+	// 				if (d < #1m#) {
+	// 					return "Moins d'une minute";
+	// 				} else if (d < #1h#) {
+	// 					return "Quelques minutes";
+	// 				} else if (d < #1d#) {
+	// 					return "Quelques heures";
+	// 				} else if (d < #7d#) {
+	// 					return "Quelques jours";
+	// 				} else if (d < #30d#) {
+	// 					return "Quelques semaines";
+	// 				} else {
+	// 					return "Plusieurs mois";
+	// 				}
+	// 			}
+	// 			(* Structures avec durées *)
+	// 			type Tache struct{
+	// 				nom: string,
+	// 				duree_estimee: duration,
+	// 				duree_reelle: duration,
+	// 				date_echeance: date
+	// 			}
+	// 			type  Projet struct{
+	// 				nom: string,
+	// 				taches: array of Tache,
+	// 				date_debut: date,
+	// 				date_fin: date
+	// 			}
+	// 			function dureeTotaleProjet(p: Projet): duration {
+	// 				let total: duration = #0s#;
+	// 				for let i = 0; i < length(p.taches); i = i + 1 {
+	// 					total = total + p.taches[i].duree_estimee;
+	// 				}
+	// 				return total;
+	// 			}
+	// 			function tempsRestant(p: Projet): duration {
+	// 				let maintenant = #now#;  (* Fonction hypothétique pour l'instant courant *)
+	// 				if (maintenant > p.date_fin) {
+	// 					return #0s#;
+	// 				}
+	// 				return p.date_fin - maintenant;
+	// 			}
+	// 			start
+	// 				(* Déclaration de variables de type duration *)
+	// 				let duree1: duration = #1h 30m#;
+	// 				let duree2: duration = #45m#;
+	// 				let duree_complexe: duration = #2d 3h 15m 30s#;
+	// 				let duree_precise: duration = #1.5s 500ms#;
+	// 				(* Opérations sur les durées *)
+	// 				let total = duree1 + duree2;                     (* #2h 15m# *)
+	// 				let difference = duree1 - duree2;                (* #45m# *)
+	// 				let double = duree1 * 2;                         (* #3h# *)
+	// 				let moitie = duree1 / 2;                         (* #45m# *)
+	// 				let ratio = duree1 / duree2;                     (* 2.0 *)
+	// 				(* Comparaisons *)
+	// 				let est_plus_long = duree1 > duree2;             (* true *)
+	// 				let egal = #1h# == #60m#;                        (* true *)
+	// 				(* Opérations avec dates et temps *)
+	// 				let aujourdhui = #2024-01-15#;
+	// 				let demain = aujourdhui + #1d#;
+	// 				let dans_une_semaine = aujourdhui + #7d#;
+	// 				let dans_deux_heures = #14:30:00# + #2h#;
+	// 				(* Calcul d'intervalle *)
+	// 				let date_debut = #2024-01-01#;
+	// 				let date_fin = #2024-01-15#;
+	// 				let intervalle = date_fin - date_debut;          (* #14d# *)
+	// 				(* Durées avec différentes unités *)
+	// 				let une_annee = #1y#;
+	// 				let un_mois = #1mo#;
+	// 				let une_semaine = #1w#;
+	// 				let un_jour = #1d#;
+	// 				let une_heure = #1h#;
+	// 				let une_minute = #1m#;
+	// 				let une_seconde = #1s#;
+	// 				let une_milliseconde = #1ms#;
+	// 				let une_microseconde = #1us#;
+	// 				let une_nanoseconde = #1ns#;
+	// 				(* Tableaux de durées *)
+	// 				let durees_projet: array of duration = [
+	// 					#1d#,
+	// 					#2d#,
+	// 					#3d#,
+	// 					#1w#
+	// 				];
+	// 				let total_projet: duration = #0s#;
+	// 				for let i = 0; i < length(durees_projet); i = i + 1 {
+	// 					total_projet = total_projet + durees_projet[i];
+	// 				}
+	// 				(* Calcul de salaire horaire *)
+	// 				let heures_travaillees = #160h#;
+	// 				let salaire_mensuel = 3000.00;
+	// 				let taux_horaire = salaire_mensuel / (heures_travaillees / #1h#);
+	// 				(* Planification de projet *)
+	// 				let duree_phase1 = #2w#;
+	// 				let duree_phase2 = #3w#;
+	// 				let duree_phase3 = #1w#;
+	// 				let duree_totale = duree_phase1 + duree_phase2 + duree_phase3;
+	// 				let date_debut_projet = #2024-01-15#;
+	// 				let date_fin_phase1 = date_debut_projet + duree_phase1;
+	// 				let date_fin_phase2 = date_fin_phase1 + duree_phase2;
+	// 				let date_fin_projet = date_fin_phase2 + duree_phase3;
+	// 				(* Suivi du temps *)
+	// 				let temps_session1 = #25m#;
+	// 				let temps_session2 = #30m#;
+	// 				let temps_session3 = #20m#;
+	// 				let temps_pause = #5m#;
+	// 				let temps_total_session = temps_session1 + temps_session2 + temps_session3;
+	// 				let temps_total_avec_pauses = temps_total_session + (temps_pause * 2);
+	// 				(* Conversion entre unités *)
+	// 				let une_journee = #24h#;
+	// 				let en_minutes = une_journee / #1m#;  (* 1440 *)
+	// (*
+	// 				(* Validation de durée
+	// 				function validerDuree(d: duration, min: duration, max: duration): boolean {
+	// 					return d >= min and d <= max;
+	// 				}
+	// 				let duree_valide = validerDuree(#8h#, #1h#, #12h#);  (* true
+	// *)
+	// 			stop
+	// 			 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 5.15 : Test of the duration literal ",
+	// 	src: `action "Gestion des Durées"
+	// 		start
+	// 			(* Durées avec contraintes *)
+	// 			let duree_max: duration(#100d#) = #50d#;  (* Durée maximale de 100 jours *)
+	// 			let duree_min: duration[#1h#..#24h#] = #8h#;  (* Entre 1h et 24h *)
+	// 			(* Validation de durée
+	// 			function validerDuree(d: duration, min: duration, max: duration): boolean {
+	// 				return d >= min and d <= max;
+	// 			}
+	// 			let duree_valide = validerDuree(#8h#, #1h#, #12h#);  (* true
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
 
 	return res
 }
 
 func TestParseProgram(t *testing.T) {
 	has := false
+
 	for _, tc := range build_args() {
 		fmt.Printf("\n%s is running...", tc.name)
 		hasError := false

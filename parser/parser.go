@@ -109,6 +109,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.NOT, p.parsePrefixExpression)
 	// p.registerPrefix(token.SLICE, p.parseArrayFunctionCall)
 	p.registerPrefix(token.CONTAINS, p.parseArrayFunctionCall)
+	p.registerPrefix(token.DURATION_LIT, p.parseDurationLiteral)
 
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -135,6 +136,13 @@ func New(l *lexer.Lexer) *Parser {
 	p.nextToken()
 
 	return p
+}
+
+func (p *Parser) parseDurationLiteral() ast.Expression {
+	return &ast.DurationLiteral{
+		Token: p.curToken,
+		Value: p.curToken.Literal,
+	}
 }
 
 func (p *Parser) nextToken() {
@@ -404,9 +412,13 @@ func (p *Parser) parseTypeConstraints() (*ast.TypeConstraints, *ParserError) {
 				val, _ := strconv.ParseInt(p.curToken.Literal, 10, 64)
 				maxLength.Value = val
 				constraints.MaxLength = maxLength
+			} else if p.peekTokenIs(token.DURATION_LIT) {
+				p.nextToken()
+				maxLength := p.parseDurationLiteral()
+				constraints.IntegerRange = &ast.RangeConstraint{Max: maxLength, Min: nil}
 			}
 			if !p.expectPeek(token.RPAREN) {
-				return nil, nil //Create("')'", p.peekToken.Line, p.peekToken.Column)
+				return nil, nil
 			}
 		case token.LBRACKET:
 			constraints.IntegerRange, pe = p.parseRangeConstraint()
@@ -434,7 +446,8 @@ func (p *Parser) parseRangeConstraint() (*ast.RangeConstraint, *ParserError) {
 	p.nextToken()
 
 	if !p.peekTokenIs(token.INT_LIT) && !p.peekTokenIs(token.FLOAT_LIT) &&
-		!p.peekTokenIs(token.DATE_LIT) && !p.peekTokenIs(token.TIME_LIT) { //!p.expectPeek(token.DOT) ||
+		!p.peekTokenIs(token.DURATION_LIT) && !p.peekTokenIs(token.DATE_LIT) &&
+		!p.peekTokenIs(token.TIME_LIT) { //!p.expectPeek(token.DOT) ||
 		return nil, nil //Create("'number' is missing", p.peekToken.Line, p.peekToken.Column)
 	}
 	p.nextToken()
@@ -1456,13 +1469,15 @@ func (p *Parser) parseSQLDropObject() (*ast.SQLDropObjectStatement, *ParserError
 	// IF EXISTS optionnel
 	if p.peekTokenIs(token.IF) {
 		p.nextToken() // IF
-		p.nextToken() // EXISTS
+		if !p.expectPeek(token.EXISTS) {
+			return nil, nil
+		}
 		stmt.IfExists = true
 	}
 
 	// Nom de l'objet
 	if !p.expectPeek(token.IDENT) {
-		return nil, nil //Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil, nil
 	}
 	stmt.ObjectName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
@@ -1471,7 +1486,9 @@ func (p *Parser) parseSQLDropObject() (*ast.SQLDropObjectStatement, *ParserError
 		p.nextToken()
 		stmt.Cascade = true
 	}
-
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
 	return stmt, nil
 }
 
@@ -1531,7 +1548,9 @@ func (p *Parser) parseSQLAlterAction() (*ast.SQLAlterAction, *ParserError) {
 			action.ColumnName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 		}
 	}
-
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
 	return action, pe
 }
 
@@ -1676,6 +1695,10 @@ func (p *Parser) parseSQLTruncate() (*ast.SQLTruncateStatement, *ParserError) {
 		return nil, nil //Create("'identifier' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 	stmt.ObjectName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
 
 	return stmt, nil
 }

@@ -1419,7 +1419,7 @@ func (sl *StructFieldLit) String() string {
 type FromIdentifier struct {
 	Token   token.Token
 	Value   Expression
-	NewName string
+	NewName Expression
 }
 
 func (fi *FromIdentifier) TokenLiteral() string { return fi.Token.Literal }

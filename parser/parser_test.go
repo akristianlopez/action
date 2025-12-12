@@ -1223,7 +1223,7 @@ func build_args() []testCase {
 	// 	status: 0,
 	// })
 	// res = append(res, testCase{
-	// 	name: "Test 5.15 : Test of the duration literal ",
+	// 	name: "Test 5.16 : Test of the duration literal ",
 	// 	src: `action "Gestion des Durées"
 	// 		start
 	// 			(* Durées avec contraintes *)
@@ -1234,6 +1234,17 @@ func build_args() []testCase {
 	// 				return d >= min and d <= max;
 	// 			}
 	// 			let duree_valide = validerDuree(#8h#, #1h#, #12h#);  (* true
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 5.17 : Test of the advanced select : SELECT with Select in the clause from ",
+	// 	src: `action "Requêtes SQl ALTER"
+	// 		start
+	// 			(* SELECT with SELECT in the clause From *)
+	// 			Select t.a, t.b, oo.g, oo.kal
+	// 			from table1 t Inner join (select g, kal, id from object2) oo ON (oo.id==t.id)
 	// 		stop
 	// 		 `,
 	// 	status: 0,

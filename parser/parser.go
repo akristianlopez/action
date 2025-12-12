@@ -1004,9 +1004,9 @@ func (p *Parser) parsePrefixObjectValue() ast.Expression {
 
 func (p *Parser) parseExpression(precedence int, flag ...bool) ast.Expression {
 	prefix := p.prefixParseFns[p.curToken.Type]
-	if p.curTokenIs(token.IDENT) && len(flag) > 0 {
-		prefix = p.parseFromIdentifier
-	}
+	// if p.curTokenIs(token.IDENT) && len(flag) > 0 {
+	// 	prefix = p.parseFromIdentifier
+	// }
 	if prefix == nil {
 		p.noPrefixParseFnError(p.curToken.Type)
 		return nil
@@ -1057,20 +1057,7 @@ func (p *Parser) parseIdentifier() ast.Expression {
 	}
 	return &ast.Identifier{Token: tok, Value: tok.Literal}
 }
-func (p *Parser) parseFromIdentifier() ast.Expression {
-	var res = ast.FromIdentifier{
-		Token:   p.curToken,
-		Value:   p.curToken.Literal,
-		NewName: "",
-	}
-	if p.peekTokenIs(token.IDENT) && strings.ToUpper(p.peekToken.Literal) != "INNER" &&
-		strings.ToUpper(p.peekToken.Literal) != "LEFT" &&
-		strings.ToUpper(p.peekToken.Literal) != "FULL" {
-		p.nextToken()
-		res.NewName = p.peekToken.Literal
-	}
-	return &res
-}
+
 func (p *Parser) parseIntegerLiteral() ast.Expression {
 	lit := &ast.IntegerLiteral{Token: p.curToken}
 
@@ -2357,8 +2344,13 @@ func (p *Parser) parseSQLSelectStatement() (*ast.SQLSelectStatement, *ParserErro
 		return nil, nil
 	}
 	p.nextToken()
+	from := ast.FromIdentifier{Token: p.curToken}
 
-	selectStmt.From = p.parseExpression(LOWEST, true)
+	from.Value = p.parseExpression(LOWEST, true)
+	if p.peekTokenIs(token.IDENT) {
+		p.nextToken()
+		from.NewName = p.parseIdentifier()
+	}
 	// JOINs optionnels
 	for p.peekTokenIs(token.JOIN) ||
 		(p.peekTokenIs(token.IDENT) &&
@@ -2378,9 +2370,14 @@ func (p *Parser) parseSQLSelectStatement() (*ast.SQLSelectStatement, *ParserErro
 		} else {
 			join.Type = "INNER"
 		}
-
-		join.Table = p.parseExpression(LOWEST, true)
-
+		from = ast.FromIdentifier{Token: p.curToken}
+		from.Value = p.parseExpression(LOWEST)
+		if p.peekTokenIs(token.IDENT) {
+			p.nextToken()
+			from.NewName = p.parseIdentifier()
+		}
+		join.Table = &from
+		// join.Table = p.parseExpression(LOWEST, true)
 		if !p.expectPeek(token.ON) {
 			return nil, nil
 		}

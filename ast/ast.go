@@ -23,6 +23,8 @@ type Statement interface {
 type Expression interface {
 	Node
 	expressionNode()
+	Line() int
+	Column() int
 }
 
 // Program - le programme racine
@@ -133,6 +135,8 @@ type Identifier struct {
 }
 
 func (i *Identifier) expressionNode()      {}
+func (i *Identifier) Line() int            { return i.Token.Line }
+func (i *Identifier) Column() int          { return i.Token.Column }
 func (i *Identifier) TokenLiteral() string { return i.Token.Literal }
 func (i *Identifier) String() string       { return i.Value }
 
@@ -143,6 +147,8 @@ type IntegerLiteral struct {
 }
 
 func (il *IntegerLiteral) expressionNode()      {}
+func (i *IntegerLiteral) Line() int             { return i.Token.Line }
+func (i *IntegerLiteral) Column() int           { return i.Token.Column }
 func (il *IntegerLiteral) TokenLiteral() string { return il.Token.Literal }
 func (il *IntegerLiteral) String() string       { return il.Token.Literal }
 
@@ -153,6 +159,8 @@ type FloatLiteral struct {
 }
 
 func (fl *FloatLiteral) expressionNode()      {}
+func (i *FloatLiteral) Line() int             { return i.Token.Line }
+func (i *FloatLiteral) Column() int           { return i.Token.Column }
 func (fl *FloatLiteral) TokenLiteral() string { return fl.Token.Literal }
 func (fl *FloatLiteral) String() string       { return fl.Token.Literal }
 
@@ -163,6 +171,8 @@ type StringLiteral struct {
 }
 
 func (sl *StringLiteral) expressionNode()      {}
+func (sl *StringLiteral) Line() int            { return sl.Token.Line }
+func (sl *StringLiteral) Column() int          { return sl.Token.Column }
 func (sl *StringLiteral) TokenLiteral() string { return sl.Token.Literal }
 func (sl *StringLiteral) String() string       { return "\"" + sl.Value + "\"" }
 
@@ -173,6 +183,8 @@ type BooleanLiteral struct {
 }
 
 func (b *BooleanLiteral) expressionNode()      {}
+func (b *BooleanLiteral) Line() int            { return b.Token.Line }
+func (b *BooleanLiteral) Column() int          { return b.Token.Column }
 func (b *BooleanLiteral) TokenLiteral() string { return b.Token.Literal }
 func (b *BooleanLiteral) String() string       { return b.Token.Literal }
 
@@ -184,6 +196,8 @@ type DateTimeLiteral struct {
 }
 
 func (dt *DateTimeLiteral) expressionNode()      {}
+func (dt *DateTimeLiteral) Line() int            { return dt.Token.Line }
+func (dt *DateTimeLiteral) Column() int          { return dt.Token.Column }
 func (dt *DateTimeLiteral) TokenLiteral() string { return dt.Token.Literal }
 func (dt *DateTimeLiteral) String() string       { return dt.Token.Literal }
 
@@ -210,6 +224,8 @@ type PrefixExpression struct {
 }
 
 func (pe *PrefixExpression) expressionNode()      {}
+func (pe *PrefixExpression) Line() int            { return pe.Token.Line }
+func (pe *PrefixExpression) Column() int          { return pe.Token.Column }
 func (pe *PrefixExpression) TokenLiteral() string { return pe.Token.Literal }
 func (pe *PrefixExpression) String() string {
 	return "(" + pe.Operator + pe.Right.String() + ")"
@@ -224,6 +240,8 @@ type InfixExpression struct {
 }
 
 func (ie *InfixExpression) expressionNode()      {}
+func (ie *InfixExpression) Line() int            { return ie.Token.Line }
+func (ie *InfixExpression) Column() int          { return ie.Token.Column }
 func (ie *InfixExpression) TokenLiteral() string { return ie.Token.Literal }
 func (ie *InfixExpression) String() string {
 	return "(" + ie.Left.String() + " " + ie.Operator + " " + ie.Right.String() + ")"
@@ -651,7 +669,9 @@ func (si *SQLInsertStatement) String() string {
 	}
 	return out
 }
-func (ss *SQLInsertStatement) expressionNode() {}
+func (si *SQLInsertStatement) expressionNode() {}
+func (si *SQLInsertStatement) Line() int       { return si.Token.Line }
+func (si *SQLInsertStatement) Column() int     { return si.Token.Column }
 
 // SQLValues - Valeurs pour INSERT
 type SQLValues struct {
@@ -694,7 +714,9 @@ func (su *SQLUpdateStatement) String() string {
 	}
 	return out
 }
-func (ss *SQLUpdateStatement) expressionNode() {}
+func (su *SQLUpdateStatement) expressionNode() {}
+func (su *SQLUpdateStatement) Line() int       { return su.Token.Line }
+func (su *SQLUpdateStatement) Column() int     { return su.Token.Column }
 
 // SQLSetClause - Clause SET pour UPDATE
 type SQLSetClause struct {
@@ -723,7 +745,9 @@ func (sd *SQLDeleteStatement) String() string {
 	}
 	return out
 }
-func (ss *SQLDeleteStatement) expressionNode() {}
+func (sd *SQLDeleteStatement) expressionNode() {}
+func (sd *SQLDeleteStatement) Line() int       { return sd.Token.Line }
+func (sd *SQLDeleteStatement) Column() int     { return sd.Token.Column }
 
 // SQLTruncateStatement - TRUNCATE
 type SQLTruncateStatement struct {
@@ -736,6 +760,9 @@ func (st *SQLTruncateStatement) TokenLiteral() string { return st.Token.Literal 
 func (st *SQLTruncateStatement) String() string {
 	return "TRUNCATE OBJECT " + st.ObjectName.String()
 }
+func (st *SQLTruncateStatement) expressionNode() {}
+func (st *SQLTruncateStatement) Line() int       { return st.Token.Line }
+func (st *SQLTruncateStatement) Column() int     { return st.Token.Column }
 
 // SQLCreateIndexStatement - CREATE INDEX
 type SQLCreateIndexStatement struct {
@@ -832,7 +859,9 @@ func (sw *SQLWithStatement) String() string {
 	out += " " + sw.Select.String()
 	return out
 }
-func (ss *SQLWithStatement) expressionNode() {}
+func (sw *SQLWithStatement) expressionNode() {}
+func (sw *SQLWithStatement) Line() int       { return sw.Token.Line }
+func (sw *SQLWithStatement) Column() int     { return sw.Token.Column }
 
 // SQLCommonTableExpression - CTE
 type SQLCommonTableExpression struct {
@@ -882,6 +911,8 @@ func (sw *SQLWindowFunction) String() string {
 	}
 	return out
 }
+func (sw *SQLWindowFunction) Line() int   { return sw.Token.Line }
+func (sw *SQLWindowFunction) Column() int { return sw.Token.Column }
 
 // SQLWindowClause - Clause OVER
 type SQLWindowClause struct {
@@ -921,6 +952,9 @@ func (sw *SQLWindowClause) String() string {
 	out += ")"
 	return out
 }
+func (sw *SQLWindowClause) expressionNode() {}
+func (sw *SQLWindowClause) Line() int       { return sw.Token.Line }
+func (sw *SQLWindowClause) Column() int     { return sw.Token.Column }
 
 // SQLWindowFrame - Cadre de fenêtre
 type SQLWindowFrame struct {
@@ -1095,9 +1129,11 @@ func (ss *SQLSelectStatement) String() string {
 
 	return out
 }
-func (ss *SQLSelectStatement) expressionNode()      {}
 func (ss *SQLSelectStatement) TokenLiteral() string { return ss.Token.Literal }
-func (sw *SQLSelectStatement) statementNode()       {}
+func (ss *SQLSelectStatement) statementNode()       {}
+func (ss *SQLSelectStatement) expressionNode()      {}
+func (ss *SQLSelectStatement) Line() int            { return ss.Token.Line }
+func (ss *SQLSelectStatement) Column() int          { return ss.Token.Column }
 
 // SQLRecursiveCTE - CTE récursif spécialisé
 type SQLRecursiveCTE struct {
@@ -1155,7 +1191,6 @@ type ArrayLiteral struct {
 	Elements []Expression
 }
 
-func (al *ArrayLiteral) expressionNode()      {}
 func (al *ArrayLiteral) TokenLiteral() string { return al.Token.Literal }
 func (al *ArrayLiteral) String() string {
 	var out string
@@ -1169,6 +1204,9 @@ func (al *ArrayLiteral) String() string {
 	out += "]"
 	return out
 }
+func (al *ArrayLiteral) expressionNode() {}
+func (al *ArrayLiteral) Line() int       { return al.Token.Line }
+func (al *ArrayLiteral) Column() int     { return al.Token.Column }
 
 // IndexExpression - Accès par index
 type IndexExpression struct {
@@ -1177,11 +1215,13 @@ type IndexExpression struct {
 	Index Expression
 }
 
-func (ie *IndexExpression) expressionNode()      {}
 func (ie *IndexExpression) TokenLiteral() string { return ie.Token.Literal }
 func (ie *IndexExpression) String() string {
 	return "(" + ie.Left.String() + "[" + ie.Index.String() + "])"
 }
+func (ie *IndexExpression) expressionNode() {}
+func (ie *IndexExpression) Line() int       { return ie.Token.Line }
+func (ie *IndexExpression) Column() int     { return ie.Token.Column }
 
 // SliceExpression - Tranche de tableau
 type SliceExpression struct {
@@ -1191,7 +1231,6 @@ type SliceExpression struct {
 	End   Expression
 }
 
-func (se *SliceExpression) expressionNode()      {}
 func (se *SliceExpression) TokenLiteral() string { return se.Token.Literal }
 func (se *SliceExpression) String() string {
 	out := "(" + se.Left.String() + "["
@@ -1205,6 +1244,9 @@ func (se *SliceExpression) String() string {
 	out += "])"
 	return out
 }
+func (se *SliceExpression) expressionNode() {}
+func (se *SliceExpression) Line() int       { return se.Token.Line }
+func (se *SliceExpression) Column() int     { return se.Token.Column }
 
 // ArrayFunctionCall - Appel de fonction de tableau
 type ArrayFunctionCall struct {
@@ -1214,7 +1256,6 @@ type ArrayFunctionCall struct {
 	Arguments []Expression
 }
 
-func (af *ArrayFunctionCall) expressionNode()      {}
 func (af *ArrayFunctionCall) TokenLiteral() string { return af.Token.Literal }
 func (af *ArrayFunctionCall) String() string {
 	out := af.Function.String() + "(" + af.Array.String()
@@ -1224,6 +1265,9 @@ func (af *ArrayFunctionCall) String() string {
 	out += ")"
 	return out
 }
+func (af *ArrayFunctionCall) expressionNode() {}
+func (af *ArrayFunctionCall) Line() int       { return af.Token.Line }
+func (af *ArrayFunctionCall) Column() int     { return af.Token.Column }
 
 // InExpression - Expression IN
 type InExpression struct {
@@ -1233,7 +1277,6 @@ type InExpression struct {
 	Not   bool
 }
 
-func (ie *InExpression) expressionNode()      {}
 func (ie *InExpression) TokenLiteral() string { return ie.Token.Literal }
 func (ie *InExpression) String() string {
 	out := "(" + ie.Left.String()
@@ -1243,6 +1286,9 @@ func (ie *InExpression) String() string {
 	out += " IN " + ie.Right.String() + ")"
 	return out
 }
+func (ie *InExpression) expressionNode() {}
+func (ie *InExpression) Line() int       { return ie.Token.Line }
+func (ie *InExpression) Column() int     { return ie.Token.Column }
 
 // Mettre à jour TypeAnnotation pour supporter les tableaux
 type TypeAnnotation struct {
@@ -1332,14 +1378,12 @@ func (fs *FallthroughStatement) String() string {
 	return "fallthrough;"
 }
 
-// StructLiteral - Littéral de structure
 type StructLiteral struct {
 	Token  token.Token
 	Name   *Identifier
 	Fields []StructFieldLit
 }
 
-func (sl *StructLiteral) expressionNode()      {}
 func (sl *StructLiteral) TokenLiteral() string { return sl.Token.Literal }
 func (sl *StructLiteral) String() string {
 	var out string
@@ -1356,6 +1400,9 @@ func (sl *StructLiteral) String() string {
 	out += "}"
 	return out
 }
+func (sl *StructLiteral) expressionNode() {}
+func (sl *StructLiteral) Line() int       { return sl.Token.Line }
+func (sl *StructLiteral) Column() int     { return sl.Token.Column }
 
 // StructField - champ de structure
 type StructFieldLit struct {
@@ -1375,11 +1422,13 @@ type FromIdentifier struct {
 	NewName string
 }
 
-func (fi *FromIdentifier) expressionNode()      {}
 func (fi *FromIdentifier) TokenLiteral() string { return fi.Token.Literal }
 func (fi *FromIdentifier) String() string {
 	return strings.TrimSpace(fmt.Sprintf("%s %s", fi.Value, fi.NewName))
 }
+func (fi *FromIdentifier) expressionNode() {}
+func (fi *FromIdentifier) Line() int       { return fi.Token.Line }
+func (fi *FromIdentifier) Column() int     { return fi.Token.Column }
 
 // Select arguments
 type SelectArgs struct {
@@ -1387,7 +1436,6 @@ type SelectArgs struct {
 	NewName *Identifier
 }
 
-func (sa *SelectArgs) expressionNode()      {}
 func (sa *SelectArgs) TokenLiteral() string { return sa.Expr.String() }
 func (sa *SelectArgs) String() string {
 	out := sa.Expr.String()
@@ -1396,15 +1444,20 @@ func (sa *SelectArgs) String() string {
 	}
 	return out
 }
+func (sa *SelectArgs) expressionNode() {}
+func (sa *SelectArgs) Line() int       { return sa.Expr.Line() }
+func (sa *SelectArgs) Column() int     { return sa.Expr.Column() }
 
 // NullLiteral - littéral null
 type NullLiteral struct {
 	Token token.Token
 }
 
-func (nl *NullLiteral) expressionNode()      {}
 func (nl *NullLiteral) TokenLiteral() string { return nl.Token.Literal }
 func (nl *NullLiteral) String() string       { return nl.Token.Literal }
+func (sa *NullLiteral) expressionNode()      {}
+func (sa *NullLiteral) Line() int            { return sa.Token.Line }
+func (sa *NullLiteral) Column() int          { return sa.Token.Column }
 
 type DurationLiteral struct {
 	Token          token.Token
@@ -1412,9 +1465,11 @@ type DurationLiteral struct {
 	ParsedDuration *Duration // Parsé lors de l'évaluation
 }
 
-func (dl *DurationLiteral) expressionNode()      {}
 func (dl *DurationLiteral) TokenLiteral() string { return dl.Token.Literal }
 func (dl *DurationLiteral) String() string       { return dl.Token.Literal }
+func (dl *DurationLiteral) expressionNode()      {}
+func (dl *DurationLiteral) Line() int            { return dl.Token.Line }
+func (dl *DurationLiteral) Column() int          { return dl.Token.Column }
 
 // Structure Duration pour stocker la durée parsée
 type Duration struct {

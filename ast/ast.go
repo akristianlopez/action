@@ -1418,13 +1418,13 @@ func (sl *StructFieldLit) String() string {
 // Identifier - identifiant
 type FromIdentifier struct {
 	Token   token.Token
-	Value   string
+	Value   Expression
 	NewName string
 }
 
 func (fi *FromIdentifier) TokenLiteral() string { return fi.Token.Literal }
 func (fi *FromIdentifier) String() string {
-	return strings.TrimSpace(fmt.Sprintf("%s %s", fi.Value, fi.NewName))
+	return strings.TrimSpace(fmt.Sprintf("%s %s", fi.Value.String(), fi.NewName))
 }
 func (fi *FromIdentifier) expressionNode() {}
 func (fi *FromIdentifier) Line() int       { return fi.Token.Line }

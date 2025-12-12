@@ -2,6 +2,8 @@ package semantic
 
 import (
 	"fmt"
+	"strings"
+
 	// "go/ast"
 
 	"github.com/akristianlopez/action/ast"
@@ -50,7 +52,10 @@ type SemanticAnalyzer struct {
 	TypeTable    map[string]*TypeInfo
 }
 
+// var tokenList []string
+
 func NewSemanticAnalyzer() *SemanticAnalyzer {
+
 	globalScope := &Scope{
 		Symbols: make(map[string]*Symbol),
 	}
@@ -63,7 +68,10 @@ func NewSemanticAnalyzer() *SemanticAnalyzer {
 		TypeTable:    make(map[string]*TypeInfo),
 	}
 	returnType := &TypeInfo{}
-	analyzer.registerSymbol("append", FunctionSymbol, returnType, ast.NullLiteral)
+
+	//register standard function
+	analyzer.registerSymbol("append", FunctionSymbol, returnType)
+
 	// Enregistrer les types de base
 	analyzer.registerBuiltinTypes()
 
@@ -133,6 +141,7 @@ func (sa *SemanticAnalyzer) visitStatement(stmt ast.Statement) {
 }
 
 func (sa *SemanticAnalyzer) visitSQLDeleteStatement(s *ast.SQLDeleteStatement) {
+
 	panic("unimplemented")
 }
 
@@ -152,9 +161,302 @@ func (sa *SemanticAnalyzer) visitExpressionStatement(s *ast.ExpressionStatement)
 	panic("unimplemented")
 }
 
-func (sa *SemanticAnalyzer) visitSQLSelectStatement(s *ast.SQLSelectStatement) {
-	panic("unimplemented")
-	// return &TypeInfo{Name: "sql_result"}
+func lIsInFrom(name string, sj []*ast.SQLJoin) bool {
+	res := false
+	if len(sj) > 0 {
+		for _, s := range sj {
+			n := s.Table.(*ast.FromIdentifier)
+			if n.NewName != nil {
+				nn := n.NewName.(*ast.Identifier)
+				res = strings.ToLower(nn.Value) == strings.ToLower(name)
+				if res {
+					break
+				}
+			}
+			switch n.Value.(type) {
+			case *ast.Identifier:
+				nn := n.Value.(*ast.Identifier)
+				res = strings.ToLower(nn.Value) == strings.ToLower(name)
+				if res {
+					break
+				}
+			}
+		}
+	}
+	return res
+}
+
+func contains(slice []string, element string) bool {
+	if len(slice) == 0 {
+		return false
+	}
+	for _, v := range slice {
+		if v == element {
+			return true
+		}
+	}
+	return false
+}
+
+func (sa *SemanticAnalyzer) visitObjectInFromClause(se ast.Expression) *string {
+	res := ""
+	switch s := se.(type) {
+	case *ast.FromIdentifier:
+		switch v := s.Value.(type) {
+		case *ast.Identifier:
+			if s.NewName == nil {
+				res = strings.ToLower(v.Value)
+			}
+			switch s.NewName.(type) {
+			case *ast.Identifier:
+				res = strings.ToLower(v.Value)
+			default:
+				sa.addError("'%s' invalid statement here. line:%d, column:%d", s.NewName.String(), s.NewName.Line(), s.NewName.Column())
+				return nil
+			}
+		case *ast.SQLSelectStatement:
+			if s.NewName == nil {
+				sa.addError("New name expected. line:%d, column:%d", s.Value.String(), s.Value.Line(), s.Value.Column())
+				break
+			}
+			switch nn := s.NewName.(type) {
+			case *ast.Identifier:
+				res = strings.ToLower(nn.Value)
+			default:
+				sa.addError("'%s' invalid expression. New name expected. line:%d, column:%d",
+					nn.String(), nn.Line(), nn.Column())
+				return nil
+			}
+		default:
+			sa.addError("'%s' invalid statement here. line:%d, column:%d", s.Value.String(), s.Value.Line(), s.Value.Column())
+			return nil
+		}
+	default:
+		sa.addError("Unknown expression '%s' here. line:%d, column:%d", s.String(), s.Line(), s.Column())
+		return nil
+	}
+	return &res
+}
+func (sa *SemanticAnalyzer) visitSQLExpressionWithDotToken(tab []string, expr ast.Expression) {
+	switch expr.(type) {
+	case *ast.InfixExpression:
+		ie := expr.(*ast.InfixExpression)
+		switch strings.ToLower(ie.Operator) {
+		case ".":
+			switch t := ie.Left.(type) {
+			case *ast.Identifier:
+				if !contains(tab, strings.ToLower(t.Value)) {
+					sa.addError("'%s' object not defined. line:%d, column:%d", t.Value, t.Line(), t.Column())
+				}
+			default:
+				sa.addError("Invalid expression '%s'. line:%d, column:%d", t.String(), t.Line(), t.Column())
+			}
+			switch t := ie.Right.(type) {
+			case *ast.Identifier:
+				break
+			default:
+				sa.addError("Invalid expression '%s'. line:%d, column:%d", t.String(), t.Line(), t.Column())
+			}
+			return
+		case "and", "or", "+", "-", ">", ">=",
+			"<", "<=", "*", "/", "!=":
+			sa.visitSQLExpressionWithDotToken(tab, ie.Left)
+			sa.visitSQLExpressionWithDotToken(tab, ie.Right)
+		}
+	default:
+		return
+	}
+}
+func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) {
+	//check for select argumens
+	if ss.Select == nil {
+		sa.addError("select must have at least one field. line:%d, column:%d", ss.Line(), ss.Column())
+		return
+	}
+	argList := make([]string, 0)
+	for _, f := range ss.Select {
+		field := f.(*ast.SelectArgs)
+		switch s := field.Expr.(type) {
+		case *ast.Identifier:
+			if !contains(argList, strings.ToLower(s.Value)) {
+				argList = append(argList, strings.ToLower(s.Value))
+			}
+			continue
+		case *ast.StringLiteral, *ast.DurationLiteral, *ast.BooleanLiteral,
+			*ast.FloatLiteral, *ast.IntegerLiteral:
+			if field.NewName == nil {
+				sa.addError("Then '%s' must have a new name. line:%d, column:%d",
+					s.String(), s.Line(), s.Column())
+			}
+			if !contains(argList, strings.ToLower(field.NewName.Value)) {
+				argList = append(argList, strings.ToLower(field.NewName.Value))
+			}
+		case *ast.InfixExpression:
+			t := field.Expr.(*ast.InfixExpression)
+			if t.Operator != "." { //We should add RARR when we would need to take into account the sub-object
+				sa.addError("'%s' invalid operation in the select clause. line:%d, column:%d",
+					t.Operator, t.Right.Line(), t.Right.Column())
+				continue
+			}
+			switch t.Left.(type) {
+			case *ast.Identifier:
+				n := t.Left.(*ast.Identifier)
+				if !lIsInFrom(n.Value, ss.Joins) {
+					sa.addError("'%s' is not an object. line:%d, column:%d",
+						n.Value, n.Token.Line, n.Token.Column)
+
+				}
+				switch t.Right.(type) {
+				case *ast.Identifier, *ast.StringLiteral:
+					continue
+				default:
+					sa.addError("'%s' can not be a new name. line:%d, column:%d",
+						n.Value, n.Token.Line, n.Token.Column)
+				}
+			case *ast.ArrayFunctionCall:
+				n := t.Left.(*ast.ArrayFunctionCall)
+				if sa.lookupSymbol(n.Function.Value) != nil {
+					sa.addError("'%s' can not be used in the select clause. line:%d, column:%d",
+						t.Right.String(), t.Right.Line(), t.Right.Column())
+				}
+				//Check the function argument format but this will be done after
+				if n.Array == nil && (n.Arguments == nil || len(n.Arguments) == 0) {
+					sa.addError("Function '%s' must have at least one argument. line:%d, column:%d",
+						n.Function.String(), s.Line(), s.Column())
+				}
+				switch e := t.Right.(type) {
+				case *ast.Identifier, *ast.StringLiteral:
+					if field.NewName != nil {
+						if !contains(argList, strings.ToLower(field.NewName.Value)) {
+							argList = append(argList, strings.ToLower(field.NewName.Value))
+						}
+						continue
+					}
+					if !contains(argList, strings.ToLower(e.String())) {
+						argList = append(argList, strings.ToLower(e.String()))
+					}
+				default:
+					sa.addError("'%s' can not be a new name. line:%d, column:%d",
+						t.Right.String(), t.Right.Line(), t.Right.Column())
+				}
+			}
+		case *ast.ArrayFunctionCall:
+			if sa.lookupSymbol(s.Function.Value) != nil {
+				sa.addError("'%s' can not be used in the select clause. line:%d, column:%d",
+					s.Function.String(), s.Line(), s.Column())
+			}
+			//Check the function argument format but this will be done after
+			if s.Array == nil && (s.Arguments == nil || len(s.Arguments) == 0) {
+				sa.addError("Function '%s' must have at least one argument. line:%d, column:%d",
+					s.Function.String(), s.Line(), s.Column())
+			}
+		default:
+			sa.addError("'%s' invalid . line:%d, column:%d",
+				s.String(), s.Line(), s.Column())
+		}
+
+	}
+
+	//Check the clause From expression
+	tokenList := make([]string, 0)
+	cf := sa.visitObjectInFromClause(ss.From)
+	if cf != nil {
+		tokenList = append(tokenList, *cf)
+	}
+
+	//Look on the join clauses
+	for _, fm := range ss.Joins {
+		cf = sa.visitObjectInFromClause(fm.Table)
+		if !contains(tokenList, *cf) {
+			tokenList = append(tokenList, *cf)
+			continue
+		}
+		sa.addError("'%s' already exists. Line:%d, column:%d", *cf, fm.Table.Line(), fm.Table.Column())
+		//check the clause ON globally
+		condType := sa.visitExpression(fm.On)
+		if condType.Name != "boolean" {
+			sa.addError("The condition of a for loop must be boolean. line:%d column:%d",
+				ss.Line(), ss.Column())
+		}
+		//Verify that each time, we have a.b, a exists in the list
+		sa.visitSQLExpressionWithDotToken(tokenList, fm.On)
+	}
+
+	//Check the clause where
+	if ss.Where != nil {
+		condType := sa.visitExpression(ss.Where)
+		if condType.Name != "boolean" {
+			sa.addError("The condition of a for loop must be boolean. line:%d column:%d",
+				ss.Line(), ss.Column())
+		}
+		//Verify that each time, we have a.b, a exists in the list
+		sa.visitSQLExpressionWithDotToken(tokenList, ss.Where)
+		//Check left operand, right operand and operator
+	}
+	//Check the clause Having
+	condType := sa.visitExpression(ss.Having)
+	if condType.Name != "boolean" {
+		sa.addError("The condition of a for loop must be boolean. line:%d column:%d",
+			ss.Line(), ss.Column())
+	}
+	//Verify that each time, we have a.b, a exists in the list
+	sa.visitSQLExpressionWithDotToken(tokenList, ss.Where)
+	//Check the clause Group by
+	if ss.GroupBy != nil {
+		for _, v := range ss.GroupBy {
+			switch t := v.(type) {
+			case *ast.InfixExpression:
+				if t.Operator == "." {
+					sa.visitSQLExpressionWithDotToken(tokenList, t)
+					continue
+				}
+				sa.addError("Invalid operation '%s'. line:%d, column:%d", t.Operator, t.Line(), t.Column())
+			case *ast.IntegerLiteral:
+				//verify if the value of the literal is between 0 and length of the select arguments list
+				if t.Value <= 0 || t.Value >= int64(len(argList)) {
+					sa.addError("Index '%d' out of box. line:%d column:%d", t.Value,
+						t.Line(), t.Column())
+				}
+			case *ast.StringLiteral:
+				//Verify that this literal exists into the select rguments list
+				if !contains(argList, strings.ToLower(t.Value)) {
+					sa.addError("Invalid express '%d'. line:%d column:%d", t.Value,
+						t.Line(), t.Column())
+				}
+			case *ast.ArrayFunctionCall:
+				//very that this function was call in the select clause
+				if !contains(argList, strings.ToLower(t.String())) {
+					sa.addError("Invalid express '%d'. line:%d column:%d", t.String(),
+						t.Line(), t.Column())
+				}
+			default:
+				sa.addError("Invalid expression '%s'. line:%d, column:%d", t.String(), t.Line(), t.Column())
+			}
+		}
+	}
+	//Check the claude Order by
+	for _, v := range ss.OrderBy {
+		switch t := v.Expression.(type) {
+		case *ast.InfixExpression:
+			if t.Operator == "." {
+				sa.visitSQLExpressionWithDotToken(tokenList, t)
+				if !contains(argList, strings.ToLower(t.String())) {
+					sa.addError("Field '%s'does not exist. line:%d, column:%d", t.String(), t.Line(), t.Column())
+				}
+			}
+			sa.addError("Invalid operation '%s'. line:%d, column:%d", t.Operator, t.Line(), t.Column())
+		case *ast.Identifier, *ast.StringLiteral:
+			if !contains(argList, strings.ToLower(t.String())) {
+				sa.addError("Field '%s'does not exist. line:%d, column:%d", t.String(), t.Line(), t.Column())
+			}
+			sa.addError("Invalid operation '%s'. line:%d, column:%d", t.String(), t.Line(), t.Column())
+		default:
+			sa.addError("Invalid expression '%s'. line:%d, column:%d", t.String(), t.Line(), t.Column())
+		}
+	}
+	if ss.Union != nil {
+		sa.visitSQLSelectStatement(ss.Union)
+	}
 }
 
 func (sa *SemanticAnalyzer) visitLetStatements(nodes *ast.LetStatements) {
@@ -476,7 +778,7 @@ func (sa *SemanticAnalyzer) visitPrefixExpression(node *ast.PrefixExpression) *T
 		}
 	case "is":
 		if rightType.Name == "null" {
-			return &TypeInfo{Name: "object"}
+			return &TypeInfo{Name: "boolean"}
 		}
 	case "object":
 		return &TypeInfo{Name: "table"}

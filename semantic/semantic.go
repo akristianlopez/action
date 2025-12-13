@@ -50,6 +50,7 @@ type SemanticAnalyzer struct {
 	Errors       []string
 	Warnings     []string
 	TypeTable    map[string]*TypeInfo
+	TypeSql      map[string]*TypeInfo
 }
 
 // var tokenList []string
@@ -88,6 +89,23 @@ func (sa *SemanticAnalyzer) registerBuiltinTypes() {
 	sa.TypeTable["date"] = &TypeInfo{Name: "date"}
 	sa.TypeTable["any"] = &TypeInfo{Name: "any"} // Type générique
 	sa.TypeTable["duration"] = &TypeInfo{Name: "duration"}
+
+	sa.TypeSql["integer"] = &TypeInfo{Name: "number"}
+	sa.TypeSql["smallint"] = &TypeInfo{Name: "smallint"}
+	sa.TypeSql["number"] = &TypeInfo{Name: "number"}
+	sa.TypeSql["varchar"] = &TypeInfo{Name: "varchar"}
+	sa.TypeSql["char"] = &TypeInfo{Name: "char"}
+	sa.TypeSql["text"] = &TypeInfo{Name: "text"}
+	sa.TypeSql["json"] = &TypeInfo{Name: "json"}
+
+	sa.TypeSql["numeric"] = &TypeInfo{Name: "numeric"}
+	sa.TypeSql["decimal"] = &TypeInfo{Name: "decimal"}
+	sa.TypeSql["date"] = &TypeInfo{Name: "date"}
+	sa.TypeSql["time"] = &TypeInfo{Name: "time"}
+	sa.TypeSql["datetime"] = &TypeInfo{Name: "datetime"}
+	sa.TypeSql["timestamp"] = &TypeInfo{Name: "timestamp"}
+	sa.TypeSql["float"] = &TypeInfo{Name: "float"}
+	sa.TypeSql["real"] = &TypeInfo{Name: "real"}
 }
 
 func (sa *SemanticAnalyzer) Analyze(program *ast.Program) []string {
@@ -141,24 +159,231 @@ func (sa *SemanticAnalyzer) visitStatement(stmt ast.Statement) {
 }
 
 func (sa *SemanticAnalyzer) visitSQLDeleteStatement(s *ast.SQLDeleteStatement) {
-
-	panic("unimplemented")
+	if s.From == nil {
+		sa.addError("Define the right object where datas should be deleted eventually. line:%d, column:%d",
+			s.Line(), s.Column())
+		return
+	}
+	if s.Where == nil {
+		sa.addError("The condition in the clause <where> is needed. line:%d, column:%d",
+			s.Line(), s.Column())
+		return
+	}
+	condType := sa.visitExpression(s.Where)
+	if condType.Name != "boolean" {
+		sa.addError("The condition of a for loop must be boolean. line:%d column:%d",
+			s.Line(), s.Column())
+		return
+	}
+	tokenList := make([]string, 0)
+	tokenList = append(tokenList, strings.ToLower(s.From.Value))
+	//Verify that each time, we have a.b, a exists in the list
+	sa.visitSQLExpressionWithDotToken(tokenList, s.Where)
+	//Check left operand, right operand and operator
 }
 
 func (sa *SemanticAnalyzer) visitSQLUpdateStatement(s *ast.SQLUpdateStatement) {
-	panic("unimplemented")
+	if s.ObjectName == nil {
+		sa.addError("Define the right name of the object. line:%d, column:%d",
+			s.Line(), s.Column())
+		return
+	}
+	if s.Set == nil {
+		sa.addError("The condition in the clause <where> is needed. line:%d, column:%d",
+			s.Line(), s.Column())
+		return
+	}
+	for _, v := range s.Set {
+		if v.Column == nil {
+			sa.addError("Define the right name of the column. line:%d, column:%d",
+				s.Line(), s.Column())
+		}
+		info := sa.visitExpression(v.Value)
+		if _, exists := sa.TypeSql[strings.ToLower(info.Name)]; !exists {
+			sa.addError("This column is not defined. Maybe, it's a field of '%s'. line:%d, column:%d",
+				s.Line(), s.Column(), s.ObjectName.Value)
+		}
+	}
+	if s.Where != nil {
+		condType := sa.visitExpression(s.Where)
+		if condType.Name != "boolean" {
+			sa.addError("The condition of a for loop must be boolean. line:%d column:%d",
+				s.Line(), s.Column())
+			return
+		}
+		tokenList := make([]string, 0)
+		tokenList = append(tokenList, strings.ToLower(s.ObjectName.Value))
+		//Verify that each time, we have a.b, a exists in the list
+		sa.visitSQLExpressionWithDotToken(tokenList, s.Where)
+		//Check left operand, right operand and operator
+	}
 }
 
 func (sa *SemanticAnalyzer) visitSQLInsertStatement(s *ast.SQLInsertStatement) {
-	panic("unimplemented")
+	if s.ObjectName == nil {
+		sa.addError("The name of the object is missing. line:%d, column:%d", s.Line(), s.Column())
+		return
+	}
+	if s.Select == nil {
+		if len(s.Columns) > len(s.Values) {
+			sa.addError("Too few values. line:%d, column:%d", s.Line(), s.Column())
+			return
+		}
+		if len(s.Columns) < len(s.Values) {
+			sa.addError("Too much values. line:%d, column:%d", s.Line(), s.Column())
+			return
+		}
+		for _, v := range s.Values {
+			for _, e := range v.Values {
+				t := sa.visitExpression(e)
+				if _, exists := sa.TypeSql[strings.ToLower(t.Name)]; !exists {
+					sa.addError("'%s' invalid expression. line:%d, column:%d",
+						e.Line(), e.Column(), e.String())
+				}
+			}
+		}
+		return
+	}
+	if len(s.Values) > 0 {
+		sa.addError("Bad insert statement. line:%d, column:%d", s.Line(), s.Column())
+		return
+	}
+	if len(s.Columns) > 0 {
+		if len(s.Select.Select) > len(s.Columns) {
+			sa.addError("Too much values. line:%d, column:%d", s.Line(), s.Column())
+			return
+		}
+		if len(s.Select.Select) < len(s.Columns) {
+			sa.addError("Too few values. line:%d, column:%d", s.Line(), s.Column())
+			return
+		}
+	}
+	sa.visitSQLSelectStatement(s.Select)
 }
-
+func (sa *SemanticAnalyzer) visitSQLTypeConstraint(v *ast.SQLDataType) {
+	//Check the type and it's constraint
+	// if v == nil {
+	// 	sa.addError("The column '%s' must have datatype. line:%d, column:%d",
+	// 		v.Name.Value, v.Token.Line, v.Token.Column)
+	// 	return
+	// }
+	if _, exists := sa.TypeSql[strings.ToLower(v.Name)]; !exists {
+		sa.addError("'%s' invalid expression. line:%d, column:%d",
+			v.Token.Line, v.Token.Column, v.Name)
+		return
+	}
+	if v.Length != nil && v.Length.Value > 0 {
+		switch strings.ToLower(v.Name) {
+		case "varchar", "char":
+			break
+		default:
+			sa.addError("'%d' invalid type '%s' constraint. line:%d, column:%d",
+				v.Length.Value, v.Name, v.Token.Line, v.Token.Column)
+		}
+	}
+	if v.Precision != nil && v.Precision.Value > 0 {
+		switch strings.ToLower(v.Name) {
+		case "number", "numeric", "decimal":
+			break
+		default:
+			sa.addError("'%d' invalid type '%s' constraint. line:%d, column:%d",
+				v.Length.Value, v.Name, v.Token.Line, v.Token.Column)
+		}
+	}
+	if v.Scale != nil && v.Scale.Value > 0 {
+		switch strings.ToLower(v.Name) {
+		case "number", "numeric", "decimal":
+			break
+		default:
+			sa.addError("'%d' invalid type '%s' constraint. line:%d, column:%d",
+				v.Length.Value, v.Name, v.Token.Line, v.Token.Column)
+		}
+	}
+}
+func (sa *SemanticAnalyzer) visitSQLColumnConstraints(names []string, v *ast.SQLConstraint) {
+	// Token      token.Token
+	// Name       *Identifier
+	// Type       string // PRIMARY KEY, FOREIGN KEY, etc.
+	// Columns    []*Identifier
+	// References *SQLReference
+	// Check      Expression
+	if v == nil {
+		return
+	}
+	if v.Name == nil {
+		sa.addError("Define the name of the column. line:%d, column:%d", v.Token.Line, v.Token.Column)
+		return
+	}
+	for _, n := range v.Columns {
+		if !contains(names, strings.ToLower(n.Value)) {
+			sa.addError("This '%s' does not exist. line:%d, column:%d", n.Value, n.Line(), n.Column())
+			continue
+		}
+	}
+	if v.References != nil && len(v.References.Columns) > 0 {
+		if len(v.References.Columns) > len(v.Columns) {
+			sa.addError("Too much columns. line:%d, column:%d", v.References.Token.Line, v.References.Token.Column)
+		}
+		if len(v.References.Columns) < len(v.Columns) {
+			sa.addError("Too few columns. line:%d, column:%d", v.References.Token.Line, v.References.Token.Column)
+		}
+	}
+	t := sa.visitExpression(v.Check)
+	if _, exists := sa.TypeSql[strings.ToLower(t.Name)]; !exists {
+		sa.addError("'%s' invalid expression. line:%d, column:%d",
+			v.Check.String(), v.Check.Line(), v.Check.Column())
+	}
+}
 func (sa *SemanticAnalyzer) visitSQLCreateObjectStatement(s *ast.SQLCreateObjectStatement) {
-	panic("unimplemented")
+	if s.ObjectName == nil {
+		sa.addError("The name of the object is missing. line:%d, column:%d", s.Token.Line, s.Token.Column)
+		return
+	}
+	if s.Columns == nil || len(s.Columns) == 0 {
+		sa.addError("Define at least one column. line:%d, column:%d", s.Token.Line, s.Token.Column)
+		return
+	}
+	//Browsing columns
+	names := make([]string, 0)
+	for _, v := range s.Columns {
+		if contains(names, strings.ToLower(v.Name.Value)) {
+			sa.addError("This column '%s' is already existed. line:%d, column:%d",
+				v.Name.Value, v.Token.Line, v.Token.Column)
+			continue
+		}
+		names = append(names, strings.ToLower(v.Name.Value))
+		sa.visitSQLTypeConstraint(v.DataType)
+	}
+	//Browsing Constraints
+	constNames := make([]string, 0)
+	constType := make([]string, 0)
+	for _, e := range s.Constraints {
+		sa.visitSQLColumnConstraints(names, e)
+		if contains(constNames, strings.ToLower(e.Name.Value)) {
+			sa.addError("This constraint '%s' already exist. line:%d, column:%d", e.Name.Value, e.Name.Line(), e.Name.Column())
+			continue
+		}
+		constNames = append(constNames, strings.ToLower(e.Name.Value))
+		flag := contains(constType, strings.ToLower(e.Type))
+		if flag && strings.ToLower(e.Type) == "primary key" {
+			sa.addError("Primary key already exist. line:%d, column:%d", e.Name.Line(), e.Name.Column())
+			continue
+		}
+		if !flag {
+			constType = append(constType, strings.ToLower(e.Type))
+		}
+	}
 }
 
 func (sa *SemanticAnalyzer) visitExpressionStatement(s *ast.ExpressionStatement) {
-	panic("unimplemented")
+	if s == nil {
+		return
+	}
+	switch s.Expression.(type) {
+	case *ast.InfixExpression:
+
+	}
+	panic("unimplemented"
 }
 
 func lIsInFrom(name string, sj []*ast.SQLJoin) bool {

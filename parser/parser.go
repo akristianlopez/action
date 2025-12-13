@@ -828,21 +828,23 @@ func (p *Parser) parseExpressionStatement() (*ast.ExpressionStatement, *ParserEr
 
 	stmt.Expression = p.parseExpression(LOWEST)
 	if p.peekTokenIs(token.ASSIGN) {
+		stm := &ast.InfixExpression{Token: p.peekToken, Operator: "="}
+		stm.Left = stmt.Expression
 		p.nextToken() //read =
 		p.nextToken() //read next token
 		switch p.curToken.Type {
 		case token.LBRACE:
-			stmt.Expression = p.parseStructLiteral()
+			stm.Right = p.parseStructLiteral()
 		case token.LBRACKET:
-			stmt.Expression = p.parseArrayLiteral()
+			stm.Right = p.parseArrayLiteral()
 		default:
-			stmt.Expression = p.parseExpression(LOWEST)
+			stm.Right = p.parseExpression(LOWEST)
 		}
+		stmt.Expression = stm
 	}
 	if p.peekTokenIs(token.SEMICOLON) {
 		p.nextToken()
 	}
-
 	return stmt, nil
 }
 

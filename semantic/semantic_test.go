@@ -17,14 +17,33 @@ type testCase struct {
 
 func build_args() []testCase {
 	res := make([]testCase, 0)
+	// res = append(res, testCase{
+	// 	name: "Test 1.1 : Let statement ",
+	// 	src: `action "Check the let statement (Global position)"
+	//          Let numero:Integer(5)[10..200],ratio:float(2,1)=2.0
+	// 		 Let flag:Boolean=true, message:String="Hello World"
+	// 		 Let step:Integer(2)=1
+	// 		 start
+	// 		   return message + " "+ toString(ratio+numero+step) ;
+	// 		 stop
+	// 		 `,
+	// 	status: 0,
+	// })
 	res = append(res, testCase{
-		name: "Test 1.1 : Let statement ",
+		name: "Test 1.2 : Let statement ",
 		src: `action "Check the let statement (Global position)"
-             Let numero:Integer(5)[10..200],ratio:float(2,1)=2.0
-			 Let flag:Boolean=true, message:String="Hello World"
+			 type CustomType struct {
+			     field1: Integer
+			     field2: String
+			 }
+             Let var1:CustomType,	
+			  message:String="Hello World"
 			 Let step:Integer(2)=1
 			 start
-			   return message + " "+ toString(ratio+numero+step) ;
+				let var2 = CustomType{field1: 10, field2: "Test"}
+				var1.field2="Updated"
+				var1.field1=100
+			    return var1.field2 + toString(step) ; 
 			 stop
 			 `,
 		status: 0,
@@ -54,7 +73,7 @@ func TestAnalyze(t *testing.T) {
 			errors := analyzer.Analyze(action)
 
 			if len(errors) > 0 {
-				fmt.Println("Erreurs sémantiques:")
+				fmt.Printf("Erreurs sémantiques (%s):\n", tc.name)
 				for _, msg := range errors {
 					fmt.Printf("\t%s\n", msg)
 				}
@@ -66,8 +85,8 @@ func TestAnalyze(t *testing.T) {
 				}
 				os.Exit(1)
 			}
-			fmt.Println("✓ Programme valide sémantiquement")
-			fmt.Println(action.String())
+			fmt.Printf("✓ Action (%s) valide sémantiquement\n", tc.name)
+			// fmt.Println(action.String())
 			if len(analyzer.Warnings) > 0 {
 				fmt.Println("Avertissements:")
 				for _, msg := range analyzer.Warnings {

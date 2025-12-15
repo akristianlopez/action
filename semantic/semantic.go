@@ -68,11 +68,12 @@ func NewSemanticAnalyzer() *SemanticAnalyzer {
 		Errors:       []string{},
 		Warnings:     []string{},
 		TypeTable:    make(map[string]*TypeInfo),
+		TypeSql:      make(map[string]*TypeInfo),
 	}
-	// returnType := &TypeInfo{}
-
-	// //register standard function
-	// analyzer.registerSymbol("append", FunctionSymbol, returnType)
+	returnType := &TypeInfo{Name: "string"}
+	sf := &ast.FunctionStatement{Body: nil, ReturnType: nil,
+		Name: &ast.Identifier{Value: "tostring"}}
+	analyzer.registerSymbol("tostring", FunctionSymbol, returnType, sf)
 
 	// Enregistrer les types de base
 	analyzer.registerBuiltinTypes()
@@ -122,11 +123,11 @@ func (sa *SemanticAnalyzer) visitProgram(node *ast.Program) {
 
 	// Visiter toutes les déclarations
 	for _, stmt := range node.Statements {
-		sa.visitStatement(stmt)
+		sa.visitStatement(stmt, &TypeInfo{Name: "any"})
 	}
 }
 
-func (sa *SemanticAnalyzer) visitStatement(stmt ast.Statement) {
+func (sa *SemanticAnalyzer) visitStatement(stmt ast.Statement, t *TypeInfo) {
 	switch s := stmt.(type) {
 	case *ast.LetStatement:
 		sa.visitLetStatement(s)
@@ -137,13 +138,13 @@ func (sa *SemanticAnalyzer) visitStatement(stmt ast.Statement) {
 	case *ast.StructStatement:
 		sa.visitStructStatement(s)
 	case *ast.ForStatement:
-		sa.visitForStatement(s)
+		sa.visitForStatement(s, t)
 	case *ast.SwitchStatement:
-		sa.visitSwitchStatement(s)
+		sa.visitSwitchStatement(s, t)
 	case *ast.ReturnStatement:
-		sa.visitReturnStatement(s)
+		sa.visitReturnStatement(s, t)
 	case *ast.BlockStatement:
-		sa.visitBlockStatement(s)
+		sa.visitBlockStatement(s, t)
 	case *ast.ExpressionStatement:
 		sa.visitExpressionStatement(s)
 	case *ast.SQLCreateObjectStatement:
@@ -201,8 +202,8 @@ func (sa *SemanticAnalyzer) visitSQLUpdateStatement(s *ast.SQLUpdateStatement) {
 		}
 		info := sa.visitExpression(v.Value)
 		if _, exists := sa.TypeSql[strings.ToLower(info.Name)]; !exists {
-			sa.addError("This column is not defined. Maybe, it's a field of '%s'. line:%d, column:%d",
-				s.Line(), s.Column(), s.ObjectName.Value)
+			sa.addError("This column is not defined. Maybe, it's a field of %s. line:%d, column:%d",
+				s.ObjectName.Value, s.Line(), s.Column())
 		}
 	}
 	if s.Where != nil {
@@ -238,8 +239,8 @@ func (sa *SemanticAnalyzer) visitSQLInsertStatement(s *ast.SQLInsertStatement) {
 			for _, e := range v.Values {
 				t := sa.visitExpression(e)
 				if _, exists := sa.TypeSql[strings.ToLower(t.Name)]; !exists {
-					sa.addError("'%s' invalid expression. line:%d, column:%d",
-						e.Line(), e.Column(), e.String())
+					sa.addError("'%s' invalid expression. line:%d, column:%d", e.String(),
+						e.Line(), e.Column())
 				}
 			}
 		}
@@ -269,8 +270,8 @@ func (sa *SemanticAnalyzer) visitSQLTypeConstraint(v *ast.SQLDataType) {
 	// 	return
 	// }
 	if _, exists := sa.TypeSql[strings.ToLower(v.Name)]; !exists {
-		sa.addError("'%s' invalid expression. line:%d, column:%d",
-			v.Token.Line, v.Token.Column, v.Name)
+		sa.addError("'%s' invalid expression. line:%d, column:%d", v.Name,
+			v.Token.Line, v.Token.Column)
 		return
 	}
 	if v.Length != nil && v.Length.Value > 0 {
@@ -375,43 +376,51 @@ func (sa *SemanticAnalyzer) visitSQLCreateObjectStatement(s *ast.SQLCreateObject
 		}
 	}
 }
-func (sa *SemanticAnalyzer) canReceivedValue(s ast.Expression) *Symbol {
+func (sa *SemanticAnalyzer) canReceivedValue(s ast.Expression) *TypeInfo {
 	switch exp := s.(type) {
 	case *ast.Identifier:
-		return sa.lookupSymbol(exp.Value)
+		return sa.lookupSymbol(exp.Value).DataType
 	case *ast.IndexExpression:
 		ti := sa.visitIndexExpression(exp)
 		if ti.Name == "any" {
 			return nil
 		}
-		return sa.lookupSymbol(exp.Left.String())
-	case *ast.InfixExpression:
-		switch exp.Operator {
-		case ".":
-			switch e := exp.Left.(type) {
-			case *ast.Identifier:
-				l := sa.lookupSymbol(e.Value)
-				if l.Type == TypeSymbol {
-					st := l.Node.(*ast.StructStatement)
-					exists := false
-					for _, v := range st.Fields {
-						if strings.EqualFold(v.Name.Value, e.Value) {
-							exists = true
-							break
-						}
-					}
+		return sa.lookupSymbol(exp.Left.String()).DataType
+	case *ast.TypeMember:
+		switch t := exp.Left.(type) {
+		case *ast.Identifier:
+			l := sa.lookupSymbol(t.Value)
+			if l.Type == VariableSymbol && !l.DataType.IsArray &&
+				len(l.DataType.Fields) > 0 {
+				switch exp.Right.(type) {
+				case *ast.Identifier:
+					ta, exists := l.DataType.Fields[strings.ToLower(exp.Right.(*ast.Identifier).Value)]
 					if !exists {
-						sa.addError("Field '%s' does not exist. line:%d, column:%d", e.Value, e.Line(), e.Column())
-						return nil
+						sa.addError("Field '%s' does not exist. line:%d, column:%d", exp.Right.String(),
+							exp.Right.Line(), exp.Right.Column())
+						return &TypeInfo{Name: "void"}
 					}
-					return l
+					return ta
+				case *ast.ArrayFunctionCall:
+					sa.addError("Invalid expression '%s'. line:%d, column:%d", exp.Right.String(),
+						exp.Right.Line(), exp.Right.Column())
+					return &TypeInfo{Name: "void"}
+				default:
+					sa.addError("Invalid expression '%s'. line:%d, column:%d", exp.Right.String(),
+						exp.Right.Line(), exp.Right.Column())
+					return &TypeInfo{Name: "void"}
 				}
 			}
+		case *ast.ArrayFunctionCall:
+			sa.addError("Invalid expression '%s'. line:%d, column:%d", exp.Left.String(),
+				exp.Left.Line(), exp.Left.Column())
 		default:
-			sa.addError("Expression '%s' does not exist. line:%d, column:%d", exp.String(), exp.Line(), exp.Column())
+			sa.addError("Invalid expression '%s'. line:%d, column:%d", exp.Left.String(),
+				exp.Left.Line(), exp.Left.Column())
 		}
+		return &TypeInfo{Name: "void"}
 	}
-	return nil
+	return &TypeInfo{Name: "void"}
 }
 func (sa *SemanticAnalyzer) visitExpressionStatement(s *ast.ExpressionStatement) {
 	if s == nil {
@@ -493,7 +502,7 @@ func (sa *SemanticAnalyzer) visitObjectInFromClause(se ast.Expression) *string {
 			}
 		case *ast.SQLSelectStatement:
 			if s.NewName == nil {
-				sa.addError("New name expected. line:%d, column:%d", s.Value.String(), s.Value.Line(), s.Value.Column())
+				sa.addError("New name expected. line:%d, column:%d", s.Value.Line(), s.Value.Column())
 				break
 			}
 			switch nn := s.NewName.(type) {
@@ -697,13 +706,13 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 			case *ast.StringLiteral:
 				//Verify that this literal exists into the select rguments list
 				if !contains(argList, strings.ToLower(t.Value)) {
-					sa.addError("Invalid express '%d'. line:%d column:%d", t.Value,
+					sa.addError("Invalid express '%s'. line:%d column:%d", t.String(),
 						t.Line(), t.Column())
 				}
 			case *ast.ArrayFunctionCall:
 				//very that this function was call in the select clause
 				if !contains(argList, strings.ToLower(t.String())) {
-					sa.addError("Invalid express '%d'. line:%d column:%d", t.String(),
+					sa.addError("Invalid express '%s'. line:%d column:%d", t.String(),
 						t.Line(), t.Column())
 				}
 			default:
@@ -740,6 +749,7 @@ func (sa *SemanticAnalyzer) visitLetStatements(nodes *ast.LetStatements) {
 	// Vérifier si la variable est déjà déclarée
 	var varType *TypeInfo
 	for _, node := range *nodes {
+		varType = nil
 		if sa.lookupSymbol(node.Name.Value) != nil {
 			sa.addError("Variable '%s' already declared. line:%d column:%d",
 				node.Name.Value, node.Name.Token.Line, node.Name.Token.Column)
@@ -825,7 +835,7 @@ func (sa *SemanticAnalyzer) visitFunctionStatement(node *ast.FunctionStatement) 
 	}
 
 	// Analyser le corps de la fonction
-	sa.visitBlockStatement(node.Body)
+	sa.visitBlockStatement(node.Body, returnType)
 
 	// Restaurer le scope
 	sa.CurrentScope = oldScope
@@ -855,11 +865,11 @@ func (sa *SemanticAnalyzer) visitStructStatement(node *ast.StructStatement) {
 	}
 
 	// Enregistrer le type
-	sa.TypeTable[node.Name.Value] = structType
+	sa.TypeTable[lower(node.Name.Value)] = structType
 	sa.registerSymbol(node.Name.Value, StructSymbol, structType, node)
 }
 
-func (sa *SemanticAnalyzer) visitForStatement(node *ast.ForStatement) {
+func (sa *SemanticAnalyzer) visitForStatement(node *ast.ForStatement, t *TypeInfo) {
 	// Créer un nouveau scope pour la boucle
 	loopScope := &Scope{
 		Parent:  sa.CurrentScope,
@@ -872,7 +882,7 @@ func (sa *SemanticAnalyzer) visitForStatement(node *ast.ForStatement) {
 
 	// Analyser l'initialisation
 	if node.Init != nil {
-		sa.visitStatement(node.Init)
+		sa.visitStatement(node.Init, t)
 	}
 
 	// Analyser la condition
@@ -886,17 +896,17 @@ func (sa *SemanticAnalyzer) visitForStatement(node *ast.ForStatement) {
 
 	// Analyser l'update
 	if node.Update != nil {
-		sa.visitStatement(node.Update)
+		sa.visitStatement(node.Update, t)
 	}
 
 	// Analyser le corps
-	sa.visitBlockStatement(node.Body)
+	sa.visitBlockStatement(node.Body, t)
 
 	// Restaurer le scope
 	sa.CurrentScope = oldScope
 }
 
-func (sa *SemanticAnalyzer) visitSwitchStatement(node *ast.SwitchStatement) {
+func (sa *SemanticAnalyzer) visitSwitchStatement(node *ast.SwitchStatement, t *TypeInfo) {
 	// Analyser l'expression du switch
 	switchType := sa.visitExpression(node.Expression)
 
@@ -919,7 +929,7 @@ func (sa *SemanticAnalyzer) visitSwitchStatement(node *ast.SwitchStatement) {
 
 		oldScope := sa.CurrentScope
 		sa.CurrentScope = caseScope
-		sa.visitBlockStatement(caseStmt.Body)
+		sa.visitBlockStatement(caseStmt.Body, t)
 		sa.CurrentScope = oldScope
 	}
 
@@ -933,7 +943,7 @@ func (sa *SemanticAnalyzer) visitSwitchStatement(node *ast.SwitchStatement) {
 
 		oldScope := sa.CurrentScope
 		sa.CurrentScope = defaultScope
-		sa.visitBlockStatement(node.DefaultCase)
+		sa.visitBlockStatement(node.DefaultCase, t)
 		sa.CurrentScope = oldScope
 	}
 }
@@ -944,6 +954,39 @@ func (sa *SemanticAnalyzer) visitExpression(expr ast.Expression) *TypeInfo {
 		return sa.visitIdentifier(e)
 	case *ast.IntegerLiteral:
 		return &TypeInfo{Name: "integer"}
+	case *ast.TypeMember:
+		switch t := e.Left.(type) {
+		case *ast.Identifier:
+			l := sa.lookupSymbol(t.Value)
+			if l.Type == VariableSymbol && !l.DataType.IsArray &&
+				len(l.DataType.Fields) > 0 {
+				switch e.Right.(type) {
+				case *ast.Identifier:
+					ta, exists := l.DataType.Fields[strings.ToLower(e.Right.(*ast.Identifier).Value)]
+					if !exists {
+						sa.addError("Field '%s' does not exist. line:%d, column:%d", e.Right.String(),
+							e.Right.Line(), e.Right.Column())
+						return &TypeInfo{Name: "void"}
+					}
+					return ta
+				case *ast.ArrayFunctionCall:
+					sa.addError("Invalid expression '%s'. line:%d, column:%d", e.Right.String(),
+						e.Right.Line(), e.Right.Column())
+					return &TypeInfo{Name: "void"}
+				default:
+					sa.addError("Invalid expression '%s'. line:%d, column:%d", e.Right.String(),
+						e.Right.Line(), e.Right.Column())
+					return &TypeInfo{Name: "void"}
+				}
+			}
+		case *ast.ArrayFunctionCall:
+			sa.addError("Invalid expression '%s'. line:%d, column:%d", e.Left.String(),
+				e.Left.Line(), e.Left.Column())
+		default:
+			sa.addError("Invalid expression '%s'. line:%d, column:%d", e.Left.String(),
+				e.Left.Line(), e.Left.Column())
+		}
+		return &TypeInfo{Name: "void"}
 	case *ast.FloatLiteral:
 		return &TypeInfo{Name: "float"}
 	case *ast.StringLiteral:
@@ -1148,7 +1191,7 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 		if leftType.Name == "string" && rightType.Name == "string" && node.Operator == "+" {
 			return &TypeInfo{Name: "string"}
 		}
-		sa.addError("Opération '%s' non supportée entre %s et %s",
+		sa.addError("Unsupported operation '%s' between %s and %s",
 			node.Operator, leftType.Name, rightType.Name)
 
 	case "*", "/":
@@ -1204,8 +1247,11 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 			sa.addError("Opération '%s' requiert des booléens", node.Operator)
 		}
 		return &TypeInfo{Name: "boolean"}
-	}
 
+	default:
+		sa.addError("Opérateur inconnu: %s. Line:%d, column:%d", node.Operator,
+			node.Token.Line, node.Token.Column)
+	}
 	return &TypeInfo{Name: "any"}
 }
 
@@ -1257,7 +1303,7 @@ func (sa *SemanticAnalyzer) resolveTypeAnnotation(ta *ast.TypeAnnotation) *TypeI
 	}
 
 	// Vérifier si c'est un type défini
-	if typeInfo, exists := sa.TypeTable[ta.Type]; exists {
+	if typeInfo, exists := sa.TypeTable[lower(ta.Type)]; exists {
 		return typeInfo
 	}
 
@@ -1265,7 +1311,9 @@ func (sa *SemanticAnalyzer) resolveTypeAnnotation(ta *ast.TypeAnnotation) *TypeI
 	sa.addError("Type inconnu: %s", ta.Type)
 	return &TypeInfo{Name: "any"}
 }
-
+func lower(s string) string {
+	return strings.ToLower(s)
+}
 func (sa *SemanticAnalyzer) getArraySize(size *ast.IntegerLiteral) int64 {
 	if size != nil {
 		return size.Value
@@ -1312,7 +1360,7 @@ func (sa *SemanticAnalyzer) registerSymbol(name string, symType SymbolType, data
 		Scope:    sa.CurrentScope,
 		Node:     node,
 	}
-	sa.CurrentScope.Symbols[strings.ToLower(name)] = symbol
+	sa.CurrentScope.Symbols[lower(name)] = symbol
 }
 
 func (sa *SemanticAnalyzer) addError(format string, args ...interface{}) {
@@ -1324,11 +1372,20 @@ func (sa *SemanticAnalyzer) addWarning(format string, args ...interface{}) {
 }
 
 // Méthodes restantes pour visiter les autres types d'expressions et instructions
-func (sa *SemanticAnalyzer) visitReturnStatement(node *ast.ReturnStatement) {
-	// TODO: Vérifier la compatibilité avec le type de retour de la fonction
+func (sa *SemanticAnalyzer) visitReturnStatement(node *ast.ReturnStatement, t *TypeInfo) {
+	if (t == nil || t.Name == "void") && node.ReturnValue != nil {
+		sa.addError("La fonction ne doit pas retourner de valeur. line:%d column:%d",
+			node.Token.Line, node.Token.Column)
+		return
+	}
+	ti := sa.visitExpression(node.ReturnValue)
+	if !sa.areTypesCompatible(t, ti) {
+		sa.addError("Type de retour incompatible: attendu %s, got %s. line:%d column:%d",
+			t.Name, ti.Name, node.Token.Line, node.Token.Column)
+	}
 }
 
-func (sa *SemanticAnalyzer) visitBlockStatement(node *ast.BlockStatement) {
+func (sa *SemanticAnalyzer) visitBlockStatement(node *ast.BlockStatement, t *TypeInfo) {
 	// Créer un nouveau scope pour le bloc
 	blockScope := &Scope{
 		Parent:  sa.CurrentScope,
@@ -1340,7 +1397,7 @@ func (sa *SemanticAnalyzer) visitBlockStatement(node *ast.BlockStatement) {
 	sa.CurrentScope = blockScope
 
 	for _, stmt := range node.Statements {
-		sa.visitStatement(stmt)
+		sa.visitStatement(stmt, t)
 	}
 
 	sa.CurrentScope = oldScope

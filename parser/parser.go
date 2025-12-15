@@ -129,7 +129,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.IN, p.parseInExpression)
 	// p.registerInfix(token.AS, p.parseInfixExpression)
 	p.registerInfix(token.IS, p.parseInfixExpression)
-	p.registerInfix(token.DOT, p.parseInfixExpression)
+	p.registerInfix(token.DOT, p.parsePropertyAccess)
 	p.registerInfix(token.CONCAT, p.parseInfixExpression)
 
 	p.nextToken()
@@ -278,16 +278,6 @@ func (p *Parser) parseStatement(startSts bool) (ast.Statement, *ParserError) {
 		return p.parseStmStartSection()
 	}
 	return p.parseStmDeclarationSection()
-	// switch p.curToken.Type {
-	// case token.LET:
-	// 	return p.parseLetStatement()
-	// case token.FUNCTION:
-	// 	return p.parseFunctionStatement()
-	// case token.TYPE:
-	// 	return p.parseStructStatement()
-	// default:
-	// 	return p.parseStmStartSection()
-	// }
 }
 
 func (p *Parser) parseLetStatements() (*ast.LetStatements, *ParserError) {
@@ -1147,60 +1137,18 @@ func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 	return expression
 }
 
+func (p *Parser) parsePropertyAccess(left ast.Expression) ast.Expression {
+	pa := &ast.TypeMember{Token: p.curToken, Left: left}
+	p.nextToken()
+	pa.Right = p.parseExpression(LOWEST)
+	return pa
+}
+
 func (p *Parser) parseSQLSelect() ast.Expression {
 	selectStmt, pe := p.parseSQLSelectStatement()
 	if pe != nil {
 		p.addError(pe)
 	}
-
-	// selectStmt := &ast.SQLSelectStatement{Token: p.curToken}
-
-	// // Parser SELECT
-	// p.nextToken()
-	// selectStmt.Select = p.parseSelectList()
-
-	// // Parser FROM
-	// if !p.expectPeek(token.FROM) {
-	// 	return nil
-	// }
-	// p.nextToken()
-	// selectStmt.From = p.parseExpression(LOWEST)
-
-	// // Parser les JOINs optionnels
-	// for p.peekTokenIs(token.JOIN) ||
-	// 	(p.peekTokenIs(token.IDENT) &&
-	// 		(p.peekToken.Literal == "INNER" || p.peekToken.Literal == "LEFT" ||
-	// 			p.peekToken.Literal == "RIGHT" || p.peekToken.Literal == "FULL")) {
-	// 	p.nextToken()
-	// 	join := &ast.SQLJoin{Token: p.curToken}
-
-	// 	if p.curTokenIs(token.IDENT) {
-	// 		join.Type = p.curToken.Literal
-	// 		if !p.expectPeek(token.JOIN) {
-	// 			return nil
-	// 		}
-	// 		p.nextToken()
-	// 	} else {
-	// 		join.Type = "INNER"
-	// 	}
-
-	// 	join.Table = p.parseExpression(LOWEST)
-
-	// 	if !p.expectPeek(token.ON) {
-	// 		return nil
-	// 	}
-	// 	p.nextToken()
-	// 	join.On = p.parseExpression(LOWEST)
-
-	// 	selectStmt.Joins = append(selectStmt.Joins, join)
-	// }
-
-	// // Parser WHERE optionnel
-	// if p.peekTokenIs(token.WHERE) {
-	// 	p.nextToken()
-	// 	p.nextToken()
-	// 	selectStmt.Where = p.parseExpression(LOWEST)
-	// }
 
 	return selectStmt
 }

@@ -60,6 +60,9 @@ func (tm *TypeMember) TokenLiteral() string { return tm.Token.Literal }
 func (tm *TypeMember) String() string {
 	return tm.Left.String() + "." + tm.Right.String()
 }
+func (tm *TypeMember) expressionNode() {}
+func (tm *TypeMember) Line() int       { return tm.Token.Line }
+func (tm *TypeMember) Column() int     { return tm.Token.Column }
 
 // LetStatement - déclaration de variable
 type LetStatement struct {

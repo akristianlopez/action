@@ -301,7 +301,7 @@ func (p *Parser) parseLetStatements() (*ast.LetStatements, *ParserError) {
 	}
 	// var flag bool
 	for p.curTokenIs(token.IDENT) && !p.peekTokenIs(token.EOF) &&
-		!p.peekTokenIs(token.SEMICOLON) {
+		!p.peekTokenIs(token.SEMICOLON) && !p.peekTokenIs(token.STOP) {
 		flag := true
 		stmt := ast.LetStatement{Token: tok}
 		stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
@@ -328,13 +328,14 @@ func (p *Parser) parseLetStatements() (*ast.LetStatements, *ParserError) {
 		}
 		if p.peekTokenIs(token.COMMA) {
 			p.nextToken() // ,
-			// flag = true
+			flag = true
 			if !p.expectPeek(token.IDENT) {
 				return nil, nil
 			}
 		}
 		stms = append(stms, stmt)
 		if !flag {
+			// flag = true
 			//after reading the type if there is not any other operation that modifies the cursor
 			//position, we stopped parsing to go to the next statement
 			// p.nextToken()

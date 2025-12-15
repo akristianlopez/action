@@ -48,6 +48,19 @@ func (p *Program) String() string {
 	return out
 }
 
+// Let TypeMember - membre de type (pour les types composés)
+type TypeMember struct {
+	Token token.Token
+	Left  Expression
+	Right Expression
+}
+
+func (tm *TypeMember) statementNode()       {}
+func (tm *TypeMember) TokenLiteral() string { return tm.Token.Literal }
+func (tm *TypeMember) String() string {
+	return tm.Left.String() + "." + tm.Right.String()
+}
+
 // LetStatement - déclaration de variable
 type LetStatement struct {
 	Token token.Token

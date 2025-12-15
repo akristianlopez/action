@@ -69,7 +69,7 @@ func NewSemanticAnalyzer() *SemanticAnalyzer {
 		Warnings:     []string{},
 		TypeTable:    make(map[string]*TypeInfo),
 	}
-	returnType := &TypeInfo{}
+	// returnType := &TypeInfo{}
 
 	// //register standard function
 	// analyzer.registerSymbol("append", FunctionSymbol, returnType)
@@ -395,7 +395,7 @@ func (sa *SemanticAnalyzer) canReceivedValue(s ast.Expression) *Symbol {
 					st := l.Node.(*ast.StructStatement)
 					exists := false
 					for _, v := range st.Fields {
-						if strings.ToLower(v.Name.Value) == strings.ToLower(e.Value) {
+						if strings.EqualFold(v.Name.Value, e.Value) {
 							exists = true
 							break
 						}
@@ -408,7 +408,7 @@ func (sa *SemanticAnalyzer) canReceivedValue(s ast.Expression) *Symbol {
 				}
 			}
 		default:
-			sa.addError("Expression '%s' does not exist. line:%d, column:%d", e.Value, e.Line(), e.Column())
+			sa.addError("Expression '%s' does not exist. line:%d, column:%d", exp.String(), exp.Line(), exp.Column())
 		}
 	}
 	return nil
@@ -597,7 +597,7 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 						t.Right.String(), t.Right.Line(), t.Right.Column())
 				}
 				//Check the function argument format but this will be done after
-				if n.Array == nil && (n.Arguments == nil || len(n.Arguments) == 0) {
+				if n.Array == nil && len(n.Arguments) == 0 {
 					sa.addError("Function '%s' must have at least one argument. line:%d, column:%d",
 						n.Function.String(), s.Line(), s.Column())
 				}
@@ -623,7 +623,7 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 					s.Function.String(), s.Line(), s.Column())
 			}
 			//Check the function argument format but this will be done after
-			if s.Array == nil && (s.Arguments == nil || len(s.Arguments) == 0) {
+			if s.Array == nil && len(s.Arguments) == 0 {
 				sa.addError("Function '%s' must have at least one argument. line:%d, column:%d",
 					s.Function.String(), s.Line(), s.Column())
 			}

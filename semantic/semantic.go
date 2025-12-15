@@ -19,6 +19,7 @@ const (
 	FunctionSymbol  SymbolType = "FUNCTION"
 	StructSymbol    SymbolType = "STRUCT"
 	TypeSymbol      SymbolType = "TYPE"
+	ArraySymbol     SymbolType = "ARRAY"
 	ParameterSymbol SymbolType = "PARAMETER"
 )
 
@@ -70,8 +71,8 @@ func NewSemanticAnalyzer() *SemanticAnalyzer {
 	}
 	returnType := &TypeInfo{}
 
-	//register standard function
-	analyzer.registerSymbol("append", FunctionSymbol, returnType)
+	// //register standard function
+	// analyzer.registerSymbol("append", FunctionSymbol, returnType)
 
 	// Enregistrer les types de base
 	analyzer.registerBuiltinTypes()
@@ -374,16 +375,67 @@ func (sa *SemanticAnalyzer) visitSQLCreateObjectStatement(s *ast.SQLCreateObject
 		}
 	}
 }
-
+func (sa *SemanticAnalyzer) canReceivedValue(s ast.Expression) *Symbol {
+	switch exp := s.(type) {
+	case *ast.Identifier:
+		return sa.lookupSymbol(exp.Value)
+	case *ast.IndexExpression:
+		ti := sa.visitIndexExpression(exp)
+		if ti.Name == "any" {
+			return nil
+		}
+		return sa.lookupSymbol(exp.Left.String())
+	case *ast.InfixExpression:
+		switch exp.Operator {
+		case ".":
+			switch e := exp.Left.(type) {
+			case *ast.Identifier:
+				l := sa.lookupSymbol(e.Value)
+				if l.Type == TypeSymbol {
+					st := l.Node.(*ast.StructStatement)
+					exists := false
+					for _, v := range st.Fields {
+						if strings.ToLower(v.Name.Value) == strings.ToLower(e.Value) {
+							exists = true
+							break
+						}
+					}
+					if !exists {
+						sa.addError("Field '%s' does not exist. line:%d, column:%d", e.Value, e.Line(), e.Column())
+						return nil
+					}
+					return l
+				}
+			}
+		default:
+			sa.addError("Expression '%s' does not exist. line:%d, column:%d", e.Value, e.Line(), e.Column())
+		}
+	}
+	return nil
+}
 func (sa *SemanticAnalyzer) visitExpressionStatement(s *ast.ExpressionStatement) {
 	if s == nil {
 		return
 	}
-	switch s.Expression.(type) {
+	switch expr := s.Expression.(type) {
 	case *ast.InfixExpression:
-
+		switch expr.Operator {
+		case "=": //assignment
+			l := sa.canReceivedValue(expr.Left)
+			if l != nil {
+				ti := sa.visitExpression(expr.Right)
+				if l.Name != ti.Name {
+					sa.addError("Types mismatch. Line:%d, column:%d", expr.Line(), expr.Column())
+				}
+			}
+		case "[": //Array's element
+			sa.addError("Invalid expression. Line:%d, column:%d", expr.Line(), expr.Column())
+		case ".": //Object's member
+			sa.addError("Invalid expression. Line:%d, column:%d", expr.Line(), expr.Column())
+		default: //Unkown
+			sa.addError("Invalid expression. Line:%d, column:%d", expr.Line(), expr.Column())
+		}
 	}
-	panic("unimplemented"
 }
 
 func lIsInFrom(name string, sj []*ast.SQLJoin) bool {
@@ -1244,7 +1296,7 @@ func (sa *SemanticAnalyzer) areTypesCompatible(t1, t2 *TypeInfo) bool {
 func (sa *SemanticAnalyzer) lookupSymbol(name string) *Symbol {
 	current := sa.CurrentScope
 	for current != nil {
-		if symbol, exists := current.Symbols[name]; exists {
+		if symbol, exists := current.Symbols[strings.ToLower(name)]; exists {
 			return symbol
 		}
 		current = current.Parent
@@ -1260,7 +1312,7 @@ func (sa *SemanticAnalyzer) registerSymbol(name string, symType SymbolType, data
 		Scope:    sa.CurrentScope,
 		Node:     node,
 	}
-	sa.CurrentScope.Symbols[name] = symbol
+	sa.CurrentScope.Symbols[strings.ToLower(name)] = symbol
 }
 
 func (sa *SemanticAnalyzer) addError(format string, args ...interface{}) {

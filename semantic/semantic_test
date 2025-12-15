@@ -1,0 +1,47 @@
+import (
+	"github.com/akristianlopez/action/lexer"
+	"github.com/akristianlopez/action/object"
+	"github.com/akristianlopez/action/parser"
+)
+
+func TestAnalyzer(t *testing.T) {
+	// Étape 1: Lexical Analysis
+	l := lexer.New(string(input))
+
+	// Étape 2: Parsing
+	p := parser.New(l)
+	action := p.ParseProgram()
+	if len(p.Errors()) != 0 {
+		fmt.Println("Erreurs de parsing:")
+		for _, msg := range p.Errors() {
+			fmt.Printf("\t%s\n", msg)
+		}
+		os.Exit(1)
+	}
+
+	// Étape 3: Analyse Sémantique
+	analyzer := semantic.NewSemanticAnalyzer()
+	errors := analyzer.Analyze(action)
+
+	if len(errors) > 0 {
+		fmt.Println("Erreurs sémantiques:")
+		for _, msg := range errors {
+			fmt.Printf("\t%s\n", msg)
+		}
+		if len(analyzer.Warnings) > 0 {
+			fmt.Println("Avertissements:")
+			for _, msg := range analyzer.Warnings {
+				fmt.Printf("\t%s\n", msg)
+			}
+		}
+		os.Exit(1)
+	}
+	fmt.Println("✓ Programme valide sémantiquement")
+	if len(analyzer.Warnings) > 0 {
+		fmt.Println("Avertissements:")
+		for _, msg := range analyzer.Warnings {
+			fmt.Printf("  ⚠ %s\n", msg)
+		}
+	}
+
+}

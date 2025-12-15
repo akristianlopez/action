@@ -90,7 +90,8 @@ func (lm *LetStatements) String() string {
 		}
 		out += ", "
 	}
-	return fmt.Sprintf("Let %s", out)
+	return strings.TrimRight(out, ", ")
+	// return fmt.Sprintf("Let %s", out)
 }
 
 // TypeConstraints - contraintes de type

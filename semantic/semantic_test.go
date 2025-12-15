@@ -20,8 +20,11 @@ func build_args() []testCase {
 	res = append(res, testCase{
 		name: "Test 1.1 : Let statement ",
 		src: `action "Check the let statement (Global position)"
-             Let numero:Integer(5)
+             Let numero:Integer(5)[10..200],ratio:float(2,1)=2.0
+			 Let flag:Boolean=true, message:String="Hello World"
+			 Let step:Integer(2)=1
 			 start
+			   return message + " "+ toString(ratio+numero+step) ;
 			 stop
 			 `,
 		status: 0,
@@ -41,13 +44,13 @@ func TestAnalyze(t *testing.T) {
 			if len(p.Errors()) != 0 {
 				fmt.Println("Erreurs de parsing:")
 				for _, msg := range p.Errors() {
-					fmt.Printf("\t%s\n", msg)
+					fmt.Printf("\t%s\n", msg.Message())
 				}
 				os.Exit(1)
 			}
 
 			// Étape 3: Analyse Sémantique
-			analyzer := semantic.NewSemanticAnalyzer()
+			analyzer := NewSemanticAnalyzer()
 			errors := analyzer.Analyze(action)
 
 			if len(errors) > 0 {
@@ -64,6 +67,7 @@ func TestAnalyze(t *testing.T) {
 				os.Exit(1)
 			}
 			fmt.Println("✓ Programme valide sémantiquement")
+			fmt.Println(action.String())
 			if len(analyzer.Warnings) > 0 {
 				fmt.Println("Avertissements:")
 				for _, msg := range analyzer.Warnings {

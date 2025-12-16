@@ -470,10 +470,11 @@ func (p *Parser) parseFunctionStatement() (*ast.FunctionStatement, *ParserError)
 	// Type de retour optionnel
 	if p.peekTokenIs(token.COLON) {
 		p.nextToken() // :
-		p.nextToken() // type
-		if !p.peekTokenIs(token.LBRACE) {
-			stmt.ReturnType = p.parseTypeAnnotation()
+		if !p.expectPeekEx(token.IDENT, token.INTEGER, token.FLOAT,
+			token.STRING, token.BOOLEAN) {
+			return nil, nil
 		}
+		stmt.ReturnType = p.parseTypeAnnotation()
 	}
 
 	if !p.expectPeek(token.LBRACE) {

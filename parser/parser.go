@@ -1139,8 +1139,13 @@ func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 
 func (p *Parser) parsePropertyAccess(left ast.Expression) ast.Expression {
 	pa := &ast.TypeMember{Token: p.curToken, Left: left}
+	prefix := p.prefixParseFns[p.peekToken.Type]
+	if prefix == nil {
+		p.noPrefixParseFnError(p.peekToken.Type)
+		return nil
+	}
 	p.nextToken()
-	pa.Right = p.parseExpression(LOWEST)
+	pa.Right = prefix() // p.parseExpression(LOWEST)
 	return pa
 }
 

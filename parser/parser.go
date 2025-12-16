@@ -110,6 +110,7 @@ func New(l *lexer.Lexer) *Parser {
 	// p.registerPrefix(token.SLICE, p.parseArrayFunctionCall)
 	p.registerPrefix(token.CONTAINS, p.parseArrayFunctionCall)
 	p.registerPrefix(token.DURATION_LIT, p.parseDurationLiteral)
+	p.registerPrefix(token.LBRACE, p.parseStructLiteral)
 
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)

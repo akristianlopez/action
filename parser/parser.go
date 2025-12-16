@@ -987,6 +987,7 @@ const (
 	PREFIX
 	CALL
 	INDEX
+	MEMBER
 )
 
 func (p *Parser) parsePrefixObjectValue() ast.Expression {
@@ -1968,7 +1969,7 @@ var precedences = map[token.TokenType]int{
 	token.NOT:      EQUALS,
 	token.IS:       EQUALS,
 	// token.AS:       EQUALS,
-	token.DOT: EQUALS,
+	token.DOT: MEMBER,
 }
 
 func (p *Parser) registerPrefix(tokenType token.TokenType, fn prefixParseFn) {

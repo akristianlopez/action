@@ -48,6 +48,13 @@ type TypeInfo struct {
 	Fields      map[string]*TypeInfo // Pour les structures
 }
 
+func (ti *TypeInfo) String() string {
+	if ti.IsArray {
+		return fmt.Sprintf("Array of %s", ti.ElementType.String())
+	}
+	return ti.Name
+}
+
 type SemanticAnalyzer struct {
 	CurrentScope *Scope
 	GlobalScope  *Scope
@@ -87,6 +94,7 @@ func NewSemanticAnalyzer() *SemanticAnalyzer {
 
 func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	oldScope := sa.CurrentScope
+
 	oldScope.Children = make([]*Scope, 0)
 	funScope := &Scope{
 		Parent:  oldScope,
@@ -107,6 +115,28 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.registerSymbol("val", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "val"}, -1, 0)
 	sa.CurrentScope = oldScope
 	sa.registerSymbol("len", FunctionSymbol, &TypeInfo{Name: "integer"}, &ast.Identifier{Value: "val"}, 1)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("arr", ParameterSymbol, &TypeInfo{Name: "array", IsArray: true, ElementType: &TypeInfo{Name: "any"}}, &ast.Identifier{Value: "arr"}, -1, 0)
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 1)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("append", FunctionSymbol, &TypeInfo{Name: "array", IsArray: true, ElementType: &TypeInfo{Name: "any"}}, &ast.Identifier{Value: "append"}, 2)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("arr", ParameterSymbol, &TypeInfo{Name: "array", IsArray: true, ElementType: &TypeInfo{Name: "any"}}, &ast.Identifier{Value: "arr"}, -1, 0)
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 1)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("indexOf", FunctionSymbol, &TypeInfo{Name: "integer"}, &ast.Identifier{Value: "indexOf"}, 3)
 }
 
 func (sa *SemanticAnalyzer) registerBuiltinTypes() {
@@ -407,57 +437,11 @@ func (sa *SemanticAnalyzer) visitSQLCreateObjectStatement(s *ast.SQLCreateObject
 func (sa *SemanticAnalyzer) canReceivedValue(s ast.Expression) *TypeInfo {
 	switch exp := s.(type) {
 	case *ast.Identifier:
-		symbol := sa.lookupSymbol(exp.Value)
-		if symbol == nil {
-			sa.addError("Non declared variable '%s'. line:%d, column:%d", exp.String(),
-				exp.Line(), exp.Column())
-			return &TypeInfo{Name: "void"}
-		}
-		return symbol.DataType
+		return sa.visitIdentifier(exp)
 	case *ast.IndexExpression:
-		ti := sa.visitIndexExpression(exp)
-		if ti.Name == "any" {
-			return nil
-		}
-		return sa.lookupSymbol(exp.Left.String()).DataType
+		return sa.visitIndexExpression(exp)
 	case *ast.TypeMember:
-		switch t := exp.Left.(type) {
-		case *ast.Identifier:
-			l := sa.lookupSymbol(t.Value)
-			if l == nil {
-				sa.addError("Non declared variable '%s'. line:%d, column:%d", exp.String(),
-					exp.Line(), exp.Column())
-				return &TypeInfo{Name: "void"}
-			}
-			if l.Type == VariableSymbol && !l.DataType.IsArray &&
-				len(l.DataType.Fields) > 0 {
-				switch exp.Right.(type) {
-				case *ast.Identifier:
-					ta, exists := l.DataType.Fields[strings.ToLower(exp.Right.(*ast.Identifier).Value)]
-					if !exists {
-						sa.addError("Field '%s' does not exist. line:%d, column:%d", exp.Right.String(),
-							exp.Right.Line(), exp.Right.Column())
-						return &TypeInfo{Name: "void"}
-					}
-					return ta
-				case *ast.ArrayFunctionCall:
-					sa.addError("Invalid expression '%s'. line:%d, column:%d", exp.Right.String(),
-						exp.Right.Line(), exp.Right.Column())
-					return &TypeInfo{Name: "void"}
-				default:
-					sa.addError("Invalid expression '%s'. line:%d, column:%d", exp.Right.String(),
-						exp.Right.Line(), exp.Right.Column())
-					return &TypeInfo{Name: "void"}
-				}
-			}
-		case *ast.ArrayFunctionCall:
-			sa.addError("Invalid expression '%s'. line:%d, column:%d", exp.Left.String(),
-				exp.Left.Line(), exp.Left.Column())
-		default:
-			sa.addError("Invalid expression '%s'. line:%d, column:%d", exp.Left.String(),
-				exp.Left.Line(), exp.Left.Column())
-		}
-		return &TypeInfo{Name: "void"}
+		return sa.visitTypeMember(exp)
 	}
 	return &TypeInfo{Name: "void"}
 }
@@ -470,9 +454,15 @@ func (sa *SemanticAnalyzer) visitExpressionStatement(s *ast.ExpressionStatement)
 		switch expr.Operator {
 		case "=": //assignment
 			l := sa.canReceivedValue(expr.Left)
+			if l.IsArray {
+				l = l.ElementType
+			}
 			if l != nil {
 				ti := sa.visitExpression(expr.Right)
-				if l.Name != ti.Name {
+				if ti.IsArray {
+					ti = ti.ElementType
+				}
+				if !sa.areSameType(l, ti) {
 					sa.addError("Type of '%s' does not match the type of '%s'. Line:%d, column:%d",
 						expr.Left.String(), expr.Right.String(), expr.Line(), expr.Column())
 				}
@@ -487,7 +477,7 @@ func (sa *SemanticAnalyzer) visitExpressionStatement(s *ast.ExpressionStatement)
 	case *ast.ArrayFunctionCall:
 		sa.visitArrayFunctionCall(expr)
 	default:
-		sa.addError("Invalid expression. Line:%d, column:%d", expr.Line(), expr.Column())
+		sa.addError("Invalid expression '%s'. Line:%d, column:%d", expr.String(), expr.Line(), expr.Column())
 	}
 }
 
@@ -805,10 +795,9 @@ func (sa *SemanticAnalyzer) visitLetStatements(nodes *ast.LetStatements) {
 		// Si une valeur est fournie, vérifier la compatibilité des types
 		if node.Value != nil {
 			valueType := sa.visitExpression(node.Value)
-
 			if varType != nil && !sa.areTypesCompatible(varType, valueType) {
 				sa.addError("Type mismatch for the variable '%s': expected %s, got %s. line:%d column:%d",
-					node.Name.Value, varType.Name, valueType.Name, node.Token.Line, node.Token.Column)
+					node.Name.Value, varType.String(), valueType.String(), node.Token.Line, node.Token.Column)
 			}
 			// Si le type n'est pas spécifié, l'inférer
 			if varType == nil {
@@ -993,13 +982,16 @@ func (sa *SemanticAnalyzer) visitSwitchStatement(node *ast.SwitchStatement, t *T
 }
 
 func (sa *SemanticAnalyzer) visitExpression(expr ast.Expression) *TypeInfo {
+	if expr == nil {
+		return nil
+	}
 	switch e := expr.(type) {
 	case *ast.Identifier:
 		return sa.visitIdentifier(e)
 	case *ast.IntegerLiteral:
 		return &TypeInfo{Name: "integer"}
 	case *ast.TypeMember:
-		return sa.canReceivedValue(e)
+		return sa.visitTypeMember(e)
 	case *ast.FloatLiteral:
 		return &TypeInfo{Name: "float"}
 	case *ast.StringLiteral:
@@ -1042,8 +1034,23 @@ func (sa *SemanticAnalyzer) visitExpression(expr ast.Expression) *TypeInfo {
 }
 
 func (sa *SemanticAnalyzer) visitSliceExpression(e *ast.SliceExpression) *TypeInfo {
-	//retrouver sa definition et retourner son type
-	return &TypeInfo{Name: "array"}
+	ts := sa.visitExpression(e.Start)
+	te := sa.visitExpression(e.End)
+	if ts != nil && ts.Name != "integer" {
+		sa.addError("This expression '%s' must be integer. line:%d column:%d",
+			e.String(), e.Start.Line(), e.Start.Column())
+	}
+	if te != nil && te.Name != "integer" {
+		sa.addError("This expression '%s' must be integer. line:%d column:%d",
+			e.String(), e.End.Line(), e.End.Column())
+	}
+	symbol := sa.lookupSymbol(e.Left.String())
+	if symbol == nil {
+		sa.addError("Non declared identifier: %s line:%d column:%d", e.Left.String(),
+			e.Left.Line(), e.Left.Column())
+		return &TypeInfo{Name: "void"}
+	}
+	return symbol.DataType
 }
 
 func (sa *SemanticAnalyzer) visitArrayFunctionCall(e *ast.ArrayFunctionCall) *TypeInfo {
@@ -1127,6 +1134,48 @@ func (sa *SemanticAnalyzer) visitIdentifier(node *ast.Identifier) *TypeInfo {
 		return &TypeInfo{Name: "any"}
 	}
 	return symbol.DataType
+}
+
+func (sa *SemanticAnalyzer) visitTypeMember(node *ast.TypeMember) *TypeInfo {
+	switch t := node.Left.(type) {
+	case *ast.Identifier:
+		l := sa.lookupSymbol(t.Value)
+		if l == nil {
+			sa.addError("Non declared variable '%s'. line:%d, column:%d", node.String(),
+				node.Line(), node.Column())
+			return &TypeInfo{Name: "void"}
+		}
+		if l.Type == VariableSymbol && !l.DataType.IsArray &&
+			len(l.DataType.Fields) > 0 {
+			switch node.Right.(type) {
+			case *ast.Identifier:
+				ta, exists := l.DataType.Fields[strings.ToLower(node.Right.(*ast.Identifier).Value)]
+				if !exists {
+					sa.addError("Field '%s' does not exist. line:%d, column:%d", node.Right.String(),
+						node.Right.Line(), node.Right.Column())
+					return &TypeInfo{Name: "void"}
+				}
+				return ta
+			case *ast.ArrayFunctionCall:
+				sa.addError("Invalid expression '%s'. line:%d, column:%d", node.Right.String(),
+					node.Right.Line(), node.Right.Column())
+				return &TypeInfo{Name: "void"}
+			default:
+				sa.addError("Invalid expression '%s'. line:%d, column:%d", node.Right.String(),
+					node.Right.Line(), node.Right.Column())
+				return &TypeInfo{Name: "void"}
+			}
+		}
+	case *ast.TypeMember:
+		return sa.visitTypeMember(t)
+	case *ast.ArrayFunctionCall:
+		sa.addError("Invalid expression '%s'. line:%d, column:%d", node.Left.String(),
+			node.Left.Line(), node.Left.Column())
+	default:
+		sa.addError("Invalid expression '%s'. line:%d, column:%d", node.Left.String(),
+			node.Left.Line(), node.Left.Column())
+	}
+	return &TypeInfo{Name: "void"}
 }
 
 func (sa *SemanticAnalyzer) visitArrayLiteral(node *ast.ArrayLiteral) *TypeInfo {
@@ -1269,39 +1318,6 @@ func (sa *SemanticAnalyzer) visitPrefixExpression(node *ast.PrefixExpression) *T
 			node.Operator, rightType.Name)
 	}
 
-	/*
-		p.registerPrefix(token.IDENT, p.parseIdentifier)
-		p.registerPrefix(token.INT_LIT, p.parseIntegerLiteral)
-		p.registerPrefix(token.FLOAT_LIT, p.parseFloatLiteral)
-		p.registerPrefix(token.STRING_LIT, p.parseStringLiteral)
-		p.registerPrefix(token.BOOL_LIT, p.parseBooleanLiteral)
-		p.registerPrefix(token.TIME_LIT, p.parseDateTimeLiteral)
-		p.registerPrefix(token.DATE_LIT, p.parseDateTimeLiteral)
-		p.registerPrefix(token.LPAREN, p.parseGroupedExpression)
-		p.registerPrefix(token.MINUS, p.parsePrefixExpression)
-		p.registerPrefix(token.SELECT, p.parseSQLSelect)
-		p.registerPrefix(token.OBJECT, p.parsePrefixObjectValue)
-
-		// Enregistrer les fonctions de fenêtrage
-		p.registerPrefix(token.ROW_NUMBER, p.parseWindowFunction)
-		p.registerPrefix(token.RANK, p.parseWindowFunction)
-		p.registerPrefix(token.DENSE_RANK, p.parseWindowFunction)
-		p.registerPrefix(token.LAG, p.parseWindowFunction)
-		p.registerPrefix(token.LEAD, p.parseWindowFunction)
-		p.registerPrefix(token.FIRST_VALUE, p.parseWindowFunction)
-		p.registerPrefix(token.LAST_VALUE, p.parseWindowFunction)
-		p.registerPrefix(token.NTILE, p.parseWindowFunction)
-		p.registerPrefix(token.LBRACKET, p.parseArrayLiteral)
-		p.registerPrefix(token.LENGTH, p.parseArrayFunctionCall)
-		p.registerPrefix(token.APPEND, p.parseArrayFunctionCall)
-		p.registerPrefix(token.PREPEND, p.parseArrayFunctionCall)
-		p.registerPrefix(token.REMOVE, p.parseArrayFunctionCall)
-		p.registerPrefix(token.NULL, p.parseNullLiteral)
-		// p.registerPrefix(token.SLICE, p.parseArrayFunctionCall)
-		p.registerPrefix(token.CONTAINS, p.parseArrayFunctionCall)
-		p.registerPrefix(token.DURATION_LIT, p.parseDurationLiteral)
-
-	*/
 	return &TypeInfo{Name: "any"}
 }
 func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *TypeInfo {
@@ -1352,6 +1368,11 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 		}
 		if leftType.Name == "string" && rightType.Name == "string" && node.Operator == "+" {
 			return &TypeInfo{Name: "string"}
+		}
+		if leftType.IsArray && rightType.IsArray &&
+			sa.areTypesCompatible(leftType, rightType) &&
+			node.Operator == "+" {
+			return leftType
 		}
 		sa.addError("Unsupported operation '%s' between %s and %s",
 			node.Operator, leftType.Name, rightType.Name)
@@ -1410,6 +1431,22 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 		}
 		return &TypeInfo{Name: "boolean"}
 
+	case "||":
+		if leftType.IsArray && rightType.IsArray {
+			if !sa.areTypesCompatible(leftType.ElementType, rightType.ElementType) {
+				sa.addError("Impossible to concat arrays because of type mismatch: %s et %s",
+					leftType.ElementType.Name, rightType.ElementType.Name)
+				return &TypeInfo{Name: "void"}
+			}
+			return leftType.ElementType
+		}
+		// Opérations de concaténation de chaînes
+		if leftType.Name != "string" || rightType.Name != "string" {
+			sa.addError("invalid operation. Both operands of '||' must have the same type (string, array). got %s and %s",
+				leftType.Name, rightType.Name)
+			return &TypeInfo{Name: "void"}
+		}
+		return &TypeInfo{Name: "string"}
 	default:
 		sa.addError("Opérateur inconnu: %s. Line:%d, column:%d", node.Operator,
 			node.Token.Line, node.Token.Column)
@@ -1420,16 +1457,25 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 func (sa *SemanticAnalyzer) visitIndexExpression(node *ast.IndexExpression) *TypeInfo {
 	leftType := sa.visitExpression(node.Left)
 	indexType := sa.visitExpression(node.Index)
-
-	if !leftType.IsArray {
-		sa.addError("L'indexation n'est possible que sur les tableaux")
-		return &TypeInfo{Name: "any"}
-	}
-
 	if indexType.Name != "integer" {
-		sa.addError("L'index doit être un entier")
+		sa.addError("Index must be an integer. line:%d, column:%d", node.Index.Line(), node.Index.Column())
+		return &TypeInfo{Name: "void"}
 	}
-
+	if leftType == nil {
+		sa.addError("Non declared variable '%s'. line:%d, column:%d", node.Left.String(),
+			node.Left.Line(), node.Left.Column())
+		return &TypeInfo{Name: "void"}
+	}
+	if !leftType.IsArray {
+		sa.addError("The variable '%s' is not an array. line:%d, column:%d", node.Left.String(),
+			node.Left.Line(), node.Left.Column())
+		return &TypeInfo{Name: "void"}
+	}
+	if leftType.ElementType == nil {
+		sa.addError("The variable '%s' has no element type. line:%d, column:%d", node.Left.String(),
+			node.Left.Line(), node.Left.Column())
+		return &TypeInfo{Name: "void"}
+	}
 	return leftType.ElementType
 }
 
@@ -1438,11 +1484,15 @@ func (sa *SemanticAnalyzer) visitInExpression(node *ast.InExpression) *TypeInfo 
 	rightType := sa.visitExpression(node.Right)
 
 	if !rightType.IsArray {
-		sa.addError("L'opérande droit de IN doit être un tableau")
+		sa.addError("'%s' must be an array type in IN operation. line:%d, column:%d",
+			node.Right.String(), node.Right.Line(), node.Right.Column())
+		return &TypeInfo{Name: "void"}
 	}
 
 	if !sa.areTypesCompatible(leftType, rightType.ElementType) {
-		sa.addError("Type incompatible pour l'opérateur IN")
+		sa.addError("Type '%s' mismatch for IN. line:%d, column:%d",
+			leftType.Name, node.Left.Line(), node.Left.Column())
+		return &TypeInfo{Name: "void"}
 	}
 
 	return &TypeInfo{Name: "boolean"}
@@ -1451,11 +1501,26 @@ func (sa *SemanticAnalyzer) visitInExpression(node *ast.InExpression) *TypeInfo 
 // Méthodes utilitaires
 func (sa *SemanticAnalyzer) resolveTypeAnnotation(ta *ast.TypeAnnotation) *TypeInfo {
 	if ta.ArrayType != nil {
-		elementType := sa.resolveTypeAnnotation(&ast.TypeAnnotation{
+		var elementType *TypeInfo
+		// Vérifier les tableaux multidimensionnels
+		if ta.ArrayType.ElementType != nil &&
+			ta.ArrayType.ElementType.ArrayType != nil {
+			elementType = sa.resolveTypeAnnotation(&ast.TypeAnnotation{
+				Token:     ta.ArrayType.ElementType.Token,
+				Type:      ta.ArrayType.ElementType.Type,
+				ArrayType: ta.ArrayType.ElementType.ArrayType,
+			})
+			return &TypeInfo{
+				Name:        "array",
+				IsArray:     true,
+				ArraySize:   sa.getArraySize(ta.ArrayType.Size),
+				ElementType: elementType,
+			}
+		}
+		elementType = sa.resolveTypeAnnotation(&ast.TypeAnnotation{
 			Token: ta.ArrayType.ElementType.Token,
 			Type:  ta.ArrayType.ElementType.Type,
 		})
-
 		return &TypeInfo{
 			Name:        "array",
 			IsArray:     true,
@@ -1499,7 +1564,9 @@ func (sa *SemanticAnalyzer) areTypesCompatible(t1, t2 *TypeInfo) bool {
 	if t1.Name == "float" && t2.Name == "integer" {
 		return true
 	}
-
+	if t1.IsArray && t2.IsArray {
+		return t1.ElementType.Name == t2.ElementType.Name
+	}
 	return t1.Name == t2.Name
 }
 

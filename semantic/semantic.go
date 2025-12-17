@@ -30,6 +30,7 @@ type Symbol struct {
 	DataType *TypeInfo
 	Scope    *Scope
 	Node     ast.Node
+	NoOrder  int
 	Index    int
 }
 
@@ -93,7 +94,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	}
 	oldScope.Children = append(oldScope.Children, funScope)
 	sa.CurrentScope = funScope
-	sa.registerSymbol("val", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "val"}, -1)
+	sa.registerSymbol("val", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "val"}, -1, 0)
 	sa.CurrentScope = oldScope
 	sa.registerSymbol("tostring", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "tostring"}, 0)
 
@@ -103,7 +104,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	}
 	oldScope.Children = append(oldScope.Children, funScope)
 	sa.CurrentScope = funScope
-	sa.registerSymbol("val", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "val"}, -1)
+	sa.registerSymbol("val", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "val"}, -1, 0)
 	sa.CurrentScope = oldScope
 	sa.registerSymbol("len", FunctionSymbol, &TypeInfo{Name: "integer"}, &ast.Identifier{Value: "val"}, 1)
 }
@@ -815,7 +816,7 @@ func (sa *SemanticAnalyzer) visitLetStatements(nodes *ast.LetStatements) {
 			}
 		}
 		// Enregistrer la variable
-		sa.registerSymbol(node.Name.Value, VariableSymbol, varType, &node, -1)
+		sa.registerSymbol(node.Name.Value, VariableSymbol, varType, &node)
 	}
 }
 func (sa *SemanticAnalyzer) visitLetStatement(node *ast.LetStatement) {
@@ -843,7 +844,7 @@ func (sa *SemanticAnalyzer) visitLetStatement(node *ast.LetStatement) {
 		}
 	}
 	// Enregistrer la variable
-	sa.registerSymbol(node.Name.Value, VariableSymbol, varType, node, -1)
+	sa.registerSymbol(node.Name.Value, VariableSymbol, varType, node)
 }
 
 func (sa *SemanticAnalyzer) visitFunctionStatement(node *ast.FunctionStatement) {
@@ -864,9 +865,9 @@ func (sa *SemanticAnalyzer) visitFunctionStatement(node *ast.FunctionStatement) 
 	oldScope := sa.CurrentScope
 	sa.CurrentScope = funcScope
 
-	for _, param := range node.Parameters {
+	for k, param := range node.Parameters {
 		paramType := sa.resolveTypeAnnotation(param.Type)
-		sa.registerSymbol(param.Name.Value, ParameterSymbol, paramType, param, -1)
+		sa.registerSymbol(param.Name.Value, ParameterSymbol, paramType, param, -1, k)
 	}
 
 	// Vérifier le type de retour
@@ -909,7 +910,7 @@ func (sa *SemanticAnalyzer) visitStructStatement(node *ast.StructStatement) {
 
 	// Enregistrer le type
 	sa.TypeTable[lower(node.Name.Value)] = structType
-	sa.registerSymbol(node.Name.Value, StructSymbol, structType, node, -1)
+	sa.registerSymbol(node.Name.Value, StructSymbol, structType, node)
 }
 
 func (sa *SemanticAnalyzer) visitForStatement(node *ast.ForStatement, t *TypeInfo) {
@@ -1056,6 +1057,10 @@ func (sa *SemanticAnalyzer) visitArrayFunctionCall(e *ast.ArrayFunctionCall) *Ty
 		return &TypeInfo{Name: "void"}
 	}
 	Scope := symbol.Scope.Children[symbol.Index]
+	if len(Scope.Symbols) == 0 && e.Array == nil {
+		sa.CurrentScope = oldScope
+		return symbol.DataType
+	}
 	if Scope == nil && e.Array != nil {
 		sa.addError("The function '%s' does not have argument(s). line:%d column:%d", e.Function.Value,
 			e.Function.Token.Line, e.Function.Token.Column)
@@ -1082,22 +1087,23 @@ func (sa *SemanticAnalyzer) visitArrayFunctionCall(e *ast.ArrayFunctionCall) *Ty
 		return &TypeInfo{Name: "void"}
 	}
 	args := make(map[int]string)
-	i := 0
-	for v := range Scope.Symbols {
-		args[i] = v
-		i++
+
+	for k, v := range Scope.Symbols {
+		args[v.NoOrder] = k
 	}
 	currentType := sa.visitExpression(e.Array)
-	expectedType := Scope.Symbols[lower(args[0])]
+	expectedType := Scope.Symbols[args[0]]
 	if !sa.areSameType(expectedType.DataType, currentType) {
 		sa.addError("Type mismatch for argument '%s' in function '%s': expected %s, got %s. line:%d column:%d",
 			e.Array.String(), e.Function.Value, expectedType.DataType.Name, currentType.Name,
 			e.Function.Token.Line, e.Function.Token.Column)
+		return &TypeInfo{Name: "void"}
 	}
+	var exists bool
 
 	for k, arg := range e.Arguments {
-		currentType := sa.visitExpression(arg)
-		expectedType, exists := Scope.Symbols[lower(args[k+1])]
+		currentType = sa.visitExpression(arg)
+		expectedType, exists = Scope.Symbols[args[k+1]]
 		if !exists {
 			sa.addError("The function '%s' does not have argument '%s'. line:%d column:%d", e.Function.Value,
 				arg.String(), e.Function.Token.Line, e.Function.Token.Column)
@@ -1149,30 +1155,39 @@ func (sa *SemanticAnalyzer) visitArrayLiteral(node *ast.ArrayLiteral) *TypeInfo 
 }
 
 func (sa *SemanticAnalyzer) ifExists(node *ast.StructLiteral) *TypeInfo {
-	keys := make([]string, 0)
-	for _, k := range sa.CurrentScope.Symbols {
-		if (k.Type == StructSymbol) && !contains(keys, k.Name) {
-			keys = append(keys, k.Name)
-		}
-	}
+	// keys := make([]string, 0)
+	oldScope := sa.CurrentScope
+	Scope := sa.CurrentScope
 	var returnType *TypeInfo
-
-	for _, key := range keys {
-		sym := sa.lookupSymbol(key)
-		ok := true
-		for _, field := range node.Fields {
-			currentType := sa.visitExpression(field.Value)
-			expectedType, exists := sym.DataType.Fields[lower(field.Name.Value)]
-			if !exists || expectedType.Name != currentType.Name {
-				ok = false
-				break
+	for {
+		ok := false
+		for _, sym := range Scope.Symbols {
+			if sym.Type == StructSymbol {
+				ok = true
+				for _, field := range node.Fields {
+					currentType := sa.visitExpression(field.Value)
+					expectedType, exists := sym.DataType.Fields[lower(field.Name.Value)]
+					if !exists || expectedType.Name != currentType.Name {
+						ok = false
+						break
+					}
+				}
+				if ok {
+					returnType = sym.DataType
+					break
+				}
 			}
 		}
 		if ok {
-			returnType = sym.DataType
+			break
+		}
+		Scope = Scope.Parent
+		if Scope == nil {
 			break
 		}
 	}
+
+	sa.CurrentScope = oldScope
 	return returnType
 }
 
@@ -1207,7 +1222,7 @@ func (sa *SemanticAnalyzer) visitStructLiteral(node *ast.StructLiteral) *TypeInf
 			newInlineType.Fields[lower(field.Name.Value)] = fieldType
 		}
 		sa.TypeTable[lower(newInlineType.Name)] = newInlineType
-		sa.registerSymbol(newInlineType.Name, StructSymbol, newInlineType, node, -1)
+		sa.registerSymbol(newInlineType.Name, StructSymbol, newInlineType, node)
 		return newInlineType
 	}
 	for _, elem := range node.Fields {
@@ -1516,14 +1531,24 @@ func (sa *SemanticAnalyzer) lookupSymbol(name string) *Symbol {
 }
 
 func (sa *SemanticAnalyzer) registerSymbol(name string, symType SymbolType, dataType *TypeInfo,
-	node ast.Node, pos int) {
+	node ast.Node, pos ...int) {
+	index := -1
+	noOrder := -1
+	if len(pos) > 0 {
+		index = pos[0]
+	}
+	if len(pos) > 1 {
+		noOrder = pos[1]
+	}
+
 	symbol := &Symbol{
 		Name:     name,
 		Type:     symType,
 		DataType: dataType,
 		Scope:    sa.CurrentScope,
 		Node:     node,
-		Index:    pos,
+		Index:    index,
+		NoOrder:  noOrder,
 	}
 	sa.CurrentScope.Symbols[lower(name)] = symbol
 }

@@ -17,93 +17,92 @@ type testCase struct {
 
 func build_args() []testCase {
 	res := make([]testCase, 0)
-	// res = append(res, testCase{
-	// 	name: "Test 1.1 : Let statement ",
-	// 	src: `action "Check the let statement (Global position)"
-	//          Let numero:Integer(5)[10..200],ratio:float(2,1)=2.0
-	// 		 Let flag:Boolean=true, message:String="Hello World"
-	// 		 Let step:Integer(2)=1
-	// 		 start
-	// 		   return message + " "+ toString(ratio+numero+step) ;
-	// 		 stop
-	// 		 `,
-	// 	status: 0,
-	// })
-	// res = append(res, testCase{
-	// 	name: "Test 1.2 : Let statement ",
-	// 	src: `action "Check the let statement (Global position bis)"
-	// 		 type CustomType struct {
-	// 		     field1: Integer
-	// 		     field2: String
-	// 		 }
-	//          Let var1:CustomType,message:String="Hello World";
-	// 		 Let step:Integer
-	// 		 start
-	// 			(* let var2 = CustomType{field1: 10, field2: "Test"} *)
-	// 			var1.field2="Updated"
-	// 			var1.field1=10
-	// 			step=var1.field1*100/2
-	// 		    return var1.field2 + message;
-	// 		 stop
-	// 		 `,
-	// 	status: 0,
-	// })
-	// res = append(res, testCase{
-	// 	name: "Test 1.3 : Let statement (with Literal structure of the specific type)",
-	// 	src: `action "Check the let statement (with Literal structure)"
-	// 		 type CustomType struct {
-	// 		     field1: Integer
-	// 		     field2: String
-	// 		 }
-	// 		 start
-	// 			let var2 = CustomType{field1: 10, field2: "Test"}
-	// 			let var3 = {field1: 10, field2: "Test"}
-	// 			let var1 :CustomType
-	// 			var1.field1=20
-	// 			var1.field2="Hello";
-	// 			let message:String="Hello World";
-	// 			var2.field1=var2.field1*210+var3.field1+var1.field1;
-	// 		    return var2.field2 + message+ toString(var2.field1)+var1.field2;
-	// 		 stop
-	// 		 `,
-	// 	status: 0,
-	// })
-	// res = append(res, testCase{
-	// 	name: "Test 1.4 : Let statement (with Literal structure without type)",
-	// 	src: `action "Check the let statement (with Literal structure)"
-	// 		 start
-	// 			let var2 = {field1: 10, field2: "Test"}
-	// 			let var1={field1:20, field2:"Hello"};
-	// 			var2=var1;
-	// 		    return var2.field1 + var1.field1;
-	// 		 stop
-	// 		 `,
-	// 	status: 0,
-	// })
-	// res = append(res, testCase{
-	// 	name: "Test 1.5 : function with a definition and call",
-	// 	src: `action "Check the function statement (with definition and call)"
-	// 		 function addition(a:Integer,b:Integer): Integer{
-	// 		    return a + b;
-	// 		 }
-	// 		 function addfloat(a:Float(5,2),b:Float(5,2)): Float(5,2){
-	// 		 	let e:Float(5,2)=10.0;
-	// 		    return e + a + b;
-	// 		 }
-	// 		 start
-	// 		 	let a:Integer, b:Float(5,2);
-	// 			let d:float(5,2);
-	// 			a=10;b=20.5;
-	// 			d= addfloat(15.5,4.5);
-	// 			addition(a,10);
-	// 		    return addition(a,10)+addfloat(d,4.5);
-	// 		 stop
-	// 		 `,
-	// 	status: 0,
-	// })
-
 	res = append(res, testCase{
-		name: "Test 1.6 : function with a definition and call",
+		name: "Test 1.1 : Let statement ",
+		src: `action "Check the let statement (Global position)"
+	         Let numero:Integer(5)[10..200],ratio:float(2,1)=2.0
+			 Let flag:Boolean=true, message:String="Hello World"
+			 Let step:Integer(2)=1
+			 start
+			   return message + " "+ toString(ratio+numero+step) ;
+			 stop
+			 `,
+		status: 0,
+	})
+	res = append(res, testCase{
+		name: "Test 1.2 : Let statement ",
+		src: `action "Check the let statement (Global position bis)"
+			 type CustomType struct {
+			     field1: Integer
+			     field2: String
+			 }
+	         Let var1:CustomType,message:String="Hello World";
+			 Let step:Integer
+			 start
+				(* let var2 = CustomType{field1: 10, field2: "Test"} *)
+				var1.field2="Updated"
+				var1.field1=10
+				step=var1.field1*100/2
+			    return var1.field2 + message;
+			 stop
+			 `,
+		status: 0,
+	})
+	res = append(res, testCase{
+		name: "Test 1.3 : Let statement (with Literal structure of the specific type)",
+		src: `action "Check the let statement (with Literal structure)"
+			 type CustomType struct {
+			     field1: Integer
+			     field2: String
+			 }
+			 start
+				let var2 = CustomType{field1: 10, field2: "Test"}
+				let var3 = {field1: 10, field2: "Test"}
+				let var1 :CustomType
+				var1.field1=20
+				var1.field2="Hello";
+				let message:String="Hello World";
+				var2.field1=var2.field1*210+var3.field1+var1.field1;
+			    return var2.field2 + message+ toString(var2.field1)+var1.field2;
+			 stop
+			 `,
+		status: 0,
+	})
+	res = append(res, testCase{
+		name: "Test 1.4 : Let statement (with Literal structure without type)",
+		src: `action "Check the let statement (with Literal structure)"
+			 start
+				let var2 = {field1: 10, field2: "Test"}
+				let var1={field1:20, field2:"Hello"};
+				var2=var1;
+			    return var2.field1 + var1.field1;
+			 stop
+			 `,
+		status: 0,
+	})
+	res = append(res, testCase{
+		name: "Test 1.5 : function with a definition and call",
+		src: `action "Check the function statement (with definition and call)"
+			 function addition(a:Integer,b:Integer): Integer{
+			    return a + b;
+			 }
+			 function addfloat(a:Float(5,2),b:Float(5,2)): Float(5,2){
+			 	let e:Float(5,2)=10.0;
+			    return e + a + b;
+			 }
+			 start
+			 	let a:Integer, b:Float(5,2);
+				let d:float(5,2);
+				a=10;b=20.5;
+				d= addfloat(15.5,4.5);
+				addition(a,10);
+			    return addition(a,10)+addfloat(d,4.5);
+			 stop
+			 `,
+		status: 0,
+	})
+	res = append(res, testCase{
+		name: "Test 1.6 : function with with no result and those with structure as result",
 		src: `action "Check the function statement (with no result and those with structure as result)"
 			 type Employé struct{
 			 	first_name: string(30)
@@ -114,11 +113,16 @@ func build_args() []testCase {
 			 function addition(a:Integer,b:Integer){
 			    let c=a + b;
 			 }	
-			 function InitEmployé(n:string(50), f:string(30),age:integer(3)): Employé{
-			    return Employé{first_name:f, Last_name:f,age:age,matricule:'000000'};
+			 function InitEmployé(n:string, f:string,age:integer): Employé{
+			    return {first_name:f, Last_name:f,age:age,matricule:'000000'};
+			 }
+			 function noResultFunction(){
+			    let x:Integer=10;
+				x=x+20;
 			 }
 			 start
 				addition(10,20); 
+				noResultFunction()
 			 	return InitEmployé('google','Golang',3)
 			 stop
 			 `,

@@ -1147,9 +1147,11 @@ func (p *Parser) parsePropertyAccess(left ast.Expression) ast.Expression {
 		p.noPrefixParseFnError(p.peekToken.Type)
 		return nil
 	}
+	p.nextToken()
+	pa.Right = prefix()
 	for !p.peekTokenIs(token.SEMICOLON) && p.peekTokenIs(token.DOT) {
-		p.nextToken()                              // .
-		pa.Right = p.parsePropertyAccess(prefix()) // p.parseExpression(LOWEST)
+		p.nextToken()
+		pa.Right = p.parsePropertyAccess(pa.Right) // p.parseExpression(LOWEST)
 	}
 	return pa
 }

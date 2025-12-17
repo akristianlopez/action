@@ -179,15 +179,15 @@ const (
 
 	// Opérateurs de tableau
 	CONCAT = "||"
-	NOT_IN = "NOT IN"
+	// NOT_IN = "NOT IN"
 
 	// Fonctions de tableau ces fonctions seront supprimees comme token
-	LENGTH   = "LENGTH"
-	APPEND   = "APPEND"
-	PREPEND  = "PREPEND"
-	REMOVE   = "REMOVE"
-	SLICE    = "SLICE"
-	CONTAINS = "CONTAINS"
+	// LENGTH   = "LENGTH"
+	// APPEND   = "APPEND"
+	// PREPEND  = "PREPEND"
+	// REMOVE   = "REMOVE"
+	// SLICE    = "SLICE"
+	// CONTAINS = "CONTAINS"
 
 	SWITCH      = "SWITCH"
 	CASE        = "CASE"
@@ -311,13 +311,13 @@ var keywords = map[string]TokenType{
 	"ntile":       NTILE,
 	"array":       ARRAY,
 	"of":          OF,
-	"length":      LENGTH,
-	"append":      APPEND,
-	"prepend":     PREPEND,
-	"remove":      REMOVE,
-	"slice":       SLICE,
-	"contains":    CONTAINS,
-	"duration":    DURATION,
+	// "length":      LENGTH,
+	// "append":      APPEND,
+	// "prepend":     PREPEND,
+	// "remove":      REMOVE,
+	// "slice":       SLICE,
+	// "contains":    CONTAINS,
+	"duration": DURATION,
 
 	// Switch statement
 	"switch":      SWITCH,

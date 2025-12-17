@@ -101,14 +101,14 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.LAST_VALUE, p.parseWindowFunction)
 	p.registerPrefix(token.NTILE, p.parseWindowFunction)
 	p.registerPrefix(token.LBRACKET, p.parseArrayLiteral)
-	p.registerPrefix(token.LENGTH, p.parseArrayFunctionCall)
-	p.registerPrefix(token.APPEND, p.parseArrayFunctionCall)
-	p.registerPrefix(token.PREPEND, p.parseArrayFunctionCall)
-	p.registerPrefix(token.REMOVE, p.parseArrayFunctionCall)
+	// p.registerPrefix(token.LENGTH, p.parseArrayFunctionCall)
+	// p.registerPrefix(token.APPEND, p.parseArrayFunctionCall)
+	// p.registerPrefix(token.PREPEND, p.parseArrayFunctionCall)
+	// p.registerPrefix(token.REMOVE, p.parseArrayFunctionCall)
 	p.registerPrefix(token.NULL, p.parseNullLiteral)
 	p.registerPrefix(token.NOT, p.parsePrefixExpression)
 	// p.registerPrefix(token.SLICE, p.parseArrayFunctionCall)
-	p.registerPrefix(token.CONTAINS, p.parseArrayFunctionCall)
+	// p.registerPrefix(token.CONTAINS, p.parseArrayFunctionCall)
 	p.registerPrefix(token.DURATION_LIT, p.parseDurationLiteral)
 	p.registerPrefix(token.LBRACE, p.parseStructLiteral)
 
@@ -1147,8 +1147,10 @@ func (p *Parser) parsePropertyAccess(left ast.Expression) ast.Expression {
 		p.noPrefixParseFnError(p.peekToken.Type)
 		return nil
 	}
-	p.nextToken()
-	pa.Right = prefix() // p.parseExpression(LOWEST)
+	for !p.peekTokenIs(token.SEMICOLON) && p.peekTokenIs(token.DOT) {
+		p.nextToken()                              // .
+		pa.Right = p.parsePropertyAccess(prefix()) // p.parseExpression(LOWEST)
+	}
 	return pa
 }
 

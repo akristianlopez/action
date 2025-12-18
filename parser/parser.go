@@ -577,23 +577,23 @@ func (p *Parser) parseStructStatement() (*ast.StructStatement, *ParserError) {
 func (p *Parser) parseIfStatement() (*ast.IfStatement, *ParserError) {
 	stmt := &ast.IfStatement{Token: p.curToken}
 	var pe *ParserError
-	var reqParen bool = false
+	// var reqParen bool = false
 
 	// if !p.expectPeek(token.LPAREN) {
 	// 	return nil, nil
 	// }
-	if p.peekTokenIs(token.LPAREN) {
-		p.nextToken()
-		reqParen = true
-	}
+	// if p.peekTokenIs(token.LPAREN) {
+	// 	p.nextToken()
+	// 	reqParen = true
+	// }
 	p.nextToken()
 
 	// Condition
 	stmt.Condition = p.parseExpression(LOWEST)
 
-	if reqParen && !p.expectPeek(token.RPAREN) {
-		return nil, nil
-	}
+	// if reqParen && !p.expectPeek(token.RPAREN) {
+	// 	return nil, nil
+	// }
 	if !p.expectPeek(token.LBRACE) {
 		return nil, nil
 	}

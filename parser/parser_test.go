@@ -798,11 +798,11 @@ func build_args() []testCase {
 		status: 0,
 	})
 	res = append(res, testCase{
-		name: "Test 4.28 : Test strutures de controle : ForEach (...)",
+		name: "Test 4.28 : Test strutures de controle : For (let .. of ...)",
 		src: `action "Check the DateTime litteral"
 			(* Switch avec différents types *)
 			start
-				ForEach(let a in [1,2,3, 4]) {
+				For (let a of [1,2,3, 4]) {
 					a=50*10+2
 				}
 			stop
@@ -810,11 +810,11 @@ func build_args() []testCase {
 		status: 0,
 	})
 	res = append(res, testCase{
-		name: "Test 4.29 : Test strutures de controle : ForEach ...",
+		name: "Test 4.29 : Test strutures de controle : For let ... of ..",
 		src: `action "Check the DateTime litteral"
 			(* Switch avec différents types *)
 			start
-				ForEach let a in [1,2,3, 4] {
+				For let a of [1,2,3, 4] {
 					a=50*10+2
 				}
 			stop
@@ -898,7 +898,7 @@ func build_args() []testCase {
 					o.niveau,
 					o.budget,
 					ao.niveau_hiérarchique + 1,
-					ao.chemin || ' -> ' || o.nom
+					ao.chemin + ' -> ' + o.nom
 				FROM Organisation o
 				INNER JOIN ArbreOrganisation ao ON o.parent_id == ao.id;
 			stop
@@ -979,7 +979,7 @@ func build_args() []testCase {
 						o.id,
 						o.nom,
 						o.parent_id,
-						dc.chemin || o.id (*,
+						dc.chemin + o.id (*,
 						o.id = ANY(dc.chemin) as cycle *)
 					FROM Organisation o
 					INNER JOIN DetectionCycle dc ON o.parent_id == dc.id

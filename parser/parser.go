@@ -131,7 +131,7 @@ func New(l *lexer.Lexer) *Parser {
 	// p.registerInfix(token.AS, p.parseInfixExpression)
 	p.registerInfix(token.IS, p.parseInfixExpression)
 	p.registerInfix(token.DOT, p.parsePropertyAccess)
-	p.registerInfix(token.CONCAT, p.parseInfixExpression)
+	// p.registerInfix(token.CONCAT, p.parseInfixExpression)
 
 	p.nextToken()
 	p.nextToken()
@@ -139,10 +139,16 @@ func New(l *lexer.Lexer) *Parser {
 	return p
 }
 
+func (p *Parser) parseDuration(s string) *ast.Duration {
+	duration := ast.Duration{Years: 0, Months: 0, Days: 0, Hours: 0, Minutes: 0, Seconds: 0, Nanos: 0}
+
+	return &duration
+}
 func (p *Parser) parseDurationLiteral() ast.Expression {
 	return &ast.DurationLiteral{
-		Token: p.curToken,
-		Value: p.curToken.Literal,
+		Token:          p.curToken,
+		Value:          p.curToken.Literal,
+		ParsedDuration: p.parseDuration(p.curToken.Literal),
 	}
 }
 
@@ -210,10 +216,6 @@ func (p *Parser) parseStmStartSection() (ast.Statement, *ParserError) {
 	switch p.curToken.Type {
 	case token.IF:
 		return p.parseIfStatement()
-	case token.WHILE:
-		return p.parseWhileStatement()
-	case token.FOREACH:
-		return p.parseForEachStatement()
 	case token.FOR:
 		return p.parseForStatement()
 	case token.RETURN:
@@ -471,7 +473,8 @@ func (p *Parser) parseFunctionStatement() (*ast.FunctionStatement, *ParserError)
 	if p.peekTokenIs(token.COLON) {
 		p.nextToken() // :
 		if !p.expectPeekEx(token.IDENT, token.INTEGER, token.FLOAT,
-			token.STRING, token.BOOLEAN) {
+			token.STRING, token.BOOLEAN, token.DATE, token.DATETIME,
+			token.TIME, token.DURATION) {
 			return nil, nil
 		}
 		stmt.ReturnType = p.parseTypeAnnotation()
@@ -625,7 +628,7 @@ func (p *Parser) parseIfStatement() (*ast.IfStatement, *ParserError) {
 	return stmt, pe
 }
 
-func (p *Parser) parseForStatement() (*ast.ForStatement, *ParserError) {
+func (p *Parser) parseForStatement() (ast.Statement, *ParserError) {
 	stmt := &ast.ForStatement{Token: p.curToken}
 	var pe *ParserError
 	var reParen, reSecol bool = false, false
@@ -636,6 +639,37 @@ func (p *Parser) parseForStatement() (*ast.ForStatement, *ParserError) {
 	//the beginning of the list of statements
 
 	//check if the NextToken is '(' if true move to the next token
+	p.Save()
+	if p.peekTokenIs(token.LPAREN) {
+		p.nextToken()
+		reParen = true
+	}
+	if p.peekTokenIs(token.LET) { //Chef if it's a for each statement: for let x of y
+		p.nextToken() // let
+		if !p.expectPeek(token.IDENT) {
+			return nil, nil
+		}
+		if p.peekTokenIs(token.OF) {
+			p.Restore()
+			return p.parseForEachStatement()
+		}
+	}
+	p.Restore()
+
+	p.Save()
+	if p.peekTokenIs(token.LPAREN) {
+		p.nextToken()
+		reParen = true
+	}
+	if !p.peekTokenIs(token.SEMICOLON, token.LET) {
+		p.nextToken()
+		p.parseExpression(LOWEST)
+		if !p.peekTokenIs(token.ASSIGN) {
+			p.Restore()
+			return p.parseWhileStatement()
+		}
+	}
+	p.Restore()
 	if p.peekTokenIs(token.LPAREN) {
 		p.nextToken()
 		reParen = true
@@ -645,7 +679,7 @@ func (p *Parser) parseForStatement() (*ast.ForStatement, *ParserError) {
 	// Initialisation
 	if !p.curTokenIs(token.SEMICOLON) {
 		var stm ast.Statement
-		stm, pe = p.parseLetStatement() //p.parseStatement(true)
+		stm, pe = p.parseStatement(true) //p.parseLetStatement()
 		if pe != nil {
 			p.errors = append(p.errors, *pe)
 		}
@@ -718,7 +752,7 @@ func (p *Parser) parseForEachStatement() (*ast.ForEachStatement, *ParserError) {
 	}
 	stmt.Variable = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
-	if !p.expectPeek(token.IN) {
+	if !p.expectPeek(token.OF) {
 		return nil, nil
 	}
 	p.nextToken()
@@ -1969,10 +2003,10 @@ var precedences = map[token.TokenType]int{
 	token.ASTERISK: PRODUCT,
 	token.MOD:      PRODUCT,
 	token.LBRACKET: INDEX,
-	token.CONCAT:   SUM,
-	token.IN:       EQUALS,
-	token.NOT:      EQUALS,
-	token.IS:       EQUALS,
+	// token.CONCAT:   SUM,
+	token.IN:  EQUALS,
+	token.NOT: EQUALS,
+	token.IS:  EQUALS,
 	// token.AS:       EQUALS,
 	token.DOT: MEMBER,
 }
@@ -2013,9 +2047,11 @@ func (p *Parser) parseCTEList() ([]*ast.SQLCommonTableExpression, *ParserError) 
 	var ctes []*ast.SQLCommonTableExpression
 	var pe *ParserError = nil
 	cte, pe := p.parseCommonTableExpression()
-	if cte != nil {
-		ctes = append(ctes, cte)
+	if cte == nil {
+		return nil, pe
 	}
+	ctes = append(ctes, cte)
+
 	if pe != nil {
 		p.errors = append(p.errors, *pe)
 	}
@@ -2285,8 +2321,14 @@ func (p *Parser) parseSQLSelectStatement() (*ast.SQLSelectStatement, *ParserErro
 	if p.curTokenIs(token.WITH) {
 		// var selectStmt *ast.SQLSelectStatement
 		withStmt, pe := p.parseSQLWithStatement()
+		if withStmt == nil {
+			return nil, pe
+		}
 		p.addError(pe)
 		selectStmt := withStmt.Select
+		if selectStmt == nil {
+			return nil, pe
+		}
 		selectStmt.With = withStmt
 		return selectStmt, nil //return withStmt //
 	}
@@ -2319,7 +2361,7 @@ func (p *Parser) parseSQLSelectStatement() (*ast.SQLSelectStatement, *ParserErro
 		(p.peekTokenIs(token.IDENT) &&
 			(strings.ToUpper(p.peekToken.Literal) == "INNER" ||
 				strings.ToUpper(p.peekToken.Literal) == "LEFT" ||
-				strings.ToUpper(p.peekToken.Literal) == "RIGHT" ||
+				// strings.ToUpper(p.peekToken.Literal) == "RIGHT" ||
 				strings.ToUpper(p.peekToken.Literal) == "FULL")) {
 		p.nextToken()
 		join := &ast.SQLJoin{Token: p.curToken}

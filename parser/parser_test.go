@@ -394,7 +394,11 @@ func build_args() []testCase {
 		src: `action "Check the statement while  "
 			 start
 				(* Parcours de tableau *)
-				While i < length(nombres) {
+				for (i < length(nombres)) {
+					let valeur = 10;
+					(* Traitement... *)
+				}
+				for i < length(nombres) {
 					let valeur = 10;
 					(* Traitement... *)
 				}
@@ -407,7 +411,7 @@ func build_args() []testCase {
 		src: `action "Check the statement while  "
 			 start
 				(* Parcours de tableau *)
-				While (i < length(nombres)) {
+				for (i < length(nombres)) {
 					let valeur = 10;
 					(* Traitement... *)
 				}
@@ -941,7 +945,7 @@ func build_args() []testCase {
 						o.niveau,
 						o.budget,
 						ao.niveau_hiérarchique + 1,
-						ao.chemin || ' -> ' || o.nom
+						ao.chemin + ' -> ' + o.nom
 					FROM Organisation o
 					INNER JOIN ArbreOrganisation ao ON o.parent_id == ao.id
 				)

@@ -195,6 +195,8 @@ func (sa *SemanticAnalyzer) visitStatement(stmt ast.Statement, t *TypeInfo) {
 		sa.visitFunctionStatement(s)
 	case *ast.StructStatement:
 		sa.visitStructStatement(s)
+	case *ast.IfStatement:
+		sa.visitIfStatement(s, t)
 	case *ast.ForStatement:
 		sa.visitForStatement(s, t)
 	case *ast.SwitchStatement:
@@ -454,23 +456,17 @@ func (sa *SemanticAnalyzer) visitExpressionStatement(s *ast.ExpressionStatement)
 		switch expr.Operator {
 		case "=": //assignment
 			l := sa.canReceivedValue(expr.Left)
-			if l.IsArray {
-				l = l.ElementType
+			ti := sa.visitExpression(expr.Right)
+			if !sa.areSameType(l, ti) {
+				sa.addError("Type of '%s' does not match the type of '%s'. Line:%d, column:%d",
+					expr.Left.String(), expr.Right.String(), expr.Line(), expr.Column())
 			}
-			if l != nil {
-				ti := sa.visitExpression(expr.Right)
-				if ti.IsArray {
-					ti = ti.ElementType
-				}
-				if !sa.areSameType(l, ti) {
-					sa.addError("Type of '%s' does not match the type of '%s'. Line:%d, column:%d",
-						expr.Left.String(), expr.Right.String(), expr.Line(), expr.Column())
-				}
-			}
-		case "[": //Array's element
-			sa.addError("Invalid expression. Line:%d, column:%d", expr.Line(), expr.Column())
-		case ".": //Object's member
-			sa.addError("Invalid expression. Line:%d, column:%d", expr.Line(), expr.Column())
+			/*
+				case "[": //Array's element
+					sa.addError("Invalid expression. Line:%d, column:%d", expr.Line(), expr.Column())
+				case ".": //Object's member
+					sa.addError("Invalid expression. Line:%d, column:%d", expr.Line(), expr.Column())
+			*/
 		default: //Unkown
 			sa.addError("Invalid expression. Line:%d, column:%d", expr.Line(), expr.Column())
 		}
@@ -939,6 +935,39 @@ func (sa *SemanticAnalyzer) visitForStatement(node *ast.ForStatement, t *TypeInf
 	sa.CurrentScope = oldScope
 }
 
+func (sa *SemanticAnalyzer) visitIfStatement(node *ast.IfStatement, t *TypeInfo) {
+	// Créer un nouveau scope pour la boucle
+	loopScope := &Scope{
+		Parent:  sa.CurrentScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	sa.CurrentScope.Children = append(sa.CurrentScope.Children, loopScope)
+
+	oldScope := sa.CurrentScope
+	sa.CurrentScope = loopScope
+
+	// Analyser la condition
+	if node.Condition != nil {
+		condType := sa.visitExpression(node.Condition)
+		if condType.Name != "boolean" && condType.Name != "any" {
+			sa.addError("The condition of a If statement must be boolean. line:%d column:%d",
+				node.Token.Line, node.Token.Column)
+			return
+		}
+	}
+
+	// Analyser l'update
+	if node.Then != nil {
+		sa.visitStatement(node.Then, t)
+	}
+
+	if node.Else != nil {
+		sa.visitStatement(node.Else, t)
+	}
+	// Restaurer le scope
+	sa.CurrentScope = oldScope
+}
+
 func (sa *SemanticAnalyzer) visitSwitchStatement(node *ast.SwitchStatement, t *TypeInfo) {
 	// Analyser l'expression du switch
 	switchType := sa.visitExpression(node.Expression)
@@ -1342,10 +1371,10 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 
 	case "+", "-":
 		// Opérations Date/Time + Duration
-		if (leftType.Name == "date" || leftType.Name == "time") && rightType.Name == "duration" {
+		if (leftType.Name == "date" || leftType.Name == "datetime" || leftType.Name == "time") && rightType.Name == "duration" {
 			return leftType
 		}
-		if leftType.Name == "duration" && (rightType.Name == "date" || rightType.Name == "time") {
+		if leftType.Name == "duration" && (rightType.Name == "datetime" || rightType.Name == "date" || rightType.Name == "time") {
 			return rightType
 		}
 		// Duration + Duration
@@ -1365,6 +1394,18 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 		if (leftType.Name == "integer" || leftType.Name == "float") &&
 			(rightType.Name == "integer" || rightType.Name == "float") {
 			return &TypeInfo{Name: "float"}
+		}
+		if leftType.Name == "date" && (rightType.Name == "date" || rightType.Name == "datetime") && node.Operator == "-" {
+			return &TypeInfo{Name: "duration"}
+		}
+		if (leftType.Name == "date" || leftType.Name == "datetime") && rightType.Name == "date" && node.Operator == "-" {
+			return &TypeInfo{Name: "duration"}
+		}
+		if leftType.Name == "datetime" && (rightType.Name == "date" || rightType.Name == "datetime") && node.Operator == "-" {
+			return &TypeInfo{Name: "duration"}
+		}
+		if (leftType.Name == "date" || leftType.Name == "datetime") && rightType.Name == "datetime" && node.Operator == "-" {
+			return &TypeInfo{Name: "duration"}
 		}
 		if leftType.Name == "string" && rightType.Name == "string" && node.Operator == "+" {
 			return &TypeInfo{Name: "string"}

@@ -191,9 +191,10 @@ func build_args() []testCase {
 	// 	status: 0,
 	// })
 	// res = append(res, testCase{
-	// 	name: "Test 1.20 : Belonging in an array statement",
+	// 	name: "Test 1.10 : Belonging in an array statement",
 	// 	src: `action "Check belonging in array statement"
 	// 		let nombres: array[10] of integer = [1, 2, 3, 4, 5];
+	// 		let matrice: array of array of integer = [[1, 2], [3, 4], [5, 6]];
 	// 		type Employé struct{
 	// 		 	first_name: string(30)
 	// 			Last_name: string(50)
@@ -201,6 +202,9 @@ func build_args() []testCase {
 	// 			matricule:string(8)
 	// 		 }
 	// 		start
+	// 			(* Tableaux multidimensionnels *)
+	// 			let element = matrice[1][0];
+	// 			matrice[0] = [10, 20];
 	// 			(* Vérification d'appartenance *)
 	// 			let existe = 5 in nombres;
 	// 			let pas_existe = 20 not in nombres;
@@ -209,20 +213,56 @@ func build_args() []testCase {
 	// 		 `,
 	// 	status: 0,
 	// })
+	// res = append(res, testCase{
+	// 	name: "Test 1.11 : DateTime and Duration types",
+	// 	src: `action "Check DateTime and Duration types operations"
+	// 		(* Tableaux de dates/times *)
+	// 		let dates_importantes: array of date = [#2024-01-01#, #2024-07-14#, #2024-12-25#];
+	// 		let horaires: array of time = [#09:00:00#, #12:00:00#, #18:00:00#];
+	// 		start
+	// 			(* Tableaux multidimensionnels *)
+	// 			let element = #2years 3months 5days# + #4hours 30minutes#;
+	// 			let duree: duration
+	// 			let now: dateTime = #2024-06-15 10:00:00#;
+	// 			duree = now-dates_importantes[0];
+	// 			duree=now - #2023-12-31 08:00:00#;
+	// 			now=now + #1day 2hours#;
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
 
 	res = append(res, testCase{
-		name: "Test 1.21 : DateTime and Duration types",
-		src: `action "Check DateTime and Duration types operations"
-			let nombres: array[10] of integer = [1, 2, 3, 4, 5];
+		name: "Test 1.12 : Conditon expression",
+		src: `action "Check the condition (Condition expression)"
 			start
-				(* Vérification d'appartenance *)
-				let existe = 5 in nombres;
-				let pas_existe = 20 not in nombres;
-				let position = indexOf(nombres, 3); 
+				let a=10, b=20.5
+				let flag: boolean
+				(* flag=(a>b) and ((b>0)) *)
+				if (a>b) and (b==0) {
+					b=a*b+10
+				}else{
+					b=b*a+20
+				}
 			stop
 			 `,
 		status: 0,
 	})
+
+	// res = append(res, testCase{
+	// 	name: "Test 1.12 : DateTime and Duration types",
+	// 	src: `action "Check the If statement (if ... else...)"
+	// 		start
+	// 			let a=10, b=20.5
+	// 			if ((a>b) and (b==0)) {
+	// 				b=a*b+10
+	// 			}else{
+	// 				b=b*a+20
+	// 			}
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
 	return res
 }
 
@@ -235,7 +275,7 @@ func TestAnalyze(t *testing.T) {
 			// Étape 2: Parsing
 			p := parser.New(l)
 			action := p.ParseProgram()
-			if len(p.Errors()) != 0 {
+			if p.Errors() != nil && len(p.Errors()) != 0 {
 				fmt.Println("Erreurs de parsing:")
 				for _, msg := range p.Errors() {
 					fmt.Printf("\t%s\n", msg.Message())

@@ -22,8 +22,8 @@ const (
 	IF       = "IF"
 	ELSE     = "ELSE"
 	RETURN   = "RETURN"
-	WHILE    = "WHILE"
-	FOREACH  = "FOREACH"
+	// WHILE    = "WHILE"
+	// FOREACH  = "FOREACH"
 
 	// Types
 	INTEGER  = "INTEGER"
@@ -178,7 +178,7 @@ const (
 	OF    = "OF"
 
 	// Opérateurs de tableau
-	CONCAT = "||"
+	// CONCAT = "||"
 	// NOT_IN = "NOT IN"
 
 	// Fonctions de tableau ces fonctions seront supprimees comme token
@@ -222,8 +222,8 @@ var keywords = map[string]TokenType{
 	"as":       AS,
 	"true":     BOOL_LIT,
 	"false":    BOOL_LIT,
-	"while":    WHILE,
-	"foreach":  FOREACH,
+	// "while":    WHILE,
+	// "foreach":  FOREACH,
 
 	// SQL DDL
 	"create":     CREATE,

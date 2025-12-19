@@ -474,7 +474,7 @@ func (p *Parser) parseFunctionStatement() (*ast.FunctionStatement, *ParserError)
 		p.nextToken() // :
 		if !p.expectPeekEx(token.IDENT, token.INTEGER, token.FLOAT,
 			token.STRING, token.BOOLEAN, token.DATE, token.DATETIME,
-			token.TIME, token.DURATION) {
+			token.TIME, token.DURATION, token.ARRAY) {
 			return nil, nil
 		}
 		stmt.ReturnType = p.parseTypeAnnotation()

@@ -137,6 +137,16 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 1)
 	sa.CurrentScope = oldScope
 	sa.registerSymbol("indexOf", FunctionSymbol, &TypeInfo{Name: "integer"}, &ast.Identifier{Value: "indexOf"}, 3)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("var", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "var"}, -1, 0)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("typeOf", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "typeOf"}, 4)
 }
 
 func (sa *SemanticAnalyzer) registerBuiltinTypes() {
@@ -197,6 +207,10 @@ func (sa *SemanticAnalyzer) visitStatement(stmt ast.Statement, t *TypeInfo) {
 		sa.visitStructStatement(s)
 	case *ast.IfStatement:
 		sa.visitIfStatement(s, t)
+	case *ast.WhileStatement:
+		sa.visitWhileStatement(s, t)
+	case *ast.ForEachStatement:
+		sa.visitForEachStatement(s, t)
 	case *ast.ForStatement:
 		sa.visitForStatement(s, t)
 	case *ast.SwitchStatement:
@@ -968,6 +982,77 @@ func (sa *SemanticAnalyzer) visitIfStatement(node *ast.IfStatement, t *TypeInfo)
 	sa.CurrentScope = oldScope
 }
 
+func (sa *SemanticAnalyzer) visitWhileStatement(node *ast.WhileStatement, t *TypeInfo) {
+	// Créer un nouveau scope pour la boucle
+	loopScope := &Scope{
+		Parent:  sa.CurrentScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	sa.CurrentScope.Children = append(sa.CurrentScope.Children, loopScope)
+
+	oldScope := sa.CurrentScope
+	sa.CurrentScope = loopScope
+
+	// Analyser la condition
+	if node.Condition != nil {
+		condType := sa.visitExpression(node.Condition)
+		if condType.Name != "boolean" && condType.Name != "any" {
+			sa.addError("The condition of a If statement must be boolean. line:%d column:%d",
+				node.Token.Line, node.Token.Column)
+			return
+		}
+	}
+
+	// Analyser l'update
+	if node.Body != nil {
+		sa.visitStatement(node.Body, t)
+	}
+
+	// Restaurer le scope
+	sa.CurrentScope = oldScope
+}
+
+func (sa *SemanticAnalyzer) visitForEachStatement(node *ast.ForEachStatement, t *TypeInfo) {
+	// Créer un nouveau scope pour la boucle
+	loopScope := &Scope{
+		Parent:  sa.CurrentScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	if node.Variable == nil {
+		sa.addError("Variable must be defined. Line:%d, column:%d", node.Token.Line, node.Token.Column)
+		return
+	}
+	symbol := sa.lookupSymbol(node.Variable.Value)
+	if symbol != nil {
+		sa.addError("This variable '%s' already exists. Line:%d, column:%d", node.Variable.Value,
+			node.Variable.Line(), node.Variable.Column())
+		return
+	}
+	sa.CurrentScope.Children = append(sa.CurrentScope.Children, loopScope)
+	varType := sa.visitExpression(node.Iterator)
+	if varType == nil || node.Iterator == nil {
+		sa.addError("Iterator '%s' must have a type. Line:%d, column:%d", node.Iterator.String(),
+			node.Iterator.Line(), node.Iterator.Column())
+		return
+	}
+	if !varType.IsArray {
+		sa.addError("'%s' must be an iterator. Line:%d, column:%d", node.Iterator.String(),
+			node.Iterator.Line(), node.Iterator.Column())
+		return
+	}
+	oldScope := sa.CurrentScope
+	sa.CurrentScope = loopScope
+	sa.registerSymbol(node.Variable.Value, VariableSymbol, varType.ElementType, node)
+
+	// Analyser l'update
+	if node.Body != nil {
+		sa.visitStatement(node.Body, t)
+	}
+
+	// Restaurer le scope
+	sa.CurrentScope = oldScope
+}
+
 func (sa *SemanticAnalyzer) visitSwitchStatement(node *ast.SwitchStatement, t *TypeInfo) {
 	// Analyser l'expression du switch
 	switchType := sa.visitExpression(node.Expression)
@@ -1359,14 +1444,7 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 		if leftType.Name == "integer" && rightType.Name == "integer" {
 			return &TypeInfo{Name: "integer"}
 		}
-		if (leftType.Name == "integer" || leftType.Name == "float") &&
-			(rightType.Name == "integer" || rightType.Name == "float") {
-			return &TypeInfo{Name: "float"}
-		}
-		if leftType.Name == "string" && rightType.Name == "string" && node.Operator == "+" {
-			return &TypeInfo{Name: "string"}
-		}
-		sa.addError("Opération '%s' non supportée entre %s et %s",
+		sa.addError("Non supported operation '%s' between %s and %s",
 			node.Operator, leftType.Name, rightType.Name)
 
 	case "+", "-":
@@ -1523,6 +1601,10 @@ func (sa *SemanticAnalyzer) visitIndexExpression(node *ast.IndexExpression) *Typ
 func (sa *SemanticAnalyzer) visitInExpression(node *ast.InExpression) *TypeInfo {
 	leftType := sa.visitExpression(node.Left)
 	rightType := sa.visitExpression(node.Right)
+
+	if rightType.Name == "string" && sa.areTypesCompatible(leftType, rightType) {
+		return &TypeInfo{Name: "boolean"}
+	}
 
 	if !rightType.IsArray {
 		sa.addError("'%s' must be an array type in IN operation. line:%d, column:%d",

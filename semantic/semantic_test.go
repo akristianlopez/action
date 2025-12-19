@@ -164,7 +164,7 @@ func build_args() []testCase {
 	// 			let debut = nombres[:3];
 	// 			let copie = nombres[:];
 	// 			(* Concaténation *)
-	// 			let tous = nombres || [6, 7, 8, 9, 10];
+	// 			let tous = nombres + [6, 7, 8, 9, 10];
 	// 			let double = nombres + nombres;
 	// 		stop
 	// 		 `,
@@ -184,7 +184,7 @@ func build_args() []testCase {
 	// 			let debut = nombres[:3];
 	// 			let copie = nombres[:];
 	// 			(* Concaténation *)
-	// 			let tous = nombres || [6, 7, 8, 9, 10];
+	// 			let tous = nombres + [6, 7, 8, 9, 10];
 	// 			let double = nombres + nombres;
 	// 		stop
 	// 		 `,
@@ -231,38 +231,379 @@ func build_args() []testCase {
 	// 		 `,
 	// 	status: 0,
 	// })
-
-	res = append(res, testCase{
-		name: "Test 1.12 : Conditon expression",
-		src: `action "Check the condition (Condition expression)"
-			start
-				let a=10, b=20.5
-				let flag: boolean
-				(* flag=(a>b) and ((b>0)) *)
-				if (a>b) and (b==0) {
-					b=a*b+10
-				}else{
-					b=b*a+20
-				}
-			stop
-			 `,
-		status: 0,
-	})
-
 	// res = append(res, testCase{
-	// 	name: "Test 1.12 : DateTime and Duration types",
-	// 	src: `action "Check the If statement (if ... else...)"
+	// 	name: "Test 1.12 : Conditon expression",
+	// 	src: `action "Check the If statement (if ... else ...)"
 	// 		start
 	// 			let a=10, b=20.5
-	// 			if ((a>b) and (b==0)) {
+	// 			if (a>b) and ((b==0)) {
 	// 				b=a*b+10
 	// 			}else{
 	// 				b=b*a+20
+	// 			}
+	// 			if (a>b) and ((b==0)) {
+	// 				b=a*b+10
+	// 			}else if a>20 {
+	// 				b=b*a+20
+	// 			}else{
+	// 				a=0
 	// 			}
 	// 		stop
 	// 		 `,
 	// 	status: 0,
 	// })
+	// res = append(res, testCase{
+	// 	name: "Test 1.13 : For statement (for let x of y)",
+	// 	src: `action "Check the For statement (for let x of y)"
+	// 		Let elements: array of integer=[1,2,3,4,5,6,7,8,9,0]
+	// 		start
+	// 			let a=10, b=20.5
+	// 			for(let x of elements){
+	// 				if x%2==0 {
+	// 					a=a+x
+	// 				}else {
+	// 					b=b+x
+	// 				}
+	// 			}
+	// 			for let x of elements{
+	// 				if x%3==0 {
+	// 					a=a+x
+	// 				}else {
+	// 					b=b+x
+	// 				}
+	// 		}
+	// 		return a>b
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 1.14 : For statement (for condition...)",
+	// 	src: `action "Check the For statement (for condition...)"
+	// 		Let elements: array of integer=[1,2,3,4,5,6,7,8,9,0]
+	// 		start
+	// 			let a=10, b=20.5, k=1
+	// 			let x=10
+	// 			for(b>a and k<len(elements)){
+	// 				if x%2==0 {
+	// 					a=a+x
+	// 				}else {
+	// 					b=b+x
+	// 				}
+	// 				k=k+1
+	// 			}
+	// 			for b>a and k<len(elements){
+	// 				if x%2==0 {
+	// 					a=a+x
+	// 				}else {
+	// 					b=b+x
+	// 				}
+	// 				k=k+1
+	// 			}
+	// 			return a>b
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 1.15 : For statement (for ...;...;...)",
+	// 	src: `action "Check the For statement (for ...;...;...)"
+	// 		Let elements: array of integer=[1,2,3,4,5,6,7,8,9,0]
+	// 		start
+	// 			let a=10, b=20.5
+	// 			for(let k=1;k<=len(elements);k=k+1){
+	// 				if elements[k]%2==0 {
+	// 					a=a+elements[k]
+	// 				}else {
+	// 					b=b+elements[k]
+	// 				}
+	// 			}
+	// 			for let k=1;k<=len(elements);k=k+1{
+	// 				if elements[k]%2==0 {
+	// 					a=a+elements[k]
+	// 				}else {
+	// 					b=b+elements[k]
+	// 				}
+	// 			}
+	// 			let k=1
+	// 			for ;k<=len(elements);k=k+1{
+	// 				if elements[k]%2==0 {
+	// 					a=a+elements[k]
+	// 				}else {
+	// 					b=b+elements[k]
+	// 				}
+	// 			}
+	// 			k=0
+	// 			for ;k<=len(elements);{
+	// 				if elements[k]%2==0 {
+	// 					a=a+elements[k]
+	// 				}else {
+	// 					b=b+elements[k]
+	// 				}
+	// 				k=k+1
+	// 			}
+	// 			return a>b
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 1.16 : Switch statement (Switch)",
+	// 	src: `action "Check the For statement (Switch)"
+	// 			(* Switch simple avec valeurs *)
+	// 			function getJourSemaine(numero: integer): string {
+	// 				switch (numero) {
+	// 					case 1:
+	// 						return "Lundi";
+	// 					case 2:
+	// 						return "Mardi";
+	// 					case 3:
+	// 						return "Mercredi";
+	// 					case 4:
+	// 						return "Jeudi";
+	// 					case 5:
+	// 						return "Vendredi";
+	// 					case 6:
+	// 						return "Samedi";
+	// 					case 7:
+	// 						return "Dimanche";
+	// 					default:
+	// 						return "Numéro invalide";
+	// 				}
+	// 			}
+	// 			(* Switch avec multiples valeurs par case *)
+	// 			function getTypeJour(numero: integer): string {
+	// 				switch (numero) {
+	// 					case 1, 2, 3, 4, 5:
+	// 						return "Jour de semaine";
+	// 					case 6, 7:
+	// 						return "Weekend";
+	// 					default:
+	// 						return "Inconnu";
+	// 				}
+	// 			}
+	// 			(* Switch avec expressions *)
+	// 			function evalueNote(score: integer): string {
+	// 				switch (true) {
+	// 					case score >= 90:
+	// 						return "Excellent";
+	// 					case score >= 80:
+	// 						return "Très bien";
+	// 					case score >= 70:
+	// 						return "Bien";
+	// 					case score >= 60:
+	// 						return "Satisfaisant";
+	// 					default:
+	// 						return "Échec";
+	// 				}
+	// 			}
+	// 		start
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+	// res = append(res, testCase{
+	// 	name: "Test 1.17 : Switch statement (Switch bis)",
+	// 	src: `action "Check the For statement (Switch)"
+	// 			(* Switch pour validation de formulaire *)
+	// 			function validerFormulaire(nom: string, age: integer, email: string): array of string {
+	// 				let erreurs: array of string = [];
+	// 				switch (true) {
+	// 					case len(nom) == 0:
+	// 						erreurs = append(erreurs, "Le nom est requis");
+	// 						break;
+	// 					case len(nom) < 2:
+	// 						erreurs = append(erreurs, "Le nom est trop court");
+	// 						break;
+	// 				}
+	// 				switch (true) {
+	// 					case age < 0:
+	// 						erreurs = append(erreurs, "L'âge doit être positif");
+	// 						break;
+	// 					case age < 18:
+	// 						erreurs = append(erreurs, "Vous devez avoir au moins 18 ans");
+	// 						break;
+	// 					case age > 120:
+	// 						erreurs = append(erreurs, "Âge invalide");
+	// 						break;
+	// 				}
+	// 				switch (true) {
+	// 					case "@" not in email:
+	// 						erreurs = append(erreurs, "Email invalide");
+	// 						break;
+	// 					case "." not in email:
+	// 						erreurs = append(erreurs, "Email invalide");
+	// 						break;
+	// 				}
+	// 				return erreurs;
+	// 			}
+	// 			(* Switch avec différents types *)
+	// 			function describeValue(valeur: any): string {
+	// 				switch (typeOf(valeur)) {
+	// 					case "integer":
+	// 						return "Nombre entier: " + toString(valeur);
+	// 					case "float":
+	// 						return "Nombre décimal: " + toString(valeur);
+	// 					case "string":
+	// 						return "Chaîne: '" + toString(valeur) + "'";
+	// 					case "boolean":
+	// 						if (valeur) {
+	// 							return "Vrai";
+	// 						} else {
+	// 							return "Faux";
+	// 						}
+	// 					case "array":
+	// 						return "Tableau de " + tostring(len(valeur)) + " éléments";
+	// 					default:
+	// 						return "Type inconnu";
+	// 				}
+	// 			}
+	// 		start
+	// 			(* Gestion des commandes *)
+	// 			let statut_commande = "expédiée";
+	// 			let message:string
+	// 			switch (statut_commande) {
+	// 				case "nouvelle":
+	// 					message="La commande est nouvelle";
+	// 					break;
+	// 				case "traitement":
+	// 					message="La commande est en cours de traitement";
+	// 					break;
+	// 				case "expédiée":
+	// 					message="La commande a été expédiée";
+	// 					fallthrough;
+	// 				case "livraison":
+	// 					message="En cours de livraison";
+	// 					break;
+	// 				case "livrée":
+	// 					message="Commande livrée avec succès";
+	// 					break;
+	// 				case "annulée":
+	// 					message="Commande annulée";
+	// 					break;
+	// 				default:
+	// 					message="Statut inconnu";
+	// 			}
+	// 			(* Catégorisation d'âge *)
+	// 			let age = 25;
+	// 			let categorie = "";
+	// 			switch (true) {
+	// 				case age < 0:
+	// 					categorie = "Âge invalide";
+	// 					break;
+	// 				case age < 13:
+	// 					categorie = "Enfant";
+	// 					break;
+	// 				case age < 18:
+	// 					categorie = "Adolescent";
+	// 					break;
+	// 				case age < 65:
+	// 					categorie = "Adulte";
+	// 					break;
+	// 				default:
+	// 					categorie = "Senior";
+	// 			}
+	// 			message="Catégorie: " + categorie;
+	// 			(* Gestion des erreurs HTTP *)
+	// 			let code_http = 404;
+	// 			switch (code_http) {
+	// 				case 200, 201, 204:
+	// 					message = "Succès";
+	// 					break;
+	// 				case 400:
+	// 					message = "Mauvaise requête";
+	// 					break;
+	// 				case 401:
+	// 					message = "Non autorisé";
+	// 					break;
+	// 				case 403:
+	// 					message = "Interdit";
+	// 					break;
+	// 				case 404:
+	// 					message = "Non trouvé";
+	// 					break;
+	// 				case 500:
+	// 					message = "Erreur serveur";
+	// 					break;
+	// 				default:
+	// 					if (code_http >= 100 and code_http < 200) {
+	// 						message = "Information";
+	// 					} else if (code_http >= 300 and code_http < 400) {
+	// 						message = "Redirection";
+	// 					} else {
+	// 						message = "Code inconnu";
+	// 					}
+	// 			}
+	// 			(* Switch avec énumérations *)
+	// 			let couleur = "rouge";
+	// 			let code_couleur = "";
+	// 			switch (couleur) {
+	// 				case "rouge":
+	// 					code_couleur = "#FF0000";
+	// 					break;
+	// 				case "vert":
+	// 					code_couleur = "#00FF00";
+	// 					break;
+	// 				case "bleu":
+	// 					code_couleur = "#0000FF";
+	// 					break;
+	// 				case "jaune":
+	// 					code_couleur = "#FFFF00";
+	// 					break;
+	// 				case "violet":
+	// 					code_couleur = "#800080";
+	// 					break;
+	// 				default:
+	// 					code_couleur = "#000000"; (* noir par défaut *)
+	// 			}
+	// 			(* Switch dans une boucle *)
+	// 			let nombres = [1, 2, 3, 4, 5, 10, 15, 20];
+	// 			for let i = 0; i < len(nombres); i = i + 1 {
+	// 				switch (nombres[i]) {
+	// 					case 1, 2, 3:
+	// 						message="Petit nombre: " + toString(nombres[i]);
+	// 						break;
+	// 					case 4, 5:
+	// 						message="Nombre moyen: " + toString(nombres[i]);
+	// 						break;
+	// 					case 10:
+	// 						message="Dix";
+	// 						break;
+	// 					case 15:
+	// 						message="Quinze";
+	// 						break;
+	// 					case 20:
+	// 						message="Vingt";
+	// 						break;
+	// 				}
+	// 			}
+	// 			(* Switch complexe avec conditions *)
+	// 			let temperature = 22;
+	// 			let humidite = 65;
+	// 			let conditions = "";
+	// 			switch (true) {
+	// 				case temperature > 30 and humidite > 70:
+	// 					conditions = "Très chaud et humide";
+	// 					break;
+	// 				case temperature > 25 and humidite > 60:
+	// 					conditions = "Chaud et humide";
+	// 					break;
+	// 				case temperature < 0:
+	// 					conditions = "Gel";
+	// 					break;
+	// 				case temperature < 10 and humidite > 80:
+	// 					conditions = "Froid et humide";
+	// 					break;
+	// 				default:
+	// 					conditions = "Conditions normales";
+	// 			}
+	// 			(* Utilisation *)
+	// 			let validation = validerFormulaire("Alice", 25, "alice@example.com");
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
+
 	return res
 }
 

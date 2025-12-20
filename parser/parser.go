@@ -1601,6 +1601,9 @@ func (p *Parser) parseSQLValues() []*ast.SQLValues {
 			break
 		}
 		p.nextToken()
+		if p.peekTokenIs(token.LPAREN) {
+			p.nextToken()
+		}
 	}
 
 	return valuesList

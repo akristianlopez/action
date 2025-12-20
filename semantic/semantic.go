@@ -19,6 +19,7 @@ const (
 	VariableSymbol  SymbolType = "VARIABLE"
 	FunctionSymbol  SymbolType = "FUNCTION"
 	StructSymbol    SymbolType = "STRUCT"
+	DbObjectSymbol  SymbolType = "TABLE"
 	TypeSymbol      SymbolType = "TYPE"
 	ArraySymbol     SymbolType = "ARRAY"
 	ParameterSymbol SymbolType = "PARAMETER"
@@ -176,6 +177,7 @@ func (sa *SemanticAnalyzer) registerBuiltinTypes() {
 	sa.TypeSql["timestamp"] = &TypeInfo{Name: "timestamp"}
 	sa.TypeSql["float"] = &TypeInfo{Name: "float"}
 	sa.TypeSql["real"] = &TypeInfo{Name: "real"}
+	sa.TypeSql["any"] = &TypeInfo{Name: "any"}
 }
 
 func (sa *SemanticAnalyzer) Analyze(program *ast.Program) []string {
@@ -245,17 +247,29 @@ func (sa *SemanticAnalyzer) visitSQLDeleteStatement(s *ast.SQLDeleteStatement) {
 			s.Line(), s.Column())
 		return
 	}
+	tokenList := make([]string, 0)
+	tokenList = append(tokenList, lower(s.From.Value))
+	oldScope := sa.CurrentScope
+	scope := &Scope{
+		Parent:  sa.CurrentScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	sa.CurrentScope = scope
+	sa.registerTempoSymbols(tokenList)
+
 	condType := sa.visitExpression(s.Where)
 	if condType.Name != "boolean" {
 		sa.addError("The condition of a for loop must be boolean. line:%d column:%d",
 			s.Line(), s.Column())
+		sa.CurrentScope = oldScope
 		return
 	}
-	tokenList := make([]string, 0)
-	tokenList = append(tokenList, strings.ToLower(s.From.Value))
+	// tokenList := make([]string, 0)
+	// tokenList = append(tokenList, strings.ToLower(s.From.Value))
 	//Verify that each time, we have a.b, a exists in the list
 	sa.visitSQLExpressionWithDotToken(tokenList, s.Where)
 	//Check left operand, right operand and operator
+	sa.CurrentScope = oldScope
 }
 
 func (sa *SemanticAnalyzer) visitSQLUpdateStatement(s *ast.SQLUpdateStatement) {
@@ -269,15 +283,24 @@ func (sa *SemanticAnalyzer) visitSQLUpdateStatement(s *ast.SQLUpdateStatement) {
 			s.Line(), s.Column())
 		return
 	}
+	tokenList := make([]string, 0)
+	tokenList = append(tokenList, lower(s.ObjectName.Value))
+	oldScope := sa.CurrentScope
+	scope := &Scope{
+		Parent:  sa.CurrentScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	sa.CurrentScope = scope
+	sa.registerTempoSymbols(tokenList)
 	for _, v := range s.Set {
 		if v.Column == nil {
 			sa.addError("Define the right name of the column. line:%d, column:%d",
 				s.Line(), s.Column())
 		}
 		info := sa.visitExpression(v.Value)
-		if _, exists := sa.TypeSql[strings.ToLower(info.Name)]; !exists {
-			sa.addError("This column is not defined. Maybe, it's a field of %s. line:%d, column:%d",
-				s.ObjectName.Value, s.Line(), s.Column())
+		if _, exists := sa.TypeSql[lower(info.Name)]; !exists {
+			sa.addError("This column '%s[%s]' is not defined. Maybe, it's a field of %s. line:%d, column:%d",
+				v.Column, info.Name, s.ObjectName.Value, s.Line(), s.Column())
 		}
 	}
 	if s.Where != nil {
@@ -285,14 +308,16 @@ func (sa *SemanticAnalyzer) visitSQLUpdateStatement(s *ast.SQLUpdateStatement) {
 		if condType.Name != "boolean" {
 			sa.addError("The condition of a for loop must be boolean. line:%d column:%d",
 				s.Line(), s.Column())
+			sa.CurrentScope = oldScope
 			return
 		}
-		tokenList := make([]string, 0)
-		tokenList = append(tokenList, strings.ToLower(s.ObjectName.Value))
+		// tokenList := make([]string, 0)
+		// tokenList = append(tokenList, strings.ToLower(s.ObjectName.Value))
 		//Verify that each time, we have a.b, a exists in the list
 		sa.visitSQLExpressionWithDotToken(tokenList, s.Where)
 		//Check left operand, right operand and operator
 	}
+	sa.CurrentScope = oldScope
 }
 
 func (sa *SemanticAnalyzer) visitSQLInsertStatement(s *ast.SQLInsertStatement) {
@@ -301,18 +326,21 @@ func (sa *SemanticAnalyzer) visitSQLInsertStatement(s *ast.SQLInsertStatement) {
 		return
 	}
 	if s.Select == nil {
-		if len(s.Columns) > len(s.Values) {
-			sa.addError("Too few values. line:%d, column:%d", s.Line(), s.Column())
-			return
-		}
-		if len(s.Columns) < len(s.Values) {
-			sa.addError("Too much values. line:%d, column:%d", s.Line(), s.Column())
-			return
-		}
 		for _, v := range s.Values {
+			if len(s.Columns) > len(v.Values) {
+				sa.addError("Too few values. line:%d, column:%d", v.Token.Line, v.Token.Column)
+				return
+			}
+			if len(s.Columns) < len(v.Values) {
+				sa.addError("Too much values. line:%d, column:%d", v.Token.Line, v.Token.Column)
+				return
+			}
 			for _, e := range v.Values {
 				t := sa.visitExpression(e)
-				if _, exists := sa.TypeSql[strings.ToLower(t.Name)]; !exists {
+				if _, exists := sa.TypeSql[lower(t.Name)]; !exists {
+					if lower(t.Name) == "string" {
+						continue
+					}
 					sa.addError("'%s' invalid expression. line:%d, column:%d", e.String(),
 						e.Line(), e.Column())
 				}
@@ -410,12 +438,13 @@ func (sa *SemanticAnalyzer) visitSQLColumnConstraints(names []string, v *ast.SQL
 			v.Check.String(), v.Check.Line(), v.Check.Column())
 	}
 }
+
 func (sa *SemanticAnalyzer) visitSQLCreateObjectStatement(s *ast.SQLCreateObjectStatement) {
 	if s.ObjectName == nil {
 		sa.addError("The name of the object is missing. line:%d, column:%d", s.Token.Line, s.Token.Column)
 		return
 	}
-	if s.Columns == nil || len(s.Columns) == 0 {
+	if len(s.Columns) == 0 {
 		sa.addError("Define at least one column. line:%d, column:%d", s.Token.Line, s.Token.Column)
 		return
 	}
@@ -450,6 +479,7 @@ func (sa *SemanticAnalyzer) visitSQLCreateObjectStatement(s *ast.SQLCreateObject
 		}
 	}
 }
+
 func (sa *SemanticAnalyzer) canReceivedValue(s ast.Expression) *TypeInfo {
 	switch exp := s.(type) {
 	case *ast.Identifier:
@@ -529,6 +559,10 @@ func contains(slice []string, element string) bool {
 }
 
 func (sa *SemanticAnalyzer) visitObjectInFromClause(se ast.Expression) *string {
+	if se == nil {
+		sa.addError("From clause must have at least one object. line:%d, column:%d", 0, 0)
+		return nil
+	}
 	res := ""
 	switch s := se.(type) {
 	case *ast.FromIdentifier:
@@ -536,10 +570,12 @@ func (sa *SemanticAnalyzer) visitObjectInFromClause(se ast.Expression) *string {
 		case *ast.Identifier:
 			if s.NewName == nil {
 				res = strings.ToLower(v.Value)
+				return &res
 			}
 			switch s.NewName.(type) {
 			case *ast.Identifier:
 				res = strings.ToLower(v.Value)
+				return &res
 			default:
 				sa.addError("'%s' invalid statement here. line:%d, column:%d", s.NewName.String(), s.NewName.Line(), s.NewName.Column())
 				return nil
@@ -567,27 +603,25 @@ func (sa *SemanticAnalyzer) visitObjectInFromClause(se ast.Expression) *string {
 	}
 	return &res
 }
+
 func (sa *SemanticAnalyzer) visitSQLExpressionWithDotToken(tab []string, expr ast.Expression) {
 	switch expr.(type) {
+	case *ast.TypeMember:
+		tm := expr.(*ast.TypeMember)
+		switch left := tm.Left.(type) {
+		case *ast.Identifier:
+			if !contains(tab, strings.ToLower(left.Value)) {
+				sa.addError("'%s' is not an object. line:%d, column:%d",
+					left.Value, left.Token.Line, left.Token.Column)
+
+			}
+		default:
+			sa.addError("'%s' is not an object. line:%d, column:%d",
+				left.String(), left.Line(), left.Column())
+		}
 	case *ast.InfixExpression:
 		ie := expr.(*ast.InfixExpression)
 		switch strings.ToLower(ie.Operator) {
-		case ".":
-			switch t := ie.Left.(type) {
-			case *ast.Identifier:
-				if !contains(tab, strings.ToLower(t.Value)) {
-					sa.addError("'%s' object not defined. line:%d, column:%d", t.Value, t.Line(), t.Column())
-				}
-			default:
-				sa.addError("Invalid expression '%s'. line:%d, column:%d", t.String(), t.Line(), t.Column())
-			}
-			switch t := ie.Right.(type) {
-			case *ast.Identifier:
-				break
-			default:
-				sa.addError("Invalid expression '%s'. line:%d, column:%d", t.String(), t.Line(), t.Column())
-			}
-			return
 		case "and", "or", "+", "-", ">", ">=",
 			"<", "<=", "*", "/", "!=":
 			sa.visitSQLExpressionWithDotToken(tab, ie.Left)
@@ -597,10 +631,15 @@ func (sa *SemanticAnalyzer) visitSQLExpressionWithDotToken(tab []string, expr as
 		return
 	}
 }
+
 func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) {
 	//check for select argumens
 	if ss.Select == nil {
 		sa.addError("select must have at least one field. line:%d, column:%d", ss.Line(), ss.Column())
+		return
+	}
+	if ss.From == nil {
+		sa.addError("select must have at least one object in the clause from. line:%d, column:%d", ss.Line(), ss.Column())
 		return
 	}
 	argList := make([]string, 0)
@@ -608,18 +647,21 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 		field := f.(*ast.SelectArgs)
 		switch s := field.Expr.(type) {
 		case *ast.Identifier:
-			if !contains(argList, strings.ToLower(s.Value)) {
-				argList = append(argList, strings.ToLower(s.Value))
+			if !contains(argList, lower(s.Value)) {
+				argList = append(argList, lower(s.Value))
 			}
 			continue
 		case *ast.StringLiteral, *ast.DurationLiteral, *ast.BooleanLiteral,
-			*ast.FloatLiteral, *ast.IntegerLiteral:
-			if field.NewName == nil {
-				sa.addError("Then '%s' must have a new name. line:%d, column:%d",
-					s.String(), s.Line(), s.Column())
+			*ast.FloatLiteral, *ast.IntegerLiteral, *ast.DateTimeLiteral:
+			str := field.Expr.String()
+			if field.NewName != nil {
+				str = field.NewName.Value
+				// sa.addError("Then '%s' must have a new name. line:%d, column:%d",
+				// 	s.String(), s.Line(), s.Column())
+				// break
 			}
-			if !contains(argList, strings.ToLower(field.NewName.Value)) {
-				argList = append(argList, strings.ToLower(field.NewName.Value))
+			if !contains(argList, lower(str)) {
+				argList = append(argList, lower(str))
 			}
 		case *ast.InfixExpression:
 			t := field.Expr.(*ast.InfixExpression)
@@ -695,26 +737,35 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 	}
 
 	//Look on the join clauses
-	for _, fm := range ss.Joins {
-		cf = sa.visitObjectInFromClause(fm.Table)
-		if !contains(tokenList, *cf) {
-			tokenList = append(tokenList, *cf)
-			continue
+	if ss.Joins != nil {
+		for _, fm := range ss.Joins {
+			cf = sa.visitObjectInFromClause(fm.Table)
+			if !contains(tokenList, *cf) {
+				tokenList = append(tokenList, *cf)
+				continue
+			}
+			sa.addError("'%s' already exists. Line:%d, column:%d", *cf, fm.Table.Line(), fm.Table.Column())
+			//check the clause ON globally
+			condType := sa.visitExpression(fm.On)
+			if condType.Name != "boolean" {
+				sa.addError("The condition of a for loop must be boolean. line:%d column:%d",
+					ss.Line(), ss.Column())
+			}
+			//Verify that each time, we have a.b, a exists in the list
+			sa.visitSQLExpressionWithDotToken(tokenList, fm.On)
 		}
-		sa.addError("'%s' already exists. Line:%d, column:%d", *cf, fm.Table.Line(), fm.Table.Column())
-		//check the clause ON globally
-		condType := sa.visitExpression(fm.On)
-		if condType.Name != "boolean" {
-			sa.addError("The condition of a for loop must be boolean. line:%d column:%d",
-				ss.Line(), ss.Column())
-		}
-		//Verify that each time, we have a.b, a exists in the list
-		sa.visitSQLExpressionWithDotToken(tokenList, fm.On)
 	}
-
 	//Check the clause where
 	if ss.Where != nil {
+		oldscope := sa.CurrentScope
+		scope := Scope{
+			Parent:  sa.CurrentScope,
+			Symbols: make(map[string]*Symbol),
+		}
+		sa.CurrentScope = &scope
+		sa.registerTempoSymbols(tokenList)
 		condType := sa.visitExpression(ss.Where)
+		sa.CurrentScope = oldscope
 		if condType.Name != "boolean" {
 			sa.addError("The condition of a for loop must be boolean. line:%d column:%d",
 				ss.Line(), ss.Column())
@@ -724,13 +775,17 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 		//Check left operand, right operand and operator
 	}
 	//Check the clause Having
-	condType := sa.visitExpression(ss.Having)
-	if condType.Name != "boolean" {
-		sa.addError("The condition of a for loop must be boolean. line:%d column:%d",
-			ss.Line(), ss.Column())
+	if ss.Having != nil {
+		condType := sa.visitExpression(ss.Having)
+		if condType.Name != "boolean" {
+			sa.addError("The condition of a for loop must be boolean. line:%d column:%d",
+				ss.Line(), ss.Column())
+		}
 	}
 	//Verify that each time, we have a.b, a exists in the list
-	sa.visitSQLExpressionWithDotToken(tokenList, ss.Where)
+	if ss.Where != nil {
+		sa.visitSQLExpressionWithDotToken(tokenList, ss.Where)
+	}
 	//Check the clause Group by
 	if ss.GroupBy != nil {
 		for _, v := range ss.GroupBy {
@@ -765,23 +820,25 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 		}
 	}
 	//Check the claude Order by
-	for _, v := range ss.OrderBy {
-		switch t := v.Expression.(type) {
-		case *ast.InfixExpression:
-			if t.Operator == "." {
-				sa.visitSQLExpressionWithDotToken(tokenList, t)
+	if ss.OrderBy != nil {
+		for _, v := range ss.OrderBy {
+			switch t := v.Expression.(type) {
+			case *ast.InfixExpression:
+				if t.Operator == "." {
+					sa.visitSQLExpressionWithDotToken(tokenList, t)
+					if !contains(argList, strings.ToLower(t.String())) {
+						sa.addError("Field '%s'does not exist. line:%d, column:%d", t.String(), t.Line(), t.Column())
+					}
+				}
+				sa.addError("Invalid operation '%s'. line:%d, column:%d", t.Operator, t.Line(), t.Column())
+			case *ast.Identifier, *ast.StringLiteral:
 				if !contains(argList, strings.ToLower(t.String())) {
 					sa.addError("Field '%s'does not exist. line:%d, column:%d", t.String(), t.Line(), t.Column())
 				}
+				sa.addError("Invalid operation '%s'. line:%d, column:%d", t.String(), t.Line(), t.Column())
+			default:
+				sa.addError("Invalid expression '%s'. line:%d, column:%d", t.String(), t.Line(), t.Column())
 			}
-			sa.addError("Invalid operation '%s'. line:%d, column:%d", t.Operator, t.Line(), t.Column())
-		case *ast.Identifier, *ast.StringLiteral:
-			if !contains(argList, strings.ToLower(t.String())) {
-				sa.addError("Field '%s'does not exist. line:%d, column:%d", t.String(), t.Line(), t.Column())
-			}
-			sa.addError("Invalid operation '%s'. line:%d, column:%d", t.String(), t.Line(), t.Column())
-		default:
-			sa.addError("Invalid expression '%s'. line:%d, column:%d", t.String(), t.Line(), t.Column())
 		}
 	}
 	if ss.Union != nil {
@@ -818,6 +875,7 @@ func (sa *SemanticAnalyzer) visitLetStatements(nodes *ast.LetStatements) {
 		sa.registerSymbol(node.Name.Value, VariableSymbol, varType, &node)
 	}
 }
+
 func (sa *SemanticAnalyzer) visitLetStatement(node *ast.LetStatement) {
 	// Vérifier si la variable est déjà déclarée
 	var varType *TypeInfo
@@ -1259,6 +1317,9 @@ func (sa *SemanticAnalyzer) visitTypeMember(node *ast.TypeMember) *TypeInfo {
 				node.Line(), node.Column())
 			return &TypeInfo{Name: "void"}
 		}
+		if l.Type == DbObjectSymbol {
+			return &TypeInfo{Name: "any"}
+		}
 		if l.Type == VariableSymbol && !l.DataType.IsArray &&
 			len(l.DataType.Fields) > 0 {
 			switch node.Right.(type) {
@@ -1519,10 +1580,15 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 			(rightType.Name == "integer" || rightType.Name == "float") {
 			return &TypeInfo{Name: "float"}
 		}
-		if leftType.Name == "string" && rightType.Name == "string" && node.Operator == "+" {
-			return &TypeInfo{Name: "string"}
+		if (leftType.Name == "integer" || leftType.Name == "float") &&
+			(rightType.Name == "any") {
+			return &TypeInfo{Name: leftType.Name}
 		}
-		sa.addError("Opération '%s' non supportée entre %s et %s",
+		if (rightType.Name == "integer" || rightType.Name == "float") &&
+			(leftType.Name == "any") {
+			return &TypeInfo{Name: leftType.Name}
+		}
+		sa.addError("Non supported '%s' operation between %s and %s",
 			node.Operator, leftType.Name, rightType.Name)
 
 	case "==", "!=", "<", ">", "<=", ">=":
@@ -1532,21 +1598,22 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 		}
 		// Comparaisons Date/Time + Duration
 		if (leftType.Name == "date" || leftType.Name == "time") && rightType.Name == "duration" {
-			sa.addWarning("Comparaison Date/Time avec Duration - conversion implicite")
+			sa.addWarning("Comparison Date/Time with Duration - implicite conversion")
 			return &TypeInfo{Name: "boolean"}
 		}
 
 		// Opérations de comparaison
 		if !sa.areTypesCompatible(leftType, rightType) {
-			sa.addError("Comparaison impossible entre %s et %s",
+			sa.addError("Non authorize comparision between %s and %s",
 				leftType.Name, rightType.Name)
+			return &TypeInfo{Name: "void"}
 		}
 		return &TypeInfo{Name: "boolean"}
 
 	case "and", "or":
 		// Opérations booléennes
 		if leftType.Name != "boolean" || rightType.Name != "boolean" {
-			sa.addError("Opération '%s' requiert des booléens", node.Operator)
+			sa.addError("Operation '%s' requires booleans", node.Operator)
 		}
 		return &TypeInfo{Name: "boolean"}
 
@@ -1741,6 +1808,21 @@ func (sa *SemanticAnalyzer) registerSymbol(name string, symType SymbolType, data
 		NoOrder:  noOrder,
 	}
 	sa.CurrentScope.Symbols[lower(name)] = symbol
+}
+
+func (sa *SemanticAnalyzer) registerTempoSymbols(names []string) {
+	for _, name := range names {
+		symbol := &Symbol{
+			Name:     name,
+			Type:     DbObjectSymbol,
+			DataType: &TypeInfo{Name: "any"},
+			Scope:    sa.CurrentScope,
+			Node:     nil,
+			Index:    -1,
+			NoOrder:  -1,
+		}
+		sa.CurrentScope.Symbols[lower(name)] = symbol
+	}
 }
 
 func (sa *SemanticAnalyzer) addError(format string, args ...interface{}) {

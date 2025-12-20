@@ -1015,6 +1015,7 @@ func (p *Parser) parseFallthroughStatement() (*ast.FallthroughStatement, *Parser
 const (
 	_ int = iota
 	LOWEST
+	AND_OR
 	EQUALS
 	LESSGREATER
 	SUM
@@ -2006,15 +2007,15 @@ var precedences = map[token.TokenType]int{
 	token.GTE:      LESSGREATER,
 	token.PLUS:     SUM,
 	token.MINUS:    SUM,
-	token.AND:      EQUALS,
-	token.OR:       EQUALS,
+	token.AND:      AND_OR,
+	token.OR:       AND_OR,
 	token.SLASH:    PRODUCT,
 	token.ASTERISK: PRODUCT,
 	token.MOD:      PRODUCT,
 	token.LBRACKET: INDEX,
 	// token.CONCAT:   SUM,
-	token.IN:  EQUALS,
-	token.NOT: EQUALS,
+	token.IN:  LESSGREATER,
+	token.NOT: LESSGREATER,
 	token.IS:  EQUALS,
 	// token.AS:       EQUALS,
 	token.DOT: MEMBER,

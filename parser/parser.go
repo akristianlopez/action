@@ -1566,6 +1566,9 @@ func (p *Parser) parseSQLInsert() (*ast.SQLInsertStatement, *ParserError) {
 		p.nextToken()
 		stmt.Select, pe = p.parseSQLSelectStatement() //.(*ast.SQLSelectStatement)
 	}
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
 
 	return stmt, pe
 }
@@ -1957,8 +1960,7 @@ func (p *Parser) expectPeekEx(t ...token.TokenType) bool {
 			return true
 		}
 	}
-	msg := fmt.Sprintf("Expected %s, got %s. line:%d column:%d", t, p.peekToken.Type,
-		p.peekToken.Line, p.peekToken.Column)
+	msg := fmt.Sprintf("Expected %s, got %s", t, p.peekToken.Type)
 	p.errors = append(p.errors, *Create(msg, p.peekToken.Line, p.peekToken.Column))
 	return false
 }
@@ -1968,17 +1970,16 @@ func (p *Parser) Errors() []ParserError {
 }
 
 func (p *Parser) peekError(t token.TokenType) {
-	msg := fmt.Sprintf("Expected %s, got %s. line:%d column:%d", t, p.peekToken.Type,
-		p.peekToken.Line, p.peekToken.Column)
+	msg := fmt.Sprintf("Expected %s, got %s", t, p.peekToken.Type)
 	p.errors = append(p.errors, *Create(msg, p.peekToken.Line, p.peekToken.Column))
 }
 
 func (p *Parser) curError(t token.TokenType) {
-	msg := fmt.Sprintf("Expected %s, got %s. Line:%d, column:%d", t, p.curToken.Type, p.curToken.Line, p.curToken.Column)
+	msg := fmt.Sprintf("Expected %s, got %s", t, p.curToken.Type)
 	p.errors = append(p.errors, *Create(msg, p.curToken.Line, p.curToken.Column))
 }
 func (p *Parser) noPrefixParseFnError(t token.TokenType) {
-	msg := fmt.Sprintf("Unexpected here %s. Line:%d, column:%d", t, p.peekToken.Line, p.peekToken.Column)
+	msg := fmt.Sprintf("Unexpected here %s", t)
 	p.errors = append(p.errors, *Create(msg, p.peekToken.Line, p.peekToken.Column))
 }
 

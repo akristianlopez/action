@@ -1573,6 +1573,9 @@ func (p *Parser) parseSQLInsert() (*ast.SQLInsertStatement, *ParserError) {
 func (p *Parser) parseSQLValues() []*ast.SQLValues {
 	var valuesList []*ast.SQLValues
 
+	if p.curTokenIs(token.VALUES) {
+		p.nextToken()
+	}
 	for !p.curTokenIs(token.SEMICOLON) && !p.curTokenIs(token.EOF) {
 		if p.curTokenIs(token.LPAREN) {
 			values := &ast.SQLValues{Token: p.curToken}
@@ -1589,6 +1592,9 @@ func (p *Parser) parseSQLValues() []*ast.SQLValues {
 				p.nextToken()
 			}
 			valuesList = append(valuesList, values)
+		}
+		if !p.peekTokenIs(token.COMMA) {
+			break
 		}
 		p.nextToken()
 	}

@@ -2365,6 +2365,7 @@ func (p *Parser) parseSQLSelectStatement() (*ast.SQLSelectStatement, *ParserErro
 		p.nextToken()
 		from.NewName = p.parseIdentifier()
 	}
+	selectStmt.From = &from
 	// JOINs optionnels
 	for p.peekTokenIs(token.JOIN) ||
 		(p.peekTokenIs(token.IDENT) &&

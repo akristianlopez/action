@@ -1537,7 +1537,7 @@ func (p *Parser) parseSQLAlterAction() (*ast.SQLAlterAction, *ParserError) {
 	switch p.curToken.Type {
 	case token.ADD:
 		action.Type = "ADD"
-		if !p.expectPeekEx(token.CONSTRAINT, token.IDENT) {
+		if !p.expectPeekEx(token.CONSTRAINT, token.COLUMN) {
 			return nil, nil
 		}
 		if p.curTokenIs(token.CONSTRAINT) {

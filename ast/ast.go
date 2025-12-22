@@ -1498,3 +1498,20 @@ type Duration struct {
 	Seconds int64
 	Nanos   int64
 }
+
+// Let TypeMember - membre de type (pour les types composés)
+type BetweenExpression struct {
+	Token token.Token
+	Base  Expression
+	Left  Expression
+	Right Expression
+}
+
+func (be *BetweenExpression) statementNode()       {}
+func (be *BetweenExpression) TokenLiteral() string { return be.Token.Literal }
+func (be *BetweenExpression) String() string {
+	return be.Base.String() + " between " + be.Left.String() + " and " + be.Right.String()
+}
+func (be *BetweenExpression) expressionNode() {}
+func (be *BetweenExpression) Line() int       { return be.Token.Line }
+func (be *BetweenExpression) Column() int     { return be.Token.Column }

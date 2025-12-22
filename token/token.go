@@ -96,6 +96,7 @@ const (
 	ADD        = "ADD"
 	MODIFY     = "MODIFY"
 	CONSTRAINT = "CONSTRAINT"
+	COLUMN     = "COLUMN"
 	PRIMARY    = "PRIMARY"
 	KEY        = "KEY"
 	FOREIGN    = "FOREIGN"
@@ -233,6 +234,7 @@ var keywords = map[string]TokenType{
 	"add":        ADD,
 	"modify":     MODIFY,
 	"constraint": CONSTRAINT,
+	"column":     COLUMN,
 	"primary":    PRIMARY,
 	"key":        KEY,
 	"foreign":    FOREIGN,

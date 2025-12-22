@@ -995,7 +995,7 @@ func build_args() []testCase {
 		status: 0,
 	})
 	res = append(res, testCase{
-		name: "Test 5.9 : Test of the SQL Statements : INSERT ",
+		name: "Test 5.10 : Test of the SQL Statements : INSERT ",
 		src: `action "Requêtes INSERT INTO"
 			start
 				(* Insertion de données *)

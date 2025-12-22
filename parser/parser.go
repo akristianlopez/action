@@ -1300,9 +1300,7 @@ func (p *Parser) parseSQLColumnDefinition() (*ast.SQLColumnDefinition, *ParserEr
 	p.addError(pi)
 
 	// Contraintes de colonne
-	for p.peekTokenIs(token.NOT) || p.peekTokenIs(token.UNIQUE) ||
-		p.peekTokenIs(token.PRIMARY) || p.peekTokenIs(token.CHECK) ||
-		p.peekTokenIs(token.DEFAULT) {
+	for p.peekTokenIs(token.NOT, token.UNIQUE, token.PRIMARY, token.CHECK, token.DEFAULT) {
 		p.nextToken()
 		constraint, pe := p.parseSQLColumnConstraint()
 		p.addError(pe)
@@ -1517,13 +1515,16 @@ func (p *Parser) parseSQLAlterObject() (*ast.SQLAlterObjectStatement, *ParserErr
 	stmt.ObjectName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 	// Actions
-	for !p.curTokenIs(token.SEMICOLON) && !p.curTokenIs(token.EOF) {
+	for !p.curTokenIs(token.SEMICOLON) && !p.curTokenIs(token.EOF) &&
+		p.expectPeekEx(token.ADD, token.MODIFY, token.DROP) {
 		action, pe := p.parseSQLAlterAction()
 		if action != nil {
 			stmt.Actions = append(stmt.Actions, action)
 		}
 		p.addError(pe)
-		p.nextToken()
+		if p.peekTokenIs(token.COMMA) && !p.curTokenIs(token.SEMICOLON) {
+			p.nextToken()
+		}
 	}
 
 	return stmt, nil
@@ -1536,10 +1537,13 @@ func (p *Parser) parseSQLAlterAction() (*ast.SQLAlterAction, *ParserError) {
 	switch p.curToken.Type {
 	case token.ADD:
 		action.Type = "ADD"
-		p.nextToken()
+		if !p.expectPeekEx(token.CONSTRAINT, token.IDENT) {
+			return nil, nil
+		}
 		if p.curTokenIs(token.CONSTRAINT) {
 			action.Constraint, pe = p.parseSQLConstraint()
 		} else {
+			p.nextToken()
 			action.Column, pe = p.parseSQLColumnDefinition()
 		}
 	case token.MODIFY:

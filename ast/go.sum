@@ -1,2 +1,4 @@
 github.com/akristianlopez/action/token v0.0.0-20251218185812-59147d559396 h1:aRxsRR9S0lQyFpVRECrnH96a/3vPdk9mdVCor3TO3W8=
 github.com/akristianlopez/action/token v0.0.0-20251218185812-59147d559396/go.mod h1:n7cAip7Q5h0VfgSZT3ykRIPU5D8HKnm8R2pEtrvrC9s=
+github.com/akristianlopez/action/token v0.0.0-20251222165656-1957497c46fc h1:/gUBGsg/r/cGkCwHQhZyi8+D+Yzywa9sPEjAiuSLO2A=
+github.com/akristianlopez/action/token v0.0.0-20251222165656-1957497c46fc/go.mod h1:n7cAip7Q5h0VfgSZT3ykRIPU5D8HKnm8R2pEtrvrC9s=

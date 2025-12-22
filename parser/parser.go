@@ -131,6 +131,9 @@ func New(l *lexer.Lexer) *Parser {
 	// p.registerInfix(token.AS, p.parseInfixExpression)
 	p.registerInfix(token.IS, p.parseInfixExpression)
 	p.registerInfix(token.DOT, p.parsePropertyAccess)
+	p.registerInfix(token.BETWEEN, p.parseBetweenExpression)
+	p.registerInfix(token.LIKE, p.parseInfixExpression)
+
 	// p.registerInfix(token.CONCAT, p.parseInfixExpression)
 
 	p.nextToken()
@@ -1188,6 +1191,28 @@ func (p *Parser) parsePropertyAccess(left ast.Expression) ast.Expression {
 		p.nextToken()
 		pa.Right = p.parsePropertyAccess(pa.Right) // p.parseExpression(LOWEST)
 	}
+	return pa
+}
+
+func (p *Parser) parseBetweenExpression(left ast.Expression) ast.Expression {
+	pa := &ast.BetweenExpression{Token: p.curToken, Base: left}
+	prefix := p.prefixParseFns[p.peekToken.Type]
+	if prefix == nil {
+		p.noPrefixParseFnError(p.peekToken.Type)
+		return nil
+	}
+	p.nextToken()
+	pa.Left = prefix()
+	if !p.expectPeek(token.AND) {
+		return nil
+	}
+	p.nextToken()
+	prefix = p.prefixParseFns[p.peekToken.Type]
+	if prefix == nil {
+		p.noPrefixParseFnError(p.peekToken.Type)
+		return nil
+	}
+	pa.Right = prefix()
 	return pa
 }
 

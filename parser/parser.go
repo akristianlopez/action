@@ -1206,12 +1206,13 @@ func (p *Parser) parseBetweenExpression(left ast.Expression) ast.Expression {
 	if !p.expectPeek(token.AND) {
 		return nil
 	}
-	p.nextToken()
+
 	prefix = p.prefixParseFns[p.peekToken.Type]
 	if prefix == nil {
 		p.noPrefixParseFnError(p.peekToken.Type)
 		return nil
 	}
+	p.nextToken()
 	pa.Right = prefix()
 	return pa
 }

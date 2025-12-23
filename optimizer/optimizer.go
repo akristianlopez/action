@@ -1,6 +1,8 @@
 package optimizer
 
 import (
+	"strings"
+
 	"github.com/akristianlopez/action/ast"
 	// "github.com/akristianlopez/action/token"
 )
@@ -87,9 +89,15 @@ func (cf *ConstantFolding) Apply(program *ast.Program) *ast.Program {
 	}
 
 	for _, stmt := range program.Statements {
-		optimized.Statements = append(optimized.Statements, foldConstantsInStatement(stmt))
+		switch s := stmt.(type) {
+		case *ast.LetStatements:
+			for _, v := range *s {
+				optimized.Statements = append(optimized.Statements, foldConstantsInStatement(&v))
+			}
+		default:
+			optimized.Statements = append(optimized.Statements, foldConstantsInStatement(stmt))
+		}
 	}
-
 	return optimized
 }
 
@@ -105,10 +113,46 @@ func foldConstantsInStatement(stmt ast.Statement) ast.Statement {
 		return foldBlockStatement(s)
 	case *ast.ForStatement:
 		return foldForStatement(s)
+	case *ast.WhileStatement:
+		return foldWhileStatement(s)
+	case *ast.ForEachStatement:
+		return foldForEachStatement(s)
+	case *ast.FunctionStatement:
+		return foldFunctionStatement(s)
+	case *ast.IfStatement:
+		return foldIfStatement(s)
 	case *ast.SwitchStatement:
 		return foldSwitchStatement(s)
 	default:
 		return s
+	}
+}
+
+func foldFunctionStatement(stmt *ast.FunctionStatement) ast.Statement {
+	return &ast.FunctionStatement{
+		Token:      stmt.Token,
+		Name:       stmt.Name,
+		Parameters: stmt.Parameters,
+		ReturnType: stmt.ReturnType,
+		Body:       foldBlockStatement(stmt.Body),
+	}
+}
+
+func foldIfStatement(stmt *ast.IfStatement) ast.Statement {
+	return &ast.IfStatement{
+		Token:     stmt.Token,
+		Condition: foldExpression(stmt.Condition),
+		Then:      foldBlockStatement(stmt.Then),
+		Else:      foldBlockStatement(stmt.Else),
+	}
+}
+
+func foldForEachStatement(s *ast.ForEachStatement) ast.Statement {
+	return &ast.ForEachStatement{
+		Token:    s.Token,
+		Variable: s.Variable,
+		Iterator: foldExpression(s.Iterator),
+		Body:     foldBlockStatement(s.Body),
 	}
 }
 
@@ -173,6 +217,14 @@ func foldInfixExpression(expr *ast.InfixExpression) ast.Expression {
 					}
 				}
 			}
+			if l, ok := left.(*ast.FloatLiteral); ok {
+				if r, ok := right.(*ast.FloatLiteral); ok {
+					return &ast.FloatLiteral{
+						Token: expr.Token,
+						Value: l.Value - r.Value,
+					}
+				}
+			}
 
 		case "*":
 			if l, ok := left.(*ast.IntegerLiteral); ok {
@@ -180,6 +232,89 @@ func foldInfixExpression(expr *ast.InfixExpression) ast.Expression {
 					return &ast.IntegerLiteral{
 						Token: expr.Token,
 						Value: l.Value * r.Value,
+					}
+				}
+			}
+			if l, ok := left.(*ast.FloatLiteral); ok {
+				if r, ok := right.(*ast.FloatLiteral); ok {
+					return &ast.FloatLiteral{
+						Token: expr.Token,
+						Value: l.Value * r.Value,
+					}
+				}
+			}
+		case "/":
+			if l, ok := left.(*ast.IntegerLiteral); ok {
+				if r, ok := right.(*ast.IntegerLiteral); ok {
+					if r.Value != 0 {
+						return &ast.IntegerLiteral{
+							Token: expr.Token,
+							Value: l.Value / r.Value,
+						}
+					}
+				}
+			}
+			if l, ok := left.(*ast.FloatLiteral); ok {
+				if r, ok := right.(*ast.FloatLiteral); ok {
+					if r.Value != 0 {
+						return &ast.FloatLiteral{
+							Token: expr.Token,
+							Value: l.Value / r.Value,
+						}
+					}
+				}
+			}
+		case "==":
+			if l, ok := left.(*ast.IntegerLiteral); ok {
+				if r, ok := right.(*ast.IntegerLiteral); ok {
+					return &ast.BooleanLiteral{
+						Token: expr.Token,
+						Value: l.Value == r.Value,
+					}
+				}
+			}
+		case "!=":
+			if l, ok := left.(*ast.IntegerLiteral); ok {
+				if r, ok := right.(*ast.IntegerLiteral); ok {
+					return &ast.BooleanLiteral{
+						Token: expr.Token,
+						Value: l.Value != r.Value,
+					}
+				}
+			}
+		case "<":
+			if l, ok := left.(*ast.IntegerLiteral); ok {
+				if r, ok := right.(*ast.IntegerLiteral); ok {
+					return &ast.BooleanLiteral{
+						Token: expr.Token,
+						Value: l.Value < r.Value,
+					}
+				}
+			}
+		case ">":
+			if l, ok := left.(*ast.IntegerLiteral); ok {
+				if r, ok := right.(*ast.IntegerLiteral); ok {
+					return &ast.BooleanLiteral{
+						Token: expr.Token,
+						Value: l.Value > r.Value,
+					}
+				}
+			}
+		case "<=":
+			if l, ok := left.(*ast.IntegerLiteral); ok {
+				if r, ok := right.(*ast.IntegerLiteral); ok {
+					return &ast.BooleanLiteral{
+						Token: expr.Token,
+						Value: l.Value <= r.Value,
+					}
+				}
+			}
+		case ">=":
+			if l, ok := left.(*ast.IntegerLiteral); ok {
+				if r, ok := right.(*ast.IntegerLiteral); ok {
+					return &ast.BooleanLiteral{
+						Token: expr.Token,
+						Value: l.Value >= r.Value,
 					}
 				}
 			}
@@ -195,6 +330,7 @@ func foldInfixExpression(expr *ast.InfixExpression) ast.Expression {
 }
 
 func isConstant(expr ast.Expression) bool {
+	//Add datetime literals and other constants
 	switch expr.(type) {
 	case *ast.IntegerLiteral, *ast.FloatLiteral, *ast.StringLiteral,
 		*ast.BooleanLiteral, *ast.DurationLiteral:
@@ -212,26 +348,97 @@ func (dce *DeadCodeElimination) CanApply(program *ast.Program) bool {
 }
 
 func (dce *DeadCodeElimination) Apply(program *ast.Program) *ast.Program {
+	//Eliminating of the unused let statements
 	optimized := &ast.Program{
 		ActionName: program.ActionName,
 		Statements: []ast.Statement{},
 	}
 
 	for _, stmt := range program.Statements {
-		if !isDeadCode(stmt) {
+		switch s := stmt.(type) {
+		case *ast.LetStatements:
+			var usedLets []ast.Statement
+			for _, v := range *s {
+				if !isDeadCode(&v, program) {
+					usedLets = append(usedLets, &v)
+				}
+			}
+			if len(usedLets) > 0 {
+				optimized.Statements = append(optimized.Statements, usedLets...)
+			}
+			continue
+		default:
+			// continuer
+		}
+		if !isDeadCode(stmt, program) {
 			optimized.Statements = append(optimized.Statements, stmt)
 		}
 	}
-
 	return optimized
 }
 
-func isDeadCode(stmt ast.Statement) bool {
+func isUsed(name string, actions *ast.Program) bool {
+	// Vérifier si la variable est utilisée dans le programme
+	for _, stmt := range actions.Statements {
+		switch s := stmt.(type) {
+		case *ast.LetStatement:
+			// if s.Name.Value == name {
+			// 	return true // La variable est définie ici
+			// }
+			if s.Value != nil && isVariableUsedInExpression(s.Value, name) {
+				return true // La variable est utilisée dans une expression
+			}
+		case *ast.LetStatements:
+			for _, v := range *s {
+				// if v.Name.Value == name {
+				// 	return true // La variable est définie ici
+				// }
+				if v.Value != nil && isVariableUsedInExpression(v.Value, name) {
+					return true // La variable est définie ici
+				}
+			}
+		case *ast.ExpressionStatement:
+			if isVariableUsedInExpression(s.Expression, name) {
+				return true // La variable est utilisée dans une expression
+			}
+		case *ast.ReturnStatement:
+			if isVariableUsedInExpression(s.ReturnValue, name) {
+				return true // La variable est utilisée dans une valeur de retour
+			}
+		}
+	}
+	return false
+}
+
+func isVariableUsedInExpression(expr ast.Expression, name string) bool {
+	switch e := expr.(type) {
+	case *ast.Identifier:
+		return strings.EqualFold(e.Value, name)
+	case *ast.InfixExpression:
+		return isVariableUsedInExpression(e.Left, name) || isVariableUsedInExpression(e.Right, name)
+	case *ast.PrefixExpression:
+		return isVariableUsedInExpression(e.Right, name)
+	case *ast.ArrayFunctionCall:
+		for _, arg := range e.Arguments {
+			if isVariableUsedInExpression(arg, name) {
+				return true
+			}
+		}
+		// case *ast.LetStatement:
+		// 	if e.Name.Value == name {
+		// 		return true // La variable est définie ici
+		// 	}
+	}
+	return false
+}
+func isDeadCode(stmt ast.Statement, actions *ast.Program) bool {
 	// Identifier le code mort (variables non utilisées, etc.)
 	switch s := stmt.(type) {
 	case *ast.LetStatement:
+		return !isUsed(s.Name.Value, actions)
+	case *ast.LetStatements:
 		// TODO: Vérifier si la variable est utilisée
-		return false
+		return true
 	case *ast.ExpressionStatement:
 		// Les expressions sans effet de bord peuvent être mortes
 		return isPureExpression(s.Expression)
@@ -450,6 +657,9 @@ func foldReturnStatement(stmt *ast.ReturnStatement) *ast.ReturnStatement {
 }
 
 func foldBlockStatement(stmt *ast.BlockStatement) *ast.BlockStatement {
+	if stmt == nil {
+		return nil
+	}
 	folded := &ast.BlockStatement{
 		Token:      stmt.Token,
 		Statements: []ast.Statement{},
@@ -539,4 +749,12 @@ func foldPrefixExpression(expr *ast.PrefixExpression) ast.Expression {
 func inlineFunctionsInStatement(stmt ast.Statement, functions map[string]*ast.FunctionStatement) ast.Statement {
 	// TODO: Implémenter l'inlining des fonctions
 	return stmt
+}
+
+func foldWhileStatement(stmt *ast.WhileStatement) *ast.WhileStatement {
+	return &ast.WhileStatement{
+		Token:     stmt.Token,
+		Condition: foldExpression(stmt.Condition),
+		Body:      foldBlockStatement(stmt.Body),
+	}
 }

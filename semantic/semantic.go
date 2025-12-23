@@ -726,10 +726,18 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 		sa.addError("select must have at least one object in the clause from. line:%d, column:%d", ss.Line(), ss.Column())
 		return &TypeInfo{Name: "void"}
 	}
+	ctes := make([]string, 0)
+	if ss.With != nil && ss.With.Recursive {
+		return sa.visitSQLWithStatement(ss.With, ctes)
+	}
 	//Check the clause From expression
 	tokenList := make([]string, 0)
 	cf := sa.visitObjectInFromClause(ss.From)
 	if cf != nil {
+		if !contains(ctes, *cf) && len(ctes) > 0 {
+			sa.addError("'%s' is not defined as CTE. line:%d, column:%d", *cf, ss.From.Line(), ss.From.Column())
+			return &TypeInfo{Name: "void"}
+		}
 		tokenList = append(tokenList, *cf)
 	}
 	oldscope := sa.CurrentScope
@@ -919,12 +927,12 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 						sa.addError("Field '%s'does not exist. line:%d, column:%d", t.String(), t.Line(), t.Column())
 					}
 				}
-				sa.addError("Invalid operation '%s'. line:%d, column:%d", t.Operator, t.Line(), t.Column())
+				// sa.addError("Invalid operation '%s'. line:%d, column:%d", t.Operator, t.Line(), t.Column())
 			case *ast.Identifier, *ast.StringLiteral:
 				if !contains(argList, strings.ToLower(t.String())) {
 					sa.addError("Field '%s'does not exist. line:%d, column:%d", t.String(), t.Line(), t.Column())
 				}
-				sa.addError("Invalid operation '%s'. line:%d, column:%d", t.String(), t.Line(), t.Column())
+				// sa.addError("Invalid operation '%s'. line:%d, column:%d", t.String(), t.Line(), t.Column())
 			default:
 				sa.addError("Invalid expression '%s'. line:%d, column:%d", t.String(), t.Line(), t.Column())
 			}
@@ -934,6 +942,27 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 		sa.visitSQLSelectStatement(ss.Union)
 	}
 	return &TypeInfo{Name: "sql_result"}
+}
+
+func (sa *SemanticAnalyzer) visitSQLWithStatement(sw *ast.SQLWithStatement, ctes []string) *TypeInfo {
+	//check for select argumens
+	if sw.Select == nil {
+		sa.addError("select must have at least one field. line:%d, column:%d", sw.Line(), sw.Column())
+		return &TypeInfo{Name: "void"}
+	}
+	if sw.CTEs == nil {
+		sa.addError("select must have at least one object in the clause from. line:%d, column:%d",
+			sw.Line(), sw.Column())
+		return &TypeInfo{Name: "void"}
+	}
+	// ctes = make([]string, 0)
+	for _, cte := range sw.CTEs {
+		if !contains(ctes, lower(cte.Name.Value)) {
+			ctes = append(ctes, lower(cte.Name.Value))
+		}
+	}
+	sw.Select.With.Recursive = false
+	return sa.visitSQLSelectStatement(sw.Select)
 }
 
 func (sa *SemanticAnalyzer) visitLetStatements(nodes *ast.LetStatements) {

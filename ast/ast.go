@@ -339,7 +339,7 @@ func (is *IfStatement) String() string {
 type WhileStatement struct {
 	Token     token.Token
 	Condition Expression
-	Body      Statement
+	Body      *BlockStatement
 }
 
 func (ws *WhileStatement) statementNode()       {}
@@ -351,7 +351,9 @@ func (ws *WhileStatement) String() string {
 		out += ws.Condition.String()
 	}
 	out += ") "
-	out += " " + ws.Body.String()
+	if ws.Body != nil {
+		out += " " + ws.Body.String()
+	}
 	return out
 }
 
@@ -360,7 +362,7 @@ type ForEachStatement struct {
 	Token    token.Token
 	Variable *Identifier
 	Iterator Expression
-	Body     Statement
+	Body     *BlockStatement
 }
 
 func (fe *ForEachStatement) statementNode()       {}
@@ -372,7 +374,9 @@ func (fe *ForEachStatement) String() string {
 		out += fe.Variable.String()
 	}
 	out += fmt.Sprintf(" IN (%s)", fe.Iterator.String())
-	out += " " + fe.Body.String()
+	if fe.Body == nil {
+		out += " " + fe.Body.String()
+	}
 	return out
 }
 

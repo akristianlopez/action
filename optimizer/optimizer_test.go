@@ -79,8 +79,16 @@ func TestAnalyze(t *testing.T) {
 			// Étape 4: Optimisation
 			// var optimizedProgram *ast.Program = action
 			opt := NewOptimizer()
-			// optimizedProgram = opt.Optimize(action)
-			opt.Optimize(action)
+			optimizedProgram := opt.Optimize(action)
+			// opt.Optimize(action)
+			fmt.Printf("\n✓ Action (%s) optimisée avec succès\n Lines:%d\n", tc.name, len(optimizedProgram.Statements))
+			if len(opt.Warnings) > 0 {
+				fmt.Println("Avertissements d'optimisation:")
+			}
+
+			for _, msg := range opt.Warnings {
+				fmt.Printf("  ⚠ %s\n", msg)
+			}
 			fmt.Printf("✓ Optimisations appliquées:\n")
 			fmt.Printf("  - Constant folding: %d\n", opt.Stats.ConstantFolds)
 			fmt.Printf("  - Dead code removal: %d\n", opt.Stats.DeadCodeRemovals)

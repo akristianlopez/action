@@ -1,6 +1,7 @@
 package optimizer
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/akristianlopez/action/ast"
@@ -10,6 +11,7 @@ import (
 type Optimizer struct {
 	Optimizations []Optimization
 	Stats         OptimizationStats
+	Warnings      []string
 }
 
 type OptimizationStats struct {
@@ -38,13 +40,16 @@ func NewOptimizer() *Optimizer {
 			&LoopOptimization{},
 			&FunctionInlining{},
 		},
-		Stats: OptimizationStats{},
+		Stats:    OptimizationStats{},
+		Warnings: make([]string, 0),
 	}
 }
 
+var Warnings func(format string, args ...interface{})
+
 func (o *Optimizer) Optimize(program *ast.Program) *ast.Program {
 	optimized := program
-
+	Warnings = o.addWarning
 	// Appliquer les optimisations en plusieurs passes
 	for i := 0; i < 10; i++ { // Maximum 10 passes
 		changed := false
@@ -73,6 +78,10 @@ func (o *Optimizer) Optimize(program *ast.Program) *ast.Program {
 	}
 
 	return optimized
+}
+
+func (o *Optimizer) addWarning(format string, args ...interface{}) {
+	o.Warnings = append(o.Warnings, fmt.Sprintf(format, args...))
 }
 
 // CONSTANT FOLDING
@@ -353,7 +362,6 @@ func (dce *DeadCodeElimination) Apply(program *ast.Program) *ast.Program {
 		ActionName: program.ActionName,
 		Statements: []ast.Statement{},
 	}
-
 	for _, stmt := range program.Statements {
 		switch s := stmt.(type) {
 		case *ast.LetStatements:
@@ -361,18 +369,32 @@ func (dce *DeadCodeElimination) Apply(program *ast.Program) *ast.Program {
 			for _, v := range *s {
 				if !isDeadCode(&v, program) {
 					usedLets = append(usedLets, &v)
+					continue
 				}
+				Warnings("Dead code eliminated: variable '%s' is not used. Line:%d, column:%d", v.Name.Value,
+					v.Token.Line, v.Token.Column)
 			}
 			if len(usedLets) > 0 {
 				optimized.Statements = append(optimized.Statements, usedLets...)
 			}
 			continue
+		case *ast.LetStatement:
+			if !isDeadCode(s, program) {
+				optimized.Statements = append(optimized.Statements, s)
+				continue
+			}
+			Warnings("Dead code eliminated: variable '%s' is not used. Line:%d, column:%d", s.Name.Value,
+				s.Token.Line, s.Token.Column)
+			continue
 		default:
-			// continuer
-		}
-		if !isDeadCode(stmt, program) {
 			optimized.Statements = append(optimized.Statements, stmt)
 		}
+		// if !isDeadCode(stmt, program) {
+		// 	optimized.Statements = append(optimized.Statements, stmt)
+		// 	continue
+		// }
+		// Warnings("Dead code eliminated: variable '%s' is not used.", stmt.String())
+
 	}
 	return optimized
 }
@@ -385,7 +407,7 @@ func isUsed(name string, actions *ast.Program) bool {
 			// if s.Name.Value == name {
 			// 	return true // La variable est définie ici
 			// }
-			if s.Value != nil && isVariableUsedInExpression(s.Value, name) {
+			if !strings.EqualFold(name, s.Name.Value) && s.Value != nil && isVariableUsedInExpression(s.Value, name) {
 				return true // La variable est utilisée dans une expression
 			}
 		case *ast.LetStatements:
@@ -393,7 +415,7 @@ func isUsed(name string, actions *ast.Program) bool {
 				// if v.Name.Value == name {
 				// 	return true // La variable est définie ici
 				// }
-				if v.Value != nil && isVariableUsedInExpression(v.Value, name) {
+				if !strings.EqualFold(name, v.Name.Value) && v.Value != nil && isVariableUsedInExpression(v.Value, name) {
 					return true // La variable est définie ici
 				}
 			}
@@ -436,9 +458,9 @@ func isDeadCode(stmt ast.Statement, actions *ast.Program) bool {
 	switch s := stmt.(type) {
 	case *ast.LetStatement:
 		return !isUsed(s.Name.Value, actions)
-	case *ast.LetStatements:
-		// TODO: Vérifier si la variable est utilisée
-		return true
+	// case *ast.LetStatements:
+	// 	// TODO: Vérifier si la variable est utilisée
+	// 	return true
 	case *ast.ExpressionStatement:
 		// Les expressions sans effet de bord peuvent être mortes
 		return isPureExpression(s.Expression)

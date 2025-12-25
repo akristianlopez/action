@@ -2,6 +2,7 @@ package optimizer
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/akristianlopez/action/ast"
@@ -386,15 +387,83 @@ func (dce *DeadCodeElimination) Apply(program *ast.Program) *ast.Program {
 			Warnings("Dead code eliminated: variable '%s' is not used. Line:%d, column:%d", s.Name.Value,
 				s.Token.Line, s.Token.Column)
 			continue
+		case *ast.FunctionStatement:
+			if !isDeadCode(s, program) {
+				optimized.Statements = append(optimized.Statements, s)
+				continue
+			}
+			Warnings("Dead code eliminated: function '%s' is not used. Line:%d, column:%d", s.Name.Value,
+				s.Token.Line, s.Token.Column)
+			continue
+		case *ast.StructStatement:
+			if !isDeadCode(s, program) {
+				optimized.Statements = append(optimized.Statements, s)
+				continue
+			}
+			Warnings("Dead code eliminated: struct '%s' is not used. Line:%d, column:%d", s.Name.Value,
+				s.Token.Line, s.Token.Column)
+			continue
+		case *ast.IfStatement:
+			if !isDeadCode(s, program) {
+				optimized.Statements = append(optimized.Statements, s)
+				continue
+			}
+			if isUnrichabled(s.Condition) && s.Else != nil {
+				Warnings("Dead code eliminated: Then statement at Line:%d, column:%d is not reachable.",
+					s.Token.Line, s.Token.Column)
+				optimized.Statements = append(optimized.Statements, s.Else)
+				continue
+			}
+			Warnings("Dead code eliminated: if statement at Line:%d, column:%d has empty body.",
+				s.Token.Line, s.Token.Column)
+		case *ast.WhileStatement:
+			if !isDeadCode(s, program) {
+				optimized.Statements = append(optimized.Statements, s)
+				continue
+			}
+			if isUnrichabled(s.Condition) {
+				Warnings("Dead code eliminated: while statement at Line:%d, column:%d is not reachable.",
+					s.Token.Line, s.Token.Column)
+				continue
+			}
+			Warnings("Dead code eliminated: while statement at Line:%d, column:%d has empty body.",
+				s.Token.Line, s.Token.Column)
+		case *ast.ForStatement:
+			if !isDeadCode(s, program) {
+				optimized.Statements = append(optimized.Statements, s)
+				continue
+			}
+			if isUnrichabled(s.Condition) {
+				Warnings("Dead code eliminated: for statement at Line:%d, column:%d is not reachable.",
+					s.Token.Line, s.Token.Column)
+				continue
+			}
+			Warnings("Dead code eliminated: for statement at Line:%d, column:%d has empty body.",
+				s.Token.Line, s.Token.Column)
+		case *ast.ForEachStatement:
+			if !isDeadCode(s, program) {
+				optimized.Statements = append(optimized.Statements, s)
+				continue
+			}
+			Warnings("Dead code eliminated: foreach statement at Line:%d, column:%d has empty body.",
+				s.Token.Line, s.Token.Column)
+		case *ast.SwitchStatement:
+			if !isDeadCode(s, program) {
+				optimized.Statements = append(optimized.Statements, s)
+				continue
+			}
+			Warnings("Dead code eliminated: switch statement at Line:%d, column:%d has all cases dead.",
+				s.Token.Line, s.Token.Column)
+		case *ast.ReturnStatement:
+			if !isDeadCode(s, program) {
+				optimized.Statements = append(optimized.Statements, s)
+				continue
+			}
+			Warnings("Dead code eliminated: return statement at Line:%d, column:%d has no effect.",
+				s.Token.Line, s.Token.Column)
 		default:
 			optimized.Statements = append(optimized.Statements, stmt)
 		}
-		// if !isDeadCode(stmt, program) {
-		// 	optimized.Statements = append(optimized.Statements, stmt)
-		// 	continue
-		// }
-		// Warnings("Dead code eliminated: variable '%s' is not used.", stmt.String())
-
 	}
 	return optimized
 }
@@ -427,6 +496,10 @@ func isUsed(name string, actions *ast.Program) bool {
 			if isVariableUsedInExpression(s.ReturnValue, name) {
 				return true // La variable est utilisée dans une valeur de retour
 			}
+		default:
+			if isFunctionUsedInStatement(stmt, name) {
+				return true
+			}
 		}
 	}
 	return false
@@ -441,38 +514,336 @@ func isVariableUsedInExpression(expr ast.Expression, name string) bool {
 	case *ast.PrefixExpression:
 		return isVariableUsedInExpression(e.Right, name)
 	case *ast.ArrayFunctionCall:
+		if e.Function != nil && isVariableUsedInExpression(e.Function, name) {
+			return true
+		}
+		if isVariableUsedInExpression(e.Array, name) {
+			return true
+		}
 		for _, arg := range e.Arguments {
 			if isVariableUsedInExpression(arg, name) {
 				return true
 			}
 		}
-		// case *ast.LetStatement:
-		// 	if e.Name.Value == name {
-		// 		return true // La variable est définie ici
-		// 	}
 	}
 	return false
 }
+
 func isDeadCode(stmt ast.Statement, actions *ast.Program) bool {
 	// Identifier le code mort (variables non utilisées, etc.)
 	switch s := stmt.(type) {
 	case *ast.LetStatement:
 		return !isUsed(s.Name.Value, actions)
-	// case *ast.LetStatements:
-	// 	// TODO: Vérifier si la variable est utilisée
-	// 	return true
+	case *ast.FunctionStatement:
+		// isFunctionDead vérifie si une fonction est utilisée ailleurs dans le programme.
+		// Une référence depuis sa propre définition (p.ex. appel récursif) n'est pas considérée comme utilisation externe.
+		return !isFunctionDead(s, actions)
+	case *ast.StructStatement:
+		// Les structures ne sont pas considérées comme du code mort ici
+		return isDefinedStructDead(s, actions)
 	case *ast.ExpressionStatement:
 		// Les expressions sans effet de bord peuvent être mortes
 		return isPureExpression(s.Expression)
+	case *ast.IfStatement:
+		// Si les deux branches sont mortes, le if est mort
+		thenDead := s.Then == nil || isDeadCode(s.Then, actions)
+		elseDead := s.Else == nil || isDeadCode(s.Else, actions)
+		if thenDead && elseDead {
+			return true
+		}
+		if isUnrichabled(s.Condition) {
+			return true
+		}
+		return false
+	case *ast.WhileStatement:
+		// Si le corps de la boucle est vide ou mort, la boucle est morte
+		if s.Body == nil || len(s.Body.Statements) == 0 {
+			return true
+		}
+		if isUnrichabled(s.Condition) {
+			return true
+		}
+		return isDeadCode(s.Body, actions)
+	case *ast.ForStatement:
+		// Si le corps de la boucle est vide ou mort, la boucle est morte
+		if s.Body == nil || len(s.Body.Statements) == 0 {
+			return true
+		}
+		if isUnrichabled(s.Condition) {
+			return true
+		}
+		return isDeadCode(s.Body, actions)
+	case *ast.ForEachStatement:
+		// Si le corps de la boucle est vide ou mort, la boucle est morte
+		if s.Body == nil || len(s.Body.Statements) == 0 {
+			return true
+		}
+		return isDeadCode(s.Body, actions)
+	case *ast.SwitchStatement:
+		// Si tous les cas sont morts, le switch est mort
+		allDead := true
+		for _, c := range s.Cases {
+			if c.Body != nil && !isDeadCode(c.Body, actions) {
+				allDead = false
+				break
+			}
+		}
+		if s.DefaultCase != nil && !isDeadCode(s.DefaultCase, actions) {
+			allDead = false
+		}
+		return allDead
+	case *ast.BlockStatement:
+		// Si tous les statements dans le bloc sont morts, le bloc est mort
+		for _, st := range s.Statements {
+			if !isDeadCode(st, actions) {
+				return false
+			}
+		}
+		return true
+	case *ast.ReturnStatement:
+		// Un return est mort s'il n'y a pas de valeur de retour ou si la valeur est pure
+		if s.ReturnValue == nil {
+			return true
+		}
+		return isPureExpression(s.ReturnValue)
 	default:
 		return false
 	}
 }
 
+func isUnrichabled(expr ast.Expression) bool {
+	// Détermine si une expression est toujours fausse (p.ex. while(false))
+	if boolLit, ok := expr.(*ast.BooleanLiteral); ok {
+		return !boolLit.Value
+	}
+	return false
+}
+
+func isDefinedStructDead(s *ast.StructStatement, actions *ast.Program) bool {
+	// Retourne true si la structure n'est utilisée nulle part comme type.
+	// Vérifie les déclarations du programme (variables, fonctions, champs, paramètres, retours, etc.)
+	if s == nil || s.Name == nil {
+		return true
+	}
+	name := s.Name.Value
+
+	for _, stmt := range actions.Statements {
+		// ignorer la définition elle-même
+		if st, ok := stmt.(*ast.StructStatement); ok && st == s {
+			continue
+		}
+		if isStructNameUsedAsType(stmt, name) {
+			return false
+		}
+	}
+
+	return true
+}
+
+//
+// Helpers: recherche récursive via reflection dans les champs dont le nom
+// suggère qu'ils représentent des types (Type, ReturnType, Parameters, Fields, etc.)
+// NOTE: this implementation requires importing "reflect".
+// importedReflectPlaceholder struct{} // placeholder to hint that reflect is used; remove if you add the import
+
+func isStructNameUsedAsType(node interface{}, name string) bool {
+	if node == nil {
+		return false
+	}
+	return scanForTypeLikeField(reflect.ValueOf(node), name)
+}
+
+func scanForTypeLikeField(v reflect.Value, name string) bool {
+	if !v.IsValid() {
+		return false
+	}
+	// Dereference pointers
+	for v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return false
+		}
+		v = v.Elem()
+	}
+
+	switch v.Kind() {
+	case reflect.Struct:
+		t := v.Type()
+		for i := 0; i < t.NumField(); i++ {
+			fieldVal := v.Field(i)
+			fieldName := t.Field(i).Name
+			lname := strings.ToLower(fieldName)
+
+			// Si le nom du champ suggère qu'il s'agit d'un emplacement de type, rechercher l'identifiant dedans.
+			if strings.Contains(lname, "type") || strings.Contains(lname, "return") ||
+				strings.Contains(lname, "param") || strings.Contains(lname, "field") ||
+				strings.Contains(lname, "fields") || strings.Contains(lname, "typ") {
+				if containsIdentifierWithName(fieldVal, name) {
+					return true
+				}
+			}
+
+			// Toujours descendre récursivement, au cas où la structure de types serait imbriquée.
+			if scanForTypeLikeField(fieldVal, name) {
+				return true
+			}
+		}
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < v.Len(); i++ {
+			if scanForTypeLikeField(v.Index(i), name) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func containsIdentifierWithName(v reflect.Value, name string) bool {
+	if !v.IsValid() {
+		return false
+	}
+	// Dereference pointers
+	for v.Kind() == reflect.Ptr {
+		if v.IsNil() {
+			return false
+		}
+		v = v.Elem()
+	}
+
+	identType := reflect.TypeOf((*ast.Identifier)(nil)).Elem()
+	if v.Type() == identType {
+		f := v.FieldByName("Value")
+		if f.IsValid() && f.Kind() == reflect.String {
+			return strings.EqualFold(f.String(), name)
+		}
+		return false
+	}
+
+	switch v.Kind() {
+	case reflect.Struct:
+		for i := 0; i < v.NumField(); i++ {
+			if containsIdentifierWithName(v.Field(i), name) {
+				return true
+			}
+		}
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < v.Len(); i++ {
+			if containsIdentifierWithName(v.Index(i), name) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func isFunctionDead(fn *ast.FunctionStatement, program *ast.Program) bool {
+	name := fn.Name.Value
+	for _, stmt := range program.Statements {
+		// ignorer la définition même
+		if f, ok := stmt.(*ast.FunctionStatement); ok && f == fn {
+			continue
+		}
+		if isFunctionUsedInStatement(stmt, name) {
+			return false
+		}
+	}
+	return true
+}
+
+func isFunctionUsedInStatement(stmt ast.Statement, name string) bool {
+	switch s := stmt.(type) {
+	case *ast.ExpressionStatement:
+		return isVariableUsedInExpression(s.Expression, name)
+	case *ast.ReturnStatement:
+		if s.ReturnValue != nil {
+			return isVariableUsedInExpression(s.ReturnValue, name)
+		}
+	case *ast.LetStatement:
+		if s.Value != nil {
+			return isVariableUsedInExpression(s.Value, name)
+		}
+	case *ast.LetStatements:
+		for _, v := range *s {
+			if v.Value != nil && isVariableUsedInExpression(v.Value, name) {
+				return true
+			}
+		}
+	case *ast.BlockStatement:
+		for _, st := range s.Statements {
+			if isFunctionUsedInStatement(st, name) {
+				return true
+			}
+		}
+	case *ast.IfStatement:
+		if s.Condition != nil && isVariableUsedInExpression(s.Condition, name) {
+			return true
+		}
+		if s.Then != nil && isFunctionUsedInStatement(s.Then, name) {
+			return true
+		}
+		if s.Else != nil && isFunctionUsedInStatement(s.Else, name) {
+			return true
+		}
+	case *ast.ForStatement:
+		if s.Init != nil && isFunctionUsedInStatement(s.Init, name) {
+			return true
+		}
+		if s.Condition != nil && isVariableUsedInExpression(s.Condition, name) {
+			return true
+		}
+		if s.Update != nil && isFunctionUsedInStatement(s.Update, name) {
+			return true
+		}
+		if s.Body != nil && isFunctionUsedInStatement(s.Body, name) {
+			return true
+		}
+	case *ast.WhileStatement:
+		if s.Condition != nil && isVariableUsedInExpression(s.Condition, name) {
+			return true
+		}
+		if s.Body != nil && isFunctionUsedInStatement(s.Body, name) {
+			return true
+		}
+	case *ast.ForEachStatement:
+		if s.Iterator != nil && isVariableUsedInExpression(s.Iterator, name) {
+			return true
+		}
+		if s.Body != nil && isFunctionUsedInStatement(s.Body, name) {
+			return true
+		}
+	case *ast.SwitchStatement:
+		if s.Expression != nil && isVariableUsedInExpression(s.Expression, name) {
+			return true
+		}
+		for _, c := range s.Cases {
+			for _, e := range c.Expressions {
+				if isVariableUsedInExpression(e, name) {
+					return true
+				}
+			}
+			if c.Body != nil && isFunctionUsedInStatement(c.Body, name) {
+				return true
+			}
+		}
+		if s.DefaultCase != nil && isFunctionUsedInStatement(s.DefaultCase, name) {
+			return true
+		}
+	case *ast.FunctionStatement:
+		// Si c'est une autre fonction, vérifier son corps (mais pas si même nom)
+		if s.Name != nil && strings.EqualFold(s.Name.Value, name) {
+			return false
+		}
+		if s.Body != nil && isFunctionUsedInStatement(s.Body, name) {
+			return true
+		}
+	}
+	return false
+}
+
 func isPureExpression(expr ast.Expression) bool {
 	// Vérifier si l'expression n'a pas d'effet de bord
 	switch expr.(type) {
-	case *ast.IntegerLiteral, *ast.FloatLiteral, *ast.StringLiteral, *ast.BooleanLiteral:
+	case *ast.IntegerLiteral, *ast.FloatLiteral, *ast.StringLiteral,
+		*ast.BooleanLiteral, *ast.DurationLiteral, *ast.DateTimeLiteral:
 		return true
 	case *ast.InfixExpression:
 		// Les opérations arithmétiques sont pures
@@ -511,20 +882,113 @@ func optimizeLoopInStatement(stmt ast.Statement) ast.Statement {
 	}
 }
 
-func optimizeForLoop(stmt *ast.ForStatement) *ast.ForStatement {
-	// Optimization: déplacer les expressions invariantes hors de la boucle
-	optimized := &ast.ForStatement{
+func optimizeForLoop(stmt *ast.ForStatement) ast.Statement {
+	// Loop-invariant code motion (conservative heuristic):
+	// - Collect variables declared inside the loop body (let ...).
+	// - Move out only pure statements (pure expressions or let with pure value)
+	//   that do not reference any variable declared inside the loop.
+	// - We only handle single LetStatement and ExpressionStatement moves (we
+	//   avoid splitting grouped LetStatements for simplicity).
+
+	if stmt == nil || stmt.Body == nil || len(stmt.Body.Statements) == 0 {
+		return stmt
+	}
+
+	// Collect declared variable names inside the loop body (lower-cased).
+	declared := map[string]struct{}{}
+	for _, st := range stmt.Body.Statements {
+		switch s := st.(type) {
+		case *ast.LetStatement:
+			if s.Name != nil {
+				declared[strings.ToLower(s.Name.Value)] = struct{}{}
+			}
+		case *ast.LetStatements:
+			for _, v := range *s {
+				if v.Name != nil {
+					declared[strings.ToLower(v.Name.Value)] = struct{}{}
+				}
+			}
+		}
+	}
+
+	var moved []ast.Statement
+	var remaining []ast.Statement
+
+	for _, st := range stmt.Body.Statements {
+		movedThis := false
+		switch s := st.(type) {
+		case *ast.ExpressionStatement:
+			// Move only pure expressions that don't reference declared vars.
+			if s.Expression != nil && isPureExpression(s.Expression) && !exprUsesAny(s.Expression, declared) {
+				moved = append(moved, s)
+				movedThis = true
+			}
+		case *ast.LetStatement:
+			// Move only let statements with a pure value and no dependency on declared vars.
+			if s.Value != nil && isPureExpression(s.Value) && !exprUsesAny(s.Value, declared) {
+				moved = append(moved, s)
+				movedThis = true
+			}
+		}
+		if !movedThis {
+			remaining = append(remaining, st)
+		}
+	}
+
+	// If nothing moved, return original loop unchanged.
+	if len(moved) == 0 {
+		return stmt
+	}
+
+	// Construct the optimized loop with remaining body statements.
+	optimizedLoop := &ast.ForStatement{
 		Token:     stmt.Token,
 		Init:      stmt.Init,
 		Condition: stmt.Condition,
 		Update:    stmt.Update,
-		Body:      &ast.BlockStatement{Token: stmt.Body.Token},
+		Body: &ast.BlockStatement{
+			Token:      stmt.Body.Token,
+			Statements: remaining,
+		},
 	}
 
-	// TODO: Implémenter loop-invariant code motion
-	optimized.Body.Statements = stmt.Body.Statements
+	// Return a block that first runs the moved statements then the loop.
+	return &ast.BlockStatement{
+		Token:      stmt.Token,
+		Statements: append(append([]ast.Statement{}, moved...), optimizedLoop),
+	}
+}
 
-	return optimized
+// exprUsesAny returns true if expr references any identifier name present in the set.
+func exprUsesAny(expr ast.Expression, set map[string]struct{}) bool {
+	if expr == nil {
+		return false
+	}
+	switch e := expr.(type) {
+	case *ast.Identifier:
+		_, ok := set[strings.ToLower(e.Value)]
+		return ok
+	case *ast.InfixExpression:
+		return exprUsesAny(e.Left, set) || exprUsesAny(e.Right, set)
+	case *ast.PrefixExpression:
+		return exprUsesAny(e.Right, set)
+	case *ast.ArrayFunctionCall:
+		if e.Function != nil && exprUsesAny(e.Function, set) {
+			return true
+		}
+		if exprUsesAny(e.Array, set) {
+			return true
+		}
+		for _, a := range e.Arguments {
+			if exprUsesAny(a, set) {
+				return true
+			}
+		}
+		return false
+	// Add other expression kinds that may contain identifiers as needed.
+	default:
+		return false
+	}
 }
 
 // FUNCTION INLINING

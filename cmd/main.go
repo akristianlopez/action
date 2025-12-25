@@ -122,16 +122,6 @@ CREATE OBJECT Départements (
 CREATE INDEX idx_employes_departement ON Employés(département);
 CREATE UNIQUE INDEX idx_employes_nom ON Employés(nom);
 
-(* Insertion de données *)
-INSERT INTO Départements (id, nom, budget)
-VALUES (1, 'IT', 1000000.00),
-       (2, 'RH', 500000.00),
-       (3, 'Finance', 750000.00);
-
-INSERT INTO Employés (id, nom, salaire, département, date_embauche)
-VALUES (1, 'Alice Dupont', 55000.00, 'IT', #2023-01-15#),
-       (2, 'Bob Martin', 48000.00, 'RH', #2023-03-20#),
-       (3, 'Charlie Durand', 62000.00, 'IT', #2022-11-10#);
 
 start
 

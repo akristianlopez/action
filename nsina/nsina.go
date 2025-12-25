@@ -51,6 +51,18 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			return right
 		}
 		return evalInfixExpression(node.Operator, left, right)
+	case *ast.ForEachStatement:
+		//TODO: A definir
+	case *ast.WhileStatement:
+		//TODO: A definir
+	case *ast.TypeMember:
+		//TODO: A definir
+	case *ast.BetweenExpression:
+		//TODO: A definir
+	case *ast.StructLiteral:
+		//TODO: A definir
+	case *ast.IfStatement:
+		//TODO: A definir
 	case *ast.ForStatement:
 		return evalForStatement(node, env)
 	case *ast.ReturnStatement:

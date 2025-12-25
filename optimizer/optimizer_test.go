@@ -21,6 +21,9 @@ func build_args() []testCase {
 	res = append(res, testCase{
 		name: "Test 1.1 : Let statement ",
 		src: `action "Statement 1.1"
+			  function main():integer{
+			  	return 42;
+			  }
 			 start
 			 let x = 10;
 			 let y = 20;
@@ -79,9 +82,9 @@ func TestAnalyze(t *testing.T) {
 			// Étape 4: Optimisation
 			// var optimizedProgram *ast.Program = action
 			opt := NewOptimizer()
-			optimizedProgram := opt.Optimize(action)
-			// opt.Optimize(action)
-			fmt.Printf("\n✓ Action (%s) optimisée avec succès\n Lines:%d\n", tc.name, len(optimizedProgram.Statements))
+			// optimizedProgram := opt.Optimize(action)
+			opt.Optimize(action)
+			// fmt.Printf("\n✓ Action (%s) optimisée avec succès\n Lines:%d\n", tc.name, len(optimizedProgram.Statements))
 			if len(opt.Warnings) > 0 {
 				fmt.Println("Avertissements d'optimisation:")
 			}

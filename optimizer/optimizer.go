@@ -47,14 +47,27 @@ func NewOptimizer() *Optimizer {
 }
 
 var Warnings func(format string, args ...interface{})
+var IncrementFolding func()
+var IncrementLoopOptimization func()
 
+func (o *Optimizer) IncrementConstantFolding() {
+	o.Stats.ConstantFolds++
+}
+
+func (o *Optimizer) IncrementLoopOptimization() {
+	o.Stats.LoopOptimizations++
+}
 func (o *Optimizer) Optimize(program *ast.Program) *ast.Program {
 	optimized := program
 	Warnings = o.addWarning
+	IncrementFolding = o.IncrementConstantFolding
+	IncrementLoopOptimization = o.IncrementLoopOptimization
+
 	// Appliquer les optimisations en plusieurs passes
 	for i := 0; i < 10; i++ { // Maximum 10 passes
 		changed := false
 		for _, opt := range o.Optimizations {
+			oSize := len(optimized.Statements)
 			if opt.CanApply(optimized) {
 				optimized = opt.Apply(optimized)
 				changed = true
@@ -62,13 +75,17 @@ func (o *Optimizer) Optimize(program *ast.Program) *ast.Program {
 				// Mettre à jour les statistiques
 				switch opt.(type) {
 				case *ConstantFolding:
-					o.Stats.ConstantFolds++
+					// if len(optimized.Statements) < oSize {
+					// 	o.Stats.ConstantFolds++
+					// }
 				case *DeadCodeElimination:
-					o.Stats.DeadCodeRemovals++
+					if len(optimized.Statements) < oSize {
+						o.Stats.DeadCodeRemovals++
+					}
 				case *FunctionInlining:
 					o.Stats.InlineExpansions++
 				case *LoopOptimization:
-					o.Stats.LoopOptimizations++
+					// 	o.Stats.LoopOptimizations++
 				}
 			}
 		}
@@ -170,6 +187,7 @@ func foldLetStatement(stmt *ast.LetStatement) *ast.LetStatement {
 	if stmt.Value != nil {
 		folded := foldExpression(stmt.Value)
 		if folded != stmt.Value {
+			// IncrementFolding()
 			return &ast.LetStatement{
 				Token: stmt.Token,
 				Name:  stmt.Name,
@@ -203,6 +221,7 @@ func foldInfixExpression(expr *ast.InfixExpression) ast.Expression {
 		case "+":
 			if l, ok := left.(*ast.IntegerLiteral); ok {
 				if r, ok := right.(*ast.IntegerLiteral); ok {
+					IncrementFolding()
 					return &ast.IntegerLiteral{
 						Token: expr.Token,
 						Value: l.Value + r.Value,
@@ -211,6 +230,7 @@ func foldInfixExpression(expr *ast.InfixExpression) ast.Expression {
 			}
 			if l, ok := left.(*ast.FloatLiteral); ok {
 				if r, ok := right.(*ast.FloatLiteral); ok {
+					IncrementFolding()
 					return &ast.FloatLiteral{
 						Token: expr.Token,
 						Value: l.Value + r.Value,
@@ -221,6 +241,7 @@ func foldInfixExpression(expr *ast.InfixExpression) ast.Expression {
 		case "-":
 			if l, ok := left.(*ast.IntegerLiteral); ok {
 				if r, ok := right.(*ast.IntegerLiteral); ok {
+					IncrementFolding()
 					return &ast.IntegerLiteral{
 						Token: expr.Token,
 						Value: l.Value - r.Value,
@@ -229,6 +250,7 @@ func foldInfixExpression(expr *ast.InfixExpression) ast.Expression {
 			}
 			if l, ok := left.(*ast.FloatLiteral); ok {
 				if r, ok := right.(*ast.FloatLiteral); ok {
+					IncrementFolding()
 					return &ast.FloatLiteral{
 						Token: expr.Token,
 						Value: l.Value - r.Value,
@@ -239,6 +261,7 @@ func foldInfixExpression(expr *ast.InfixExpression) ast.Expression {
 		case "*":
 			if l, ok := left.(*ast.IntegerLiteral); ok {
 				if r, ok := right.(*ast.IntegerLiteral); ok {
+					IncrementFolding()
 					return &ast.IntegerLiteral{
 						Token: expr.Token,
 						Value: l.Value * r.Value,
@@ -247,6 +270,7 @@ func foldInfixExpression(expr *ast.InfixExpression) ast.Expression {
 			}
 			if l, ok := left.(*ast.FloatLiteral); ok {
 				if r, ok := right.(*ast.FloatLiteral); ok {
+					IncrementFolding()
 					return &ast.FloatLiteral{
 						Token: expr.Token,
 						Value: l.Value * r.Value,
@@ -257,6 +281,7 @@ func foldInfixExpression(expr *ast.InfixExpression) ast.Expression {
 			if l, ok := left.(*ast.IntegerLiteral); ok {
 				if r, ok := right.(*ast.IntegerLiteral); ok {
 					if r.Value != 0 {
+						IncrementFolding()
 						return &ast.IntegerLiteral{
 							Token: expr.Token,
 							Value: l.Value / r.Value,
@@ -267,6 +292,7 @@ func foldInfixExpression(expr *ast.InfixExpression) ast.Expression {
 			if l, ok := left.(*ast.FloatLiteral); ok {
 				if r, ok := right.(*ast.FloatLiteral); ok {
 					if r.Value != 0 {
+						IncrementFolding()
 						return &ast.FloatLiteral{
 							Token: expr.Token,
 							Value: l.Value / r.Value,
@@ -277,6 +303,7 @@ func foldInfixExpression(expr *ast.InfixExpression) ast.Expression {
 		case "==":
 			if l, ok := left.(*ast.IntegerLiteral); ok {
 				if r, ok := right.(*ast.IntegerLiteral); ok {
+					IncrementFolding()
 					return &ast.BooleanLiteral{
 						Token: expr.Token,
 						Value: l.Value == r.Value,
@@ -286,6 +313,7 @@ func foldInfixExpression(expr *ast.InfixExpression) ast.Expression {
 		case "!=":
 			if l, ok := left.(*ast.IntegerLiteral); ok {
 				if r, ok := right.(*ast.IntegerLiteral); ok {
+					IncrementFolding()
 					return &ast.BooleanLiteral{
 						Token: expr.Token,
 						Value: l.Value != r.Value,
@@ -295,6 +323,7 @@ func foldInfixExpression(expr *ast.InfixExpression) ast.Expression {
 		case "<":
 			if l, ok := left.(*ast.IntegerLiteral); ok {
 				if r, ok := right.(*ast.IntegerLiteral); ok {
+					IncrementFolding()
 					return &ast.BooleanLiteral{
 						Token: expr.Token,
 						Value: l.Value < r.Value,
@@ -304,6 +333,7 @@ func foldInfixExpression(expr *ast.InfixExpression) ast.Expression {
 		case ">":
 			if l, ok := left.(*ast.IntegerLiteral); ok {
 				if r, ok := right.(*ast.IntegerLiteral); ok {
+					IncrementFolding()
 					return &ast.BooleanLiteral{
 						Token: expr.Token,
 						Value: l.Value > r.Value,
@@ -313,6 +343,7 @@ func foldInfixExpression(expr *ast.InfixExpression) ast.Expression {
 		case "<=":
 			if l, ok := left.(*ast.IntegerLiteral); ok {
 				if r, ok := right.(*ast.IntegerLiteral); ok {
+					IncrementFolding()
 					return &ast.BooleanLiteral{
 						Token: expr.Token,
 						Value: l.Value <= r.Value,
@@ -322,6 +353,7 @@ func foldInfixExpression(expr *ast.InfixExpression) ast.Expression {
 		case ">=":
 			if l, ok := left.(*ast.IntegerLiteral); ok {
 				if r, ok := right.(*ast.IntegerLiteral); ok {
+					IncrementFolding()
 					return &ast.BooleanLiteral{
 						Token: expr.Token,
 						Value: l.Value >= r.Value,
@@ -537,7 +569,7 @@ func isDeadCode(stmt ast.Statement, actions *ast.Program) bool {
 	case *ast.FunctionStatement:
 		// isFunctionDead vérifie si une fonction est utilisée ailleurs dans le programme.
 		// Une référence depuis sa propre définition (p.ex. appel récursif) n'est pas considérée comme utilisation externe.
-		return !isFunctionDead(s, actions)
+		return isFunctionDead(s, actions)
 	case *ast.StructStatement:
 		// Les structures ne sont pas considérées comme du code mort ici
 		return isDefinedStructDead(s, actions)
@@ -877,6 +909,10 @@ func optimizeLoopInStatement(stmt ast.Statement) ast.Statement {
 	switch s := stmt.(type) {
 	case *ast.ForStatement:
 		return optimizeForLoop(s)
+	case *ast.WhileStatement:
+		return optimizeWhileLoop(s)
+	case *ast.ForEachStatement:
+		return optimizeForEachLoop(s)
 	default:
 		return s
 	}
@@ -939,13 +975,164 @@ func optimizeForLoop(stmt *ast.ForStatement) ast.Statement {
 	if len(moved) == 0 {
 		return stmt
 	}
-
+	IncrementLoopOptimization()
 	// Construct the optimized loop with remaining body statements.
 	optimizedLoop := &ast.ForStatement{
 		Token:     stmt.Token,
 		Init:      stmt.Init,
 		Condition: stmt.Condition,
 		Update:    stmt.Update,
+		Body: &ast.BlockStatement{
+			Token:      stmt.Body.Token,
+			Statements: remaining,
+		},
+	}
+
+	// Return a block that first runs the moved statements then the loop.
+	return &ast.BlockStatement{
+		Token:      stmt.Token,
+		Statements: append(append([]ast.Statement{}, moved...), optimizedLoop),
+	}
+}
+
+func optimizeWhileLoop(stmt *ast.WhileStatement) ast.Statement {
+	// Loop-invariant code motion (conservative heuristic):
+	// - Collect variables declared inside the loop body (let ...).
+	// - Move out only pure statements (pure expressions or let with pure value)
+	//   that do not reference any variable declared inside the loop.
+	// - We only handle single LetStatement and ExpressionStatement moves (we
+	//   avoid splitting grouped LetStatements for simplicity).
+
+	if stmt == nil || stmt.Body == nil || len(stmt.Body.Statements) == 0 {
+		return stmt
+	}
+
+	// Collect declared variable names inside the loop body (lower-cased).
+	declared := map[string]struct{}{}
+	for _, st := range stmt.Body.Statements {
+		switch s := st.(type) {
+		case *ast.LetStatement:
+			if s.Name != nil {
+				declared[strings.ToLower(s.Name.Value)] = struct{}{}
+			}
+		case *ast.LetStatements:
+			for _, v := range *s {
+				if v.Name != nil {
+					declared[strings.ToLower(v.Name.Value)] = struct{}{}
+				}
+			}
+		}
+	}
+
+	var moved []ast.Statement
+	var remaining []ast.Statement
+
+	for _, st := range stmt.Body.Statements {
+		movedThis := false
+		switch s := st.(type) {
+		case *ast.ExpressionStatement:
+			// Move only pure expressions that don't reference declared vars.
+			if s.Expression != nil && isPureExpression(s.Expression) && !exprUsesAny(s.Expression, declared) {
+				moved = append(moved, s)
+				movedThis = true
+			}
+		case *ast.LetStatement:
+			// Move only let statements with a pure value and no dependency on declared vars.
+			if s.Value != nil && isPureExpression(s.Value) && !exprUsesAny(s.Value, declared) {
+				moved = append(moved, s)
+				movedThis = true
+			}
+		}
+		if !movedThis {
+			remaining = append(remaining, st)
+		}
+	}
+
+	// If nothing moved, return original loop unchanged.
+	if len(moved) == 0 {
+		return stmt
+	}
+	IncrementLoopOptimization()
+	// Construct the optimized loop with remaining body statements.
+	optimizedLoop := &ast.WhileStatement{
+		Token:     stmt.Token,
+		Condition: stmt.Condition,
+		Body: &ast.BlockStatement{
+			Token:      stmt.Body.Token,
+			Statements: remaining,
+		},
+	}
+
+	// Return a block that first runs the moved statements then the loop.
+	return &ast.BlockStatement{
+		Token:      stmt.Token,
+		Statements: append(append([]ast.Statement{}, moved...), optimizedLoop),
+	}
+}
+
+func optimizeForEachLoop(stmt *ast.ForEachStatement) ast.Statement {
+	// Loop-invariant code motion (conservative heuristic):
+	// - Collect variables declared inside the loop body (let ...).
+	// - Move out only pure statements (pure expressions or let with pure value)
+	//   that do not reference any variable declared inside the loop.
+	// - We only handle single LetStatement and ExpressionStatement moves (we
+	//   avoid splitting grouped LetStatements for simplicity).
+
+	if stmt == nil || stmt.Body == nil || len(stmt.Body.Statements) == 0 {
+		return stmt
+	}
+
+	// Collect declared variable names inside the loop body (lower-cased).
+	declared := map[string]struct{}{}
+	for _, st := range stmt.Body.Statements {
+		switch s := st.(type) {
+		case *ast.LetStatement:
+			if s.Name != nil {
+				declared[strings.ToLower(s.Name.Value)] = struct{}{}
+			}
+		case *ast.LetStatements:
+			for _, v := range *s {
+				if v.Name != nil {
+					declared[strings.ToLower(v.Name.Value)] = struct{}{}
+				}
+			}
+		}
+	}
+
+	var moved []ast.Statement
+	var remaining []ast.Statement
+
+	for _, st := range stmt.Body.Statements {
+		movedThis := false
+		switch s := st.(type) {
+		case *ast.ExpressionStatement:
+			// Move only pure expressions that don't reference declared vars.
+			if s.Expression != nil && isPureExpression(s.Expression) && !exprUsesAny(s.Expression, declared) {
+				moved = append(moved, s)
+				movedThis = true
+			}
+		case *ast.LetStatement:
+			// Move only let statements with a pure value and no dependency on declared vars.
+			if s.Value != nil && isPureExpression(s.Value) && !exprUsesAny(s.Value, declared) {
+				moved = append(moved, s)
+				movedThis = true
+			}
+		}
+		if !movedThis {
+			remaining = append(remaining, st)
+		}
+	}
+
+	// If nothing moved, return original loop unchanged.
+	if len(moved) == 0 {
+		return stmt
+	}
+	IncrementLoopOptimization()
+	// Construct the optimized loop with remaining body statements.
+	optimizedLoop := &ast.ForEachStatement{
+		Token:    stmt.Token,
+		Variable: stmt.Variable,
+		Iterator: stmt.Iterator,
 		Body: &ast.BlockStatement{
 			Token:      stmt.Body.Token,
 			Statements: remaining,
@@ -1204,12 +1391,14 @@ func foldPrefixExpression(expr *ast.PrefixExpression) ast.Expression {
 		switch expr.Operator {
 		case "-":
 			if intLit, ok := operand.(*ast.IntegerLiteral); ok {
+				IncrementFolding()
 				return &ast.IntegerLiteral{
 					Token: expr.Token,
 					Value: -intLit.Value,
 				}
 			}
 			if floatLit, ok := operand.(*ast.FloatLiteral); ok {
+				IncrementFolding()
 				return &ast.FloatLiteral{
 					Token: expr.Token,
 					Value: -floatLit.Value,
@@ -1217,6 +1406,7 @@ func foldPrefixExpression(expr *ast.PrefixExpression) ast.Expression {
 			}
 		case "!":
 			if boolLit, ok := operand.(*ast.BooleanLiteral); ok {
+				IncrementFolding()
 				return &ast.BooleanLiteral{
 					Token: expr.Token,
 					Value: !boolLit.Value,

@@ -1050,21 +1050,26 @@ func (p *Parser) parseExpression(precedence int, flag ...bool) ast.Expression {
 		p.peekToken.Type == token.DOT {
 		return leftExp
 	}
-
+	isSaved := false
 	for !p.peekTokenIs(token.SEMICOLON) && precedence < p.peekPrecedence() {
 		if p.peekTokenIs(token.NOT) {
 			p.Save()
+			isSaved = true
 			p.nextToken()
 			if !p.peekTokenIs(token.IN, token.LIKE, token.BETWEEN) {
 				p.Restore()
+				isSaved = false
 			}
-			p.Clear()
+			// p.Clear()
 		}
 		infix := p.infixParseFns[p.peekToken.Type]
 		if infix == nil {
 			return leftExp
 		}
 
+		if isSaved {
+			p.Restore()
+		}
 		p.nextToken()
 		leftExp = infix(leftExp)
 	}
@@ -1198,8 +1203,10 @@ func (p *Parser) parseBetweenExpression(left ast.Expression) ast.Expression {
 	pa := &ast.BetweenExpression{Token: p.curToken, Base: left}
 	if p.curTokenIs(token.NOT) {
 		pa.Not = true
+		if !p.expectPeek(token.BETWEEN) {
+			return nil
+		}
 	}
-	p.nextToken() // read BETWEEN
 
 	prefix := p.prefixParseFns[p.peekToken.Type]
 	if prefix == nil {

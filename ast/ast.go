@@ -277,7 +277,11 @@ func (le *LikeExpression) Line() int            { return le.Token.Line }
 func (le *LikeExpression) Column() int          { return le.Token.Column }
 func (le *LikeExpression) TokenLiteral() string { return le.Token.Literal }
 func (le *LikeExpression) String() string {
-	return "(" + le.Left.String() + " Like " + le.Right.String() + ")"
+	out := le.Left.String()
+	if le.Not {
+		out += " NOT"
+	}
+	return "(" + out + " Like " + le.Right.String() + ")"
 }
 
 // BlockStatement - bloc d'instructions
@@ -362,7 +366,7 @@ func (ws *WhileStatement) statementNode()       {}
 func (ws *WhileStatement) TokenLiteral() string { return ws.Token.Literal }
 func (ws *WhileStatement) String() string {
 	var out string
-	out += "While ("
+	out += "For ("
 	if ws.Condition != nil {
 		out += ws.Condition.String()
 	}
@@ -385,11 +389,11 @@ func (fe *ForEachStatement) statementNode()       {}
 func (fe *ForEachStatement) TokenLiteral() string { return fe.Token.Literal }
 func (fe *ForEachStatement) String() string {
 	var out string
-	out += "ForEach "
+	out += "For Let "
 	if fe.Variable != nil {
 		out += fe.Variable.String()
 	}
-	out += fmt.Sprintf(" IN (%s)", fe.Iterator.String())
+	out += fmt.Sprintf(" Of (%s)", fe.Iterator.String())
 	if fe.Body == nil {
 		out += " " + fe.Body.String()
 	}
@@ -1531,7 +1535,11 @@ type BetweenExpression struct {
 func (be *BetweenExpression) statementNode()       {}
 func (be *BetweenExpression) TokenLiteral() string { return be.Token.Literal }
 func (be *BetweenExpression) String() string {
-	return be.Base.String() + " between " + be.Left.String() + " and " + be.Right.String()
+	out := be.Base.String()
+	if be.Not {
+		out += " NOT"
+	}
+	return "(" + out + " between " + be.Left.String() + " and " + be.Right.String() + ")"
 }
 func (be *BetweenExpression) expressionNode() {}
 func (be *BetweenExpression) Line() int       { return be.Token.Line }

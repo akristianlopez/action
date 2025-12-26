@@ -106,7 +106,7 @@ func TestAnalyze(t *testing.T) {
 			fmt.Printf("✓ Optimisations appliquées:\n")
 			fmt.Printf("  - Constant folding: %d\n", opt.Stats.ConstantFolds)
 			fmt.Printf("  - Dead code removal: %d\n", opt.Stats.DeadCodeRemovals)
-			fmt.Printf("  - Function inlining: %d\n", opt.Stats.InlineExpansions)
+			// fmt.Printf("  - Function inlining: %d\n", opt.Stats.InlineExpansions)
 			fmt.Printf("  - Loop optimizations: %d\n", opt.Stats.LoopOptimizations)
 			fmt.Printf("---> Remining statements size: %d\n", len(optimizedProgram.Statements))
 
@@ -115,8 +115,9 @@ func TestAnalyze(t *testing.T) {
 			result := Eval(optimizedProgram, env)
 
 			if result != nil {
+				// fmt.Printf("\nErreurs d'Exécution (%s):\n", tc.name)
 				if result.Type() == object.ERROR_OBJ {
-					fmt.Printf("Erreur d'exécution: %s\n", result.Inspect())
+					fmt.Printf("Erreur d'exécution (%s): %s\n", tc.name, result.Inspect())
 					os.Exit(1)
 				}
 				if result.Type() != object.NULL_OBJ {
@@ -125,7 +126,6 @@ func TestAnalyze(t *testing.T) {
 			}
 			fmt.Println("---")
 			fmt.Println("✓ Programme exécuté avec succès")
-
 		})
 	}
 

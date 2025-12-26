@@ -10,6 +10,9 @@ import (
 )
 
 func Eval(node ast.Node, env *object.Environment) object.Object {
+	if node == nil {
+		return nil
+	}
 	switch node := node.(type) {
 	case *ast.Program:
 		return evalProgram(node, env)
@@ -51,6 +54,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			return right
 		}
 		return evalInfixExpression(node.Operator, left, right)
+	case *ast.AssignmentStatement:
+		return evalAssignmentStatement(node, env)
 	case *ast.ForEachStatement:
 		return evalForEachStatement(node, env)
 	case *ast.WhileStatement:
@@ -135,6 +140,70 @@ func evalLetStatement(let *ast.LetStatement, env *object.Environment) object.Obj
 
 	env.Set(let.Name.Value, value)
 	return value
+}
+
+func evalAssignmentStatement(node *ast.AssignmentStatement, env *object.Environment) object.Object {
+	// Évaluer la valeur droite
+	value := Eval(node.Value, env)
+	if isError(value) {
+		return value
+	}
+
+	// Gérer différentes cibles d'affectation
+	switch target := node.Variable.(type) {
+	case *ast.Identifier:
+		// Assignation simple à une variable
+		env.Set(target.Value, value)
+		return value
+	case *ast.TypeMember:
+		obj, fl := env.Get(target.Left.String())
+		if !fl {
+			return newError("Invalid structure name '%s'", target.Left.String())
+		}
+		if obj.Type() == object.STRUCT_OBJ {
+			ob := obj.(*object.Struct)
+			if _, exists := ob.Fields[target.Right.String()]; exists {
+				ob.Fields[target.Right.String()] = value
+				return value
+			}
+			return newError("Invalid field name '%s'.", target.Right.String())
+		}
+		return newError("Invalid type of object '%s'. expected '%v', got '%v'", target.Left.String(),
+			object.STRUCT_OBJ, obj.Type())
+	case *ast.IndexExpression:
+		// Assignation à un élément d'un tableau (ex: arr[0] = x)
+		// Évaluer la partie gauche (doit être un tableau ou une structure mutable)
+		leftObj := Eval(target.Left, env)
+		if isError(leftObj) {
+			return leftObj
+		}
+
+		indexObj := Eval(target.Index, env)
+		if isError(indexObj) {
+			return indexObj
+		}
+
+		// Supporter les tableaux
+		if arr, ok := leftObj.(*object.Array); ok {
+			if indexObj.Type() != object.INTEGER_OBJ {
+				return newError("L'index doit être un entier, got %s", indexObj.Type())
+			}
+			idx := indexObj.(*object.Integer).Value
+			if idx < 0 || idx >= int64(len(arr.Elements)) {
+				return newError("Index hors de portée: %d", idx)
+			}
+			arr.Elements[idx] = value
+			return value
+		}
+
+		// Si la partie gauche est un identificateur référencant un tableau dans l'environnement,
+		// Eval(target.Left, env) retourne la valeur actuelle (déjà traitée ci-dessus).
+		// Pour d'autres types, on ne supporte pas l'assignation par index ici.
+		return newError("Impossible d'assigner par index sur %s", leftObj.Type())
+	default:
+		return newError("Cible d'assignation invalide: %T", node.Variable)
+	}
+
 }
 
 func getDefaultValue(typeName string) object.Object {
@@ -402,6 +471,7 @@ func evalPrefixExpression(operator string, right object.Object) object.Object {
 
 func evalInfixExpression(operator string, left, right object.Object) object.Object {
 	switch {
+
 	case left.Type() == object.INTEGER_OBJ && right.Type() == object.INTEGER_OBJ:
 		return evalIntegerInfixExpression(operator, left, right)
 	case left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ:
@@ -1438,6 +1508,28 @@ func objectsEqual(a, b object.Object) bool {
 }
 
 func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment) object.Object {
+	//How to save the context before running the function
+	f, ok := env.Get(node.Function.Value)
+	if ok && f.Type() == object.FUNCTION_OBJ {
+		//run the function
+		ob := f.(*object.Function)
+		for k, field := range ob.Parameters {
+			if k == 0 {
+				val := Eval(node.Array, env)
+				if isError(val) {
+					return val
+				}
+				ob.Env.Set(field.Name.Value, val)
+				continue
+			}
+			val := Eval(node.Arguments[k-1], env)
+			if isError(val) {
+				return val
+			}
+			ob.Env.Set(field.Name.Value, val)
+		}
+		return Eval(ob.Body, ob.Env)
+	}
 	array := Eval(node.Array, env)
 	if isError(array) {
 		return array
@@ -1450,6 +1542,9 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 	arr := array.(*object.Array)
 
 	switch node.Function.Value {
+	case "tostring":
+		//TODO: A definir
+		return &object.String{Value: ""}
 	case "length":
 		return &object.Integer{Value: int64(len(arr.Elements))}
 

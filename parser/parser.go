@@ -853,24 +853,27 @@ func (p *Parser) parseBlockStatement() (*ast.BlockStatement, *ParserError) {
 	return block, nil
 }
 
-func (p *Parser) parseExpressionStatement() (*ast.ExpressionStatement, *ParserError) {
+func (p *Parser) parseExpressionStatement() (ast.Statement, *ParserError) {
 	stmt := &ast.ExpressionStatement{Token: p.curToken}
 
 	stmt.Expression = p.parseExpression(LOWEST)
 	if p.peekTokenIs(token.ASSIGN) {
-		stm := &ast.InfixExpression{Token: p.peekToken, Operator: "="}
-		stm.Left = stmt.Expression
+		stm := &ast.AssignmentStatement{Token: p.peekToken}
+		stm.Variable = stmt.Expression
 		p.nextToken() //read =
 		p.nextToken() //read next token
 		switch p.curToken.Type {
 		case token.LBRACE:
-			stm.Right = p.parseStructLiteral()
+			stm.Value = p.parseStructLiteral()
 		case token.LBRACKET:
-			stm.Right = p.parseArrayLiteral()
+			stm.Value = p.parseArrayLiteral()
 		default:
-			stm.Right = p.parseExpression(LOWEST)
+			stm.Value = p.parseExpression(LOWEST)
 		}
-		stmt.Expression = stm
+		if p.peekTokenIs(token.SEMICOLON) {
+			p.nextToken()
+		}
+		return stm, nil
 	}
 	if p.peekTokenIs(token.SEMICOLON) {
 		p.nextToken()

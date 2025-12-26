@@ -1,10 +1,4 @@
 github.com/akristianlopez/action/ast v0.0.0-20251226154617-9a05121e725e h1:X7pa3Q5NOhjVeB1cnJLQ+HpVI+R4wGfgp/gkutxSQMo=
 github.com/akristianlopez/action/ast v0.0.0-20251226154617-9a05121e725e/go.mod h1:WLZZP2mVFQievDesEVwxSFFNjLUEH05VRrG01hXRHzQ=
-github.com/akristianlopez/action/lexer v0.0.0-20251226154617-9a05121e725e h1:DYL18xwIBdSX3ODI/W3nmtyuwGN9MQ5bDtOrtODpJKE=
-github.com/akristianlopez/action/lexer v0.0.0-20251226154617-9a05121e725e/go.mod h1:GCWCapxvNS3xT+OGOcryvVotfDbhrvWNR3vDPCycg1A=
-github.com/akristianlopez/action/parser v0.0.0-20251226154617-9a05121e725e h1:LV/lGTnIew3aUOabjbX4V4B2S5pmzVbWQTWZW5Z1jq4=
-github.com/akristianlopez/action/parser v0.0.0-20251226154617-9a05121e725e/go.mod h1:jOCCRShMBkHo7KAs15vAffCyf0zrWRMEwF0A/HhE8Os=
-github.com/akristianlopez/action/semantic v0.0.0-20251226154617-9a05121e725e h1:QBr2otCFLKETtaxTpb/Vk86KR4hFK2+PzaKrRWLod6Q=
-github.com/akristianlopez/action/semantic v0.0.0-20251226154617-9a05121e725e/go.mod h1:w8POfs0BhkwoLl8ii9bgJMUeKTuNDa+6vmjulSeH3cg=
 github.com/akristianlopez/action/token v0.0.0-20251226154617-9a05121e725e h1:v7zpNaw/JcaLoPvN1w8gN7hgS/o5pFUwQakxSX890UM=
 github.com/akristianlopez/action/token v0.0.0-20251226154617-9a05121e725e/go.mod h1:n7cAip7Q5h0VfgSZT3ykRIPU5D8HKnm8R2pEtrvrC9s=

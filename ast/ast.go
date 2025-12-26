@@ -265,6 +265,21 @@ func (ie *InfixExpression) String() string {
 }
 
 // InfixExpression - expression infixe
+type AssignmentStatement struct {
+	Token    token.Token
+	Variable Expression
+	Value    Expression
+}
+
+func (as *AssignmentStatement) expressionNode()      {}
+func (as *AssignmentStatement) Line() int            { return as.Token.Line }
+func (as *AssignmentStatement) Column() int          { return as.Token.Column }
+func (as *AssignmentStatement) TokenLiteral() string { return as.Token.Literal }
+func (as *AssignmentStatement) String() string {
+	return as.Variable.String() + " = " + as.Value.String()
+}
+
+// InfixExpression - expression infixe
 type LikeExpression struct {
 	Token token.Token
 	Left  Expression

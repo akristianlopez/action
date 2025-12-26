@@ -134,6 +134,8 @@ func foldConstantsInStatement(stmt ast.Statement) ast.Statement {
 		return foldLetStatement(s)
 	case *ast.ExpressionStatement:
 		return foldExpressionStatement(s)
+	case *ast.AssignmentStatement:
+		return foldAssignmentStatement(s)
 	case *ast.ReturnStatement:
 		return foldReturnStatement(s)
 	case *ast.BlockStatement:
@@ -557,6 +559,8 @@ func isVariableUsedInExpression(expr ast.Expression, name string) bool {
 			isVariableUsedInExpression(e.Right, name)
 	case *ast.LikeExpression:
 		return isVariableUsedInExpression(e.Left, name) || isVariableUsedInExpression(e.Right, name)
+	case *ast.AssignmentStatement:
+		return isVariableUsedInExpression(e.Variable, name) || isVariableUsedInExpression(e.Value, name)
 	case *ast.ArrayFunctionCall:
 		if e.Function != nil && isVariableUsedInExpression(e.Function, name) {
 			return true
@@ -797,6 +801,9 @@ func isFunctionUsedInStatement(stmt ast.Statement, name string) bool {
 	switch s := stmt.(type) {
 	case *ast.ExpressionStatement:
 		return isVariableUsedInExpression(s.Expression, name)
+	case *ast.AssignmentStatement:
+		return isVariableUsedInExpression(s.Variable, name) ||
+			isVariableUsedInExpression(s.Value, name)
 	case *ast.ReturnStatement:
 		if s.ReturnValue != nil {
 			return isVariableUsedInExpression(s.ReturnValue, name)
@@ -1335,6 +1342,18 @@ func foldExpressionStatement(stmt *ast.ExpressionStatement) *ast.ExpressionState
 	return stmt
 }
 
+// Implémentations des autres méthodes de folding
+func foldAssignmentStatement(stmt *ast.AssignmentStatement) *ast.AssignmentStatement {
+	folded := foldExpression(stmt.Value)
+	if folded != stmt.Value {
+		return &ast.AssignmentStatement{
+			Token:    stmt.Token,
+			Variable: stmt.Variable,
+			Value:    folded,
+		}
+	}
+	return stmt
+}
 func foldReturnStatement(stmt *ast.ReturnStatement) *ast.ReturnStatement {
 	if stmt.ReturnValue != nil {
 		folded := foldExpression(stmt.ReturnValue)

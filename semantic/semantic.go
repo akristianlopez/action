@@ -1283,6 +1283,8 @@ func (sa *SemanticAnalyzer) visitExpression(expr ast.Expression) *TypeInfo {
 		return &TypeInfo{Name: "integer"}
 	case *ast.TypeMember:
 		return sa.visitTypeMember(e)
+	case *ast.LikeExpression:
+		return sa.visitLikeExpression(e)
 	case *ast.FloatLiteral:
 		return &TypeInfo{Name: "float"}
 	case *ast.StringLiteral:
@@ -1324,6 +1326,27 @@ func (sa *SemanticAnalyzer) visitExpression(expr ast.Expression) *TypeInfo {
 	default:
 		return &TypeInfo{Name: "any"}
 	}
+}
+
+func (sa *SemanticAnalyzer) visitLikeExpression(e *ast.LikeExpression) *TypeInfo {
+	if e == nil {
+		return &TypeInfo{Name: "void"}
+	}
+	left := sa.visitExpression(e.Left)
+	right := sa.visitExpression(e.Right)
+
+	if left == nil || right == nil {
+		return &TypeInfo{Name: "void"}
+	}
+
+	// Accept only string operands for LIKE
+	if left.Name != "string" || right.Name != "string" {
+		sa.addError("invalid operation. Both operands of 'like' must be strings. got %s and %s",
+			left.Name, right.Name)
+		return &TypeInfo{Name: "void"}
+	}
+
+	return &TypeInfo{Name: "boolean"}
 }
 
 func (sa *SemanticAnalyzer) visitBetweenExpression(e *ast.BetweenExpression) *TypeInfo {

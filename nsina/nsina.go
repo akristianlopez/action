@@ -52,13 +52,14 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		}
 		return evalInfixExpression(node.Operator, left, right)
 	case *ast.ForEachStatement:
-		//TODO: A definir
+		return evalForEachStatement(node, env)
 	case *ast.WhileStatement:
-		//TODO: A definir
+		return evalWhileStatement(node, env)
 	case *ast.TypeMember:
 		//TODO: A definir
 	case *ast.BetweenExpression:
 		//TODO: A definir
+		return evalBetweenExpression(node, env)
 	case *ast.StructLiteral:
 		//TODO: A definir
 	case *ast.IfStatement:
@@ -1688,6 +1689,41 @@ func evalForBody(body *ast.BlockStatement, env *object.Environment) object.Objec
 	return result
 }
 
+func evalWhileStatement(whileStmt *ast.WhileStatement, env *object.Environment) object.Object {
+	for {
+		// Évaluer la condition
+		condition := Eval(whileStmt.Condition, env)
+		if isError(condition) {
+			return condition
+		}
+
+		if !isTruthy(condition) {
+			break
+		}
+
+		// Évaluer le corps
+		result := evalForBody(whileStmt.Body, env)
+
+		if result != nil {
+			rt := result.Type()
+
+			if rt == object.BREAK_OBJ {
+				break
+			}
+
+			if rt == object.CONTINUE_OBJ {
+				continue
+			}
+
+			if rt == object.RETURN_VALUE_OBJ || rt == object.ERROR_OBJ {
+				return result
+			}
+		}
+	}
+
+	return object.NULL
+}
+
 // Ajouter l'évaluation des littéraux de durée
 func evalDurationLiteral(node *ast.DurationLiteral, env *object.Environment) object.Object {
 	duration, err := object.ParseDuration(node.Value)
@@ -1772,6 +1808,21 @@ func evalDurationInfixExpression(operator string, left, right object.Object) obj
 // Ajouter l'évaluation des opérations avec Date/Time et Duration
 func evalDateTimeDurationOperations(left, right object.Object, operator string) object.Object {
 	switch left := left.(type) {
+	case *object.Duration:
+		if right.Type() == object.DATE_OBJ {
+			duration := left
+			date := right.(*object.Date)
+			// Ajouter la durée à la date
+			newTime := date.Value.Add(time.Duration(duration.Nanoseconds))
+			return &object.Date{Value: newTime}
+		}
+		if right.Type() == object.TIME_OBJ {
+			duration := left
+			timeObj := right.(*object.Time)
+			// Ajouter la durée au temps
+			newTime := timeObj.Value.Add(time.Duration(duration.Nanoseconds))
+			return &object.Time{Value: newTime}
+		}
 	case *object.Date:
 		if right.Type() == object.DURATION_OBJ {
 			duration := right.(*object.Duration)
@@ -1790,26 +1841,146 @@ func evalDateTimeDurationOperations(left, right object.Object, operator string) 
 	return newError("Non supported operation entre %s et %s", left.Type(), right.Type())
 }
 
+func evalBetweenExpression(node *ast.BetweenExpression, env *object.Environment) object.Object {
+	value := Eval(node.Base, env)
+	if isError(value) {
+		return value
+	}
+
+	low := Eval(node.Left, env)
+	if isError(low) {
+		return low
+	}
+
+	high := Eval(node.Right, env)
+	if isError(high) {
+		return high
+	}
+
+	// Compare values
+	lowComp := evalInfixExpression("<", low, value)
+	if isError(lowComp) {
+		return lowComp
+	}
+
+	highComp := evalInfixExpression("<", value, high)
+	if isError(highComp) {
+		return highComp
+	}
+
+	result := &object.Boolean{
+		Value: lowComp.(*object.Boolean).Value && highComp.(*object.Boolean).Value,
+	}
+
+	if node.Not {
+		return &object.Boolean{Value: !result.Value}
+	}
+
+	return result
+}
+
+func evalForEachStatement(n ast.Node, env *object.Environment) object.Object {
+	// Accept ast.Node to avoid compile issues if called from Eval with a typed node;
+	// then assert to the expected *ast.ForEachStatement.
+	node, ok := n.(*ast.ForEachStatement)
+	if !ok {
+		return newError("Invalid node pour foreach")
+	}
+
+	collection := Eval(node.Iterator, env)
+	if isError(collection) {
+		return collection
+	}
+
+	switch coll := collection.(type) {
+	case *object.Array:
+		for _, el := range coll.Elements {
+			loopEnv := object.NewEnclosedEnvironment(env)
+
+			// Si une variable clé est présente, la définir (index)
+			// if node.Key != nil {
+			// 	loopEnv.Set(node.Key.Value, &object.Integer{Value: int64(i)})
+			// }
+
+			// // Si une variable valeur est présente, la définir
+			// if node.Value != nil {
+			// 	loopEnv.Set(node.Value.Value, el)
+			// }
+			loopEnv.Set(node.Variable.Value, el)
+			// Évaluer le corps avec l'environnement local
+			result := evalForBody(node.Body, loopEnv)
+			if result != nil {
+				rt := result.Type()
+
+				if rt == object.BREAK_OBJ {
+					// sortir de la boucle
+					return object.NULL
+				}
+
+				if rt == object.CONTINUE_OBJ {
+					// passer à l'itération suivante
+					continue
+				}
+
+				if rt == object.RETURN_VALUE_OBJ || rt == object.ERROR_OBJ {
+					return result
+				}
+			}
+		}
+		return object.NULL
+	case *object.Struct:
+		for _, field := range coll.Fields {
+			loopEnv := object.NewEnclosedEnvironment(env)
+
+			// Définir la variable valeur avec le champ actuel
+			loopEnv.Set(node.Variable.Value, field)
+
+			// Évaluer le corps avec l'environnement local
+			result := evalForBody(node.Body, loopEnv)
+			if result != nil {
+				rt := result.Type()
+
+				if rt == object.BREAK_OBJ {
+					// sortir de la boucle
+					return object.NULL
+				}
+
+				if rt == object.CONTINUE_OBJ {
+					// passer à l'itération suivante
+					continue
+				}
+
+				if rt == object.RETURN_VALUE_OBJ || rt == object.ERROR_OBJ {
+					return result
+				}
+			}
+		}
+		return object.NULL
+	default:
+		return newError("L'opérande de foreach n'est pas itérable: %s", collection.Type())
+	}
+}
+
 /* Fonctions utilitaires supplémentaires
 function toHours(d: duration): float {
-    return d / #1h#;
+	return d / #1h#;
 }
 
 function toDays(d: duration): float {
-    return d / #1d#;
+	return d / #1d#;
 }
 
 function toMinutes(d: duration): float {
-    return d / #1m#;
+	return d / #1m#;
 }
 
 (* Formatage personnalisé *)
 function formatDuree(d: duration): string {
-    let jours = d / #1d#;
-    let heures = (d % #1d#) / #1h#;
-    let minutes = (d % #1h#) / #1m#;
-    let secondes = (d % #1m#) / #1s#;
+	let jours = d / #1d#;
+	let heures = (d % #1d#) / #1h#;
+	let minutes = (d % #1h#) / #1m#;
+	let secondes = (d % #1m#) / #1s#;
 
-    return jours + "d " + heures + "h " + minutes + "m " + secondes + "s";
+	return jours + "d " + heures + "h " + minutes + "m " + secondes + "s";
 }
 */

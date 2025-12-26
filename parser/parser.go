@@ -132,7 +132,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.IS, p.parseInfixExpression)
 	p.registerInfix(token.DOT, p.parsePropertyAccess)
 	p.registerInfix(token.BETWEEN, p.parseBetweenExpression)
-	p.registerInfix(token.LIKE, p.parseInfixExpression)
+	p.registerInfix(token.LIKE, p.parseLikeExpression)
 
 	// p.registerInfix(token.CONCAT, p.parseInfixExpression)
 
@@ -1055,7 +1055,7 @@ func (p *Parser) parseExpression(precedence int, flag ...bool) ast.Expression {
 		if p.peekTokenIs(token.NOT) {
 			p.Save()
 			p.nextToken()
-			if !p.peekTokenIs(token.IN) {
+			if !p.peekTokenIs(token.IN, token.LIKE, token.BETWEEN) {
 				p.Restore()
 			}
 			p.Clear()
@@ -1196,6 +1196,11 @@ func (p *Parser) parsePropertyAccess(left ast.Expression) ast.Expression {
 
 func (p *Parser) parseBetweenExpression(left ast.Expression) ast.Expression {
 	pa := &ast.BetweenExpression{Token: p.curToken, Base: left}
+	if p.curTokenIs(token.NOT) {
+		pa.Not = true
+	}
+	p.nextToken() // read BETWEEN
+
 	prefix := p.prefixParseFns[p.peekToken.Type]
 	if prefix == nil {
 		p.noPrefixParseFnError(p.peekToken.Type)
@@ -2050,9 +2055,11 @@ var precedences = map[token.TokenType]int{
 	token.MOD:      PRODUCT,
 	token.LBRACKET: INDEX,
 	// token.CONCAT:   SUM,
-	token.IN:  LESSGREATER,
-	token.NOT: LESSGREATER,
-	token.IS:  EQUALS,
+	token.IN:      LESSGREATER,
+	token.NOT:     LESSGREATER,
+	token.IS:      EQUALS,
+	token.LIKE:    LESSGREATER,
+	token.BETWEEN: LESSGREATER,
 	// token.AS:       EQUALS,
 	token.DOT: MEMBER,
 }
@@ -2687,6 +2694,22 @@ func (p *Parser) parseInExpression(left ast.Expression) ast.Expression {
 	p.nextToken()
 	exp.Right = p.parseExpression(LOWEST)
 
+	return exp
+}
+
+func (p *Parser) parseLikeExpression(left ast.Expression) ast.Expression {
+	exp := &ast.LikeExpression{Token: p.curToken, Left: left}
+
+	// Vérifier NOT IN
+	if p.curTokenIs(token.NOT) {
+		exp.Not = true
+		if !p.expectPeek(token.LIKE) {
+			return nil
+		}
+	}
+
+	p.nextToken()
+	exp.Right = p.parseExpression(LOWEST)
 	return exp
 }
 

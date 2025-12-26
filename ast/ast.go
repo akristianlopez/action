@@ -264,6 +264,22 @@ func (ie *InfixExpression) String() string {
 	return "(" + ie.Left.String() + " " + ie.Operator + " " + ie.Right.String() + ")"
 }
 
+// InfixExpression - expression infixe
+type LikeExpression struct {
+	Token token.Token
+	Left  Expression
+	Right Expression
+	Not   bool
+}
+
+func (le *LikeExpression) expressionNode()      {}
+func (le *LikeExpression) Line() int            { return le.Token.Line }
+func (le *LikeExpression) Column() int          { return le.Token.Column }
+func (le *LikeExpression) TokenLiteral() string { return le.Token.Literal }
+func (le *LikeExpression) String() string {
+	return "(" + le.Left.String() + " Like " + le.Right.String() + ")"
+}
+
 // BlockStatement - bloc d'instructions
 type BlockStatement struct {
 	Token      token.Token
@@ -1509,6 +1525,7 @@ type BetweenExpression struct {
 	Base  Expression
 	Left  Expression
 	Right Expression
+	Not   bool
 }
 
 func (be *BetweenExpression) statementNode()       {}

@@ -1778,14 +1778,14 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 		}
 		return &TypeInfo{Name: "boolean"}
 
-	case "like":
-		// Opérations de comparaison de chaînes
-		if leftType.Name != "string" || rightType.Name != "string" {
-			sa.addError("invalid operation. Both operands of 'like' must be strings. got %s and %s",
-				leftType.Name, rightType.Name)
-			return &TypeInfo{Name: "void"}
-		}
-		return &TypeInfo{Name: "boolean"}
+	// case "like":
+	// 	// Opérations de comparaison de chaînes
+	// 	if leftType.Name != "string" || rightType.Name != "string" {
+	// 		sa.addError("invalid operation. Both operands of 'like' must be strings. got %s and %s",
+	// 			leftType.Name, rightType.Name)
+	// 		return &TypeInfo{Name: "void"}
+	// 	}
+	// 	return &TypeInfo{Name: "boolean"}
 	case "||":
 		if leftType.IsArray && rightType.IsArray {
 			if !sa.areTypesCompatible(leftType.ElementType, rightType.ElementType) {

@@ -62,8 +62,10 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalBetweenExpression(node, env)
 	case *ast.StructLiteral:
 		//TODO: A definir
+		return evalStructLiteral(node, env)
 	case *ast.IfStatement:
 		//TODO: A definir
+		return evalIfStatement(node, env)
 	case *ast.ForStatement:
 		return evalForStatement(node, env)
 	case *ast.ReturnStatement:
@@ -344,6 +346,48 @@ func evalFromClause(from ast.Expression, env *object.Environment) object.Object 
 
 // Les fonctions evalPrefixExpression, evalInfixExpression, evalIdentifier, etc.
 // suivent le même pattern que dans un évaluateur standard...
+
+func evalStructLiteral(node *ast.StructLiteral, env *object.Environment) object.Object {
+	// Créer un objet struct littéral avec ses champs évalués
+	structObj := &object.Struct{
+		Name:   "",
+		Fields: make(map[string]object.Object),
+	}
+
+	for _, f := range node.Fields {
+		// if f == nil {
+		// 	continue
+		// }
+		val := Eval(f.Value, env)
+		if isError(val) {
+			return val
+		}
+		structObj.Fields[f.Name.Value] = val
+	}
+
+	return structObj
+}
+
+func evalIfStatement(node *ast.IfStatement, env *object.Environment) object.Object {
+	// Évaluer la condition
+	condition := Eval(node.Condition, env)
+	if isError(condition) {
+		return condition
+	}
+
+	// Si la condition est vraie, évaluer le bloc conséquence
+	if isTruthy(condition) {
+		return evalBlockStatement(node.Then, env)
+	}
+
+	// Sinon, si une alternative existe, l'évaluer
+	if node.Else != nil {
+		return evalBlockStatement(node.Else, env)
+	}
+
+	// Par défaut, retourner NULL
+	return object.NULL
+}
 
 func evalPrefixExpression(operator string, right object.Object) object.Object {
 	switch operator {

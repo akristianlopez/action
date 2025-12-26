@@ -96,7 +96,6 @@ func TestAnalyze(t *testing.T) {
 			opt := optimizer.NewOptimizer()
 			optimizedProgram = opt.Optimize(action)
 			// opt.Optimize(action)
-			fmt.Printf("\n✓ Action (%s) optimisée avec succès\n Lines:%d\n", tc.name, len(optimizedProgram.Statements))
 			if len(opt.Warnings) > 0 {
 				fmt.Println("Avertissements d'optimisation:")
 			}
@@ -109,6 +108,7 @@ func TestAnalyze(t *testing.T) {
 			fmt.Printf("  - Dead code removal: %d\n", opt.Stats.DeadCodeRemovals)
 			fmt.Printf("  - Function inlining: %d\n", opt.Stats.InlineExpansions)
 			fmt.Printf("  - Loop optimizations: %d\n", opt.Stats.LoopOptimizations)
+			fmt.Printf("---> Remining statements size: %d\n", len(optimizedProgram.Statements))
 
 			// Étape 5: Évaluation
 			env := object.NewEnvironment()

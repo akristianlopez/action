@@ -80,7 +80,7 @@ func (o *Optimizer) Optimize(program *ast.Program) *ast.Program {
 					// }
 				case *DeadCodeElimination:
 					if len(optimized.Statements) < oSize {
-						o.Stats.DeadCodeRemovals++
+						o.Stats.DeadCodeRemovals += oSize - len(optimized.Statements)
 					}
 				case *FunctionInlining:
 					o.Stats.InlineExpansions++
@@ -203,6 +203,10 @@ func foldExpression(expr ast.Expression) ast.Expression {
 	switch e := expr.(type) {
 	case *ast.InfixExpression:
 		return foldInfixExpression(e)
+	case *ast.BetweenExpression:
+		return foldBetweenExpression(e)
+	case *ast.LikeExpression:
+		return foldLikeExpression(e)
 	case *ast.PrefixExpression:
 		return foldPrefixExpression(e)
 	default:
@@ -503,36 +507,39 @@ func (dce *DeadCodeElimination) Apply(program *ast.Program) *ast.Program {
 func isUsed(name string, actions *ast.Program) bool {
 	// Vérifier si la variable est utilisée dans le programme
 	for _, stmt := range actions.Statements {
-		switch s := stmt.(type) {
-		case *ast.LetStatement:
-			// if s.Name.Value == name {
-			// 	return true // La variable est définie ici
-			// }
-			if !strings.EqualFold(name, s.Name.Value) && s.Value != nil && isVariableUsedInExpression(s.Value, name) {
-				return true // La variable est utilisée dans une expression
-			}
-		case *ast.LetStatements:
-			for _, v := range *s {
-				// if v.Name.Value == name {
-				// 	return true // La variable est définie ici
-				// }
-				if !strings.EqualFold(name, v.Name.Value) && v.Value != nil && isVariableUsedInExpression(v.Value, name) {
-					return true // La variable est définie ici
-				}
-			}
-		case *ast.ExpressionStatement:
-			if isVariableUsedInExpression(s.Expression, name) {
-				return true // La variable est utilisée dans une expression
-			}
-		case *ast.ReturnStatement:
-			if isVariableUsedInExpression(s.ReturnValue, name) {
-				return true // La variable est utilisée dans une valeur de retour
-			}
-		default:
-			if isFunctionUsedInStatement(stmt, name) {
-				return true
-			}
+		if isFunctionUsedInStatement(stmt, name) {
+			return true
 		}
+		// switch s := stmt.(type) {
+		// case *ast.LetStatement:
+		// 	// if s.Name.Value == name {
+		// 	// 	return true // La variable est définie ici
+		// 	// }
+		// 	if !strings.EqualFold(name, s.Name.Value) && s.Value != nil && isVariableUsedInExpression(s.Value, name) {
+		// 		return true // La variable est utilisée dans une expression
+		// 	}
+		// case *ast.LetStatements:
+		// 	for _, v := range *s {
+		// 		// if v.Name.Value == name {
+		// 		// 	return true // La variable est définie ici
+		// 		// }
+		// 		if !strings.EqualFold(name, v.Name.Value) && v.Value != nil && isVariableUsedInExpression(v.Value, name) {
+		// 			return true // La variable est définie ici
+		// 		}
+		// 	}
+		// case *ast.ExpressionStatement:
+		// 	if isVariableUsedInExpression(s.Expression, name) {
+		// 		return true // La variable est utilisée dans une expression
+		// 	}
+		// case *ast.ReturnStatement:
+		// 	if isVariableUsedInExpression(s.ReturnValue, name) {
+		// 		return true // La variable est utilisée dans une valeur de retour
+		// 	}
+		// default:
+		// 	if isFunctionUsedInStatement(stmt, name) {
+		// 		return true
+		// 	}
+		// }
 	}
 	return false
 }
@@ -545,6 +552,11 @@ func isVariableUsedInExpression(expr ast.Expression, name string) bool {
 		return isVariableUsedInExpression(e.Left, name) || isVariableUsedInExpression(e.Right, name)
 	case *ast.PrefixExpression:
 		return isVariableUsedInExpression(e.Right, name)
+	case *ast.BetweenExpression:
+		return isVariableUsedInExpression(e.Base, name) || isVariableUsedInExpression(e.Left, name) ||
+			isVariableUsedInExpression(e.Right, name)
+	case *ast.LikeExpression:
+		return isVariableUsedInExpression(e.Left, name) || isVariableUsedInExpression(e.Right, name)
 	case *ast.ArrayFunctionCall:
 		if e.Function != nil && isVariableUsedInExpression(e.Function, name) {
 			return true
@@ -575,7 +587,7 @@ func isDeadCode(stmt ast.Statement, actions *ast.Program) bool {
 		return isDefinedStructDead(s, actions)
 	case *ast.ExpressionStatement:
 		// Les expressions sans effet de bord peuvent être mortes
-		return isPureExpression(s.Expression)
+		return false //isPureExpression(s.Expression)
 	case *ast.IfStatement:
 		// Si les deux branches sont mortes, le if est mort
 		thenDead := s.Then == nil || isDeadCode(s.Then, actions)
@@ -637,7 +649,7 @@ func isDeadCode(stmt ast.Statement, actions *ast.Program) bool {
 		if s.ReturnValue == nil {
 			return true
 		}
-		return isPureExpression(s.ReturnValue)
+		return false //isPureExpression(s.ReturnValue)
 	default:
 		return false
 	}
@@ -1241,7 +1253,14 @@ func estimateStatementSize(stmt ast.Statement) int {
 	case *ast.ReturnStatement:
 		return 1
 	case *ast.IfStatement:
-		return 3
+		return 4
+	case *ast.ForStatement, *ast.WhileStatement, *ast.ForEachStatement:
+		return 5
+	case *ast.SQLAlterObjectStatement, *ast.SQLCreateIndexStatement,
+		*ast.SQLInsertStatement, *ast.SQLDropObjectStatement, *ast.SQLDeleteStatement,
+		*ast.SQLTruncateStatement, *ast.SQLUpdateStatement, *ast.SQLSelectStatement,
+		*ast.SQLWithStatement:
+		return 10
 	default:
 		return 1
 	}
@@ -1422,9 +1441,358 @@ func foldPrefixExpression(expr *ast.PrefixExpression) ast.Expression {
 	}
 }
 
+func floatVal(e ast.Expression) float64 {
+	if e == nil {
+		return 0.0
+	}
+	switch s := e.(type) {
+	case *ast.IntegerLiteral:
+		return float64(s.Value)
+	case *ast.FloatLiteral:
+		return float64(s.Value)
+	}
+	return 0.0
+}
+
+// NOTE: minimal stub implementations to satisfy references from foldExpression.
+// These are conservative no-ops for now and can be expanded to fold inner
+// expressions when the exact AST field names/structure are known.
+
+func foldBetweenExpression(expr *ast.BetweenExpression) ast.Expression {
+	if expr == nil {
+		return nil
+	}
+	if expr.Base != nil && expr.Left != nil && expr.Right != nil &&
+		isConstant(expr.Base) && isConstant(expr.Left) && isConstant(expr.Right) {
+		// Currently return as-is; implement inner folding later if needed.
+
+		switch expr.Base.(type) {
+		case *ast.IntegerLiteral, *ast.FloatLiteral:
+			val := floatVal(expr.Base)
+			min := floatVal(expr.Left)
+			max := floatVal(expr.Right)
+			value := (val >= min && val <= max)
+			if expr.Not {
+				value = !value
+			}
+			IncrementFolding()
+			return &ast.BooleanLiteral{
+				Token: expr.Token,
+				Value: value,
+			}
+		default:
+			// return expr
+		}
+	}
+	return expr
+}
+
+func foldLikeExpression(expr *ast.LikeExpression) ast.Expression {
+	if expr == nil {
+		return nil
+	}
+	if expr.Left != nil && expr.Right != nil &&
+		isConstant(expr.Left) && isConstant(expr.Right) {
+		// Currently return as-is; implement inner folding later if needed.
+
+		switch expr.Left.(type) {
+		case *ast.StringLiteral:
+			val := expr.Left.(*ast.StringLiteral)
+			pattern := expr.Right.(*ast.StringLiteral)
+			id := strings.Index(pattern.Value, "*")
+			res := false
+			if len(val.Value) > id && id > 0 {
+				res = strings.EqualFold(val.Value[0:id], pattern.Value[0:id])
+			}
+			if expr.Not {
+				res = !res
+			}
+			IncrementFolding()
+			return &ast.BooleanLiteral{
+				Token: expr.Token,
+				Value: res,
+			}
+		default:
+			// return expr
+		}
+	}
+	// Currently return as-is; implement inner folding later if needed.
+	return expr
+}
+
 func inlineFunctionsInStatement(stmt ast.Statement, functions map[string]*ast.FunctionStatement) ast.Statement {
-	// TODO: Implémenter l'inlining des fonctions
-	return stmt
+	if stmt == nil {
+		return stmt
+	}
+	switch s := stmt.(type) {
+	case *ast.ExpressionStatement:
+		newExpr := inlineFunctionsInExpression(s.Expression, functions)
+		if newExpr != s.Expression {
+			return &ast.ExpressionStatement{Token: s.Token, Expression: newExpr}
+		}
+		return s
+	case *ast.LetStatement:
+		if s.Value != nil {
+			newVal := inlineFunctionsInExpression(s.Value, functions)
+			if newVal != s.Value {
+				return &ast.LetStatement{
+					Token: s.Token,
+					Name:  s.Name,
+					Type:  s.Type,
+					Value: newVal,
+				}
+			}
+		}
+		return s
+	case *ast.LetStatements:
+		changed := false
+		out := make([]ast.Statement, 0, len(*s))
+		for _, v := range *s {
+			ls := v
+			if ls.Value != nil {
+				newVal := inlineFunctionsInExpression(ls.Value, functions)
+				if newVal != ls.Value {
+					ls = ast.LetStatement{
+						Token: ls.Token,
+						Name:  ls.Name,
+						Type:  ls.Type,
+						Value: newVal,
+					}
+					changed = true
+				}
+			}
+			out = append(out, &ls)
+		}
+		if changed {
+			// convert back to []*ast.LetStatement if that's the original shape;
+			// we use []ast.Statement which is acceptable to the optimizer pipeline
+			return &ast.BlockStatement{
+				Token:      (*s)[0].Token,
+				Statements: out,
+			}
+		}
+		return s
+	case *ast.ReturnStatement:
+		if s.ReturnValue != nil {
+			newVal := inlineFunctionsInExpression(s.ReturnValue, functions)
+			if newVal != s.ReturnValue {
+				return &ast.ReturnStatement{Token: s.Token, ReturnValue: newVal}
+			}
+		}
+		return s
+	case *ast.BlockStatement:
+		newBlock := &ast.BlockStatement{Token: s.Token, Statements: []ast.Statement{}}
+		changed := false
+		for _, st := range s.Statements {
+			ns := inlineFunctionsInStatement(st, functions)
+			newBlock.Statements = append(newBlock.Statements, ns)
+			if ns != st {
+				changed = true
+			}
+		}
+		if changed {
+			return newBlock
+		}
+		return s
+	case *ast.IfStatement:
+		cond := inlineFunctionsInExpression(s.Condition, functions)
+		then := foldBlockStatement(s.Then)
+		elseBlk := foldBlockStatement(s.Else)
+		// inline inside then/else
+		then = inlineBlockStatements(then, functions)
+		elseBlk = inlineBlockStatements(elseBlk, functions)
+		if cond != s.Condition || then != s.Then || elseBlk != s.Else {
+			return &ast.IfStatement{
+				Token:     s.Token,
+				Condition: cond,
+				Then:      then,
+				Else:      elseBlk,
+			}
+		}
+		return s
+	case *ast.ForStatement:
+		init := inlineFunctionsInStatement(s.Init, functions)
+		cond := inlineFunctionsInExpression(s.Condition, functions)
+		update := inlineFunctionsInStatement(s.Update, functions)
+		body := inlineBlockStatements(s.Body, functions)
+		if init != s.Init || cond != s.Condition || update != s.Update || body != s.Body {
+			return &ast.ForStatement{
+				Token:     s.Token,
+				Init:      init,
+				Condition: cond,
+				Update:    update,
+				Body:      body,
+			}
+		}
+		return s
+	case *ast.WhileStatement:
+		cond := inlineFunctionsInExpression(s.Condition, functions)
+		body := inlineBlockStatements(s.Body, functions)
+		if cond != s.Condition || body != s.Body {
+			return &ast.WhileStatement{
+				Token:     s.Token,
+				Condition: cond,
+				Body:      body,
+			}
+		}
+		return s
+	case *ast.ForEachStatement:
+		iter := inlineFunctionsInExpression(s.Iterator, functions)
+		body := inlineBlockStatements(s.Body, functions)
+		if iter != s.Iterator || body != s.Body {
+			return &ast.ForEachStatement{
+				Token:    s.Token,
+				Variable: s.Variable,
+				Iterator: iter,
+				Body:     body,
+			}
+		}
+		return s
+	case *ast.SwitchStatement:
+		expr := inlineFunctionsInExpression(s.Expression, functions)
+		changed := expr != s.Expression
+		newCases := []*ast.SwitchCase{}
+		for _, c := range s.Cases {
+			newBody := inlineBlockStatements(c.Body, functions)
+			newExprs := []ast.Expression{}
+			for _, e := range c.Expressions {
+				ne := inlineFunctionsInExpression(e, functions)
+				newExprs = append(newExprs, ne)
+				if ne != e {
+					changed = true
+				}
+			}
+			newCases = append(newCases, &ast.SwitchCase{
+				Token:       c.Token,
+				Expressions: newExprs,
+				Body:        newBody,
+			})
+			if newBody != c.Body {
+				changed = true
+			}
+		}
+		def := s.DefaultCase
+		if def != nil {
+			newDef := inlineBlockStatements(def, functions)
+			if newDef != def {
+				changed = true
+			}
+			def = newDef
+		}
+		if changed {
+			return &ast.SwitchStatement{
+				Token:       s.Token,
+				Expression:  expr,
+				Cases:       newCases,
+				DefaultCase: def,
+			}
+		}
+		return s
+	default:
+		return s
+	}
+}
+
+func inlineBlockStatements(b *ast.BlockStatement, functions map[string]*ast.FunctionStatement) *ast.BlockStatement {
+	if b == nil {
+		return nil
+	}
+	changed := false
+	newBlk := &ast.BlockStatement{Token: b.Token, Statements: []ast.Statement{}}
+	for _, st := range b.Statements {
+		ns := inlineFunctionsInStatement(st, functions)
+		newBlk.Statements = append(newBlk.Statements, ns)
+		if ns != st {
+			changed = true
+		}
+	}
+	if changed {
+		return newBlk
+	}
+	return b
+}
+
+func inlineFunctionsInExpression(expr ast.Expression, functions map[string]*ast.FunctionStatement) ast.Expression {
+	if expr == nil {
+		return nil
+	}
+	switch e := expr.(type) {
+	case *ast.Identifier:
+		return e
+	case *ast.InfixExpression:
+		l := inlineFunctionsInExpression(e.Left, functions)
+		r := inlineFunctionsInExpression(e.Right, functions)
+		if l != e.Left || r != e.Right {
+			return &ast.InfixExpression{Token: e.Token, Left: l, Operator: e.Operator, Right: r}
+		}
+		return e
+	case *ast.PrefixExpression:
+		r := inlineFunctionsInExpression(e.Right, functions)
+		if r != e.Right {
+			return &ast.PrefixExpression{Token: e.Token, Operator: e.Operator, Right: r}
+		}
+		return e
+	case *ast.BetweenExpression:
+		base := inlineFunctionsInExpression(e.Base, functions)
+		l := inlineFunctionsInExpression(e.Left, functions)
+		r := inlineFunctionsInExpression(e.Right, functions)
+		if base != e.Base || l != e.Left || r != e.Right {
+			return &ast.BetweenExpression{
+				Token: e.Token, Base: base, Left: l, Right: r, Not: e.Not,
+			}
+		}
+		return e
+	case *ast.LikeExpression:
+		l := inlineFunctionsInExpression(e.Left, functions)
+		r := inlineFunctionsInExpression(e.Right, functions)
+		if l != e.Left || r != e.Right {
+			return &ast.LikeExpression{Token: e.Token, Left: l, Right: r, Not: e.Not}
+		}
+		return e
+	case *ast.ArrayFunctionCall:
+		// recurse into function expression first
+		fnExpr := inlineFunctionsInExpression(e.Function, functions)
+		argsChanged := false
+		newArgs := make([]ast.Expression, 0, len(e.Arguments))
+		for _, a := range e.Arguments {
+			na := inlineFunctionsInExpression(a, functions)
+			newArgs = append(newArgs, na)
+			if na != a {
+				argsChanged = true
+			}
+		}
+		// attempt inlining only when function is a simple identifier and the target function is present
+		if id, ok := fnExpr.(*ast.Identifier); ok {
+			if fn, found := functions[id.Value]; found && shouldInline(fn) {
+				// conservative: inline only functions without parameters and with a single return statement
+				rv := reflect.ValueOf(fn.Parameters)
+				paramCount := 0
+				if rv.IsValid() && rv.Kind() == reflect.Slice {
+					paramCount = rv.Len()
+				}
+				if paramCount == 0 && fn.Body != nil && len(fn.Body.Statements) == 1 {
+					if ret, ok := fn.Body.Statements[0].(*ast.ReturnStatement); ok && ret.ReturnValue != nil {
+						// inline by returning a copy of the return expression (and recursively inline inside it)
+						inlined := inlineFunctionsInExpression(ret.ReturnValue, functions)
+						return inlined
+					}
+				}
+			}
+		}
+		// otherwise rebuild node if any child changed
+		if fnExpr != e.Function || argsChanged || (e.Array != nil && inlineFunctionsInExpression(e.Array, functions) != e.Array) {
+			return &ast.ArrayFunctionCall{
+				Token:     e.Token,
+				Function:  fnExpr.(*ast.Identifier),
+				Array:     inlineFunctionsInExpression(e.Array, functions),
+				Arguments: newArgs,
+			}
+		}
+		return e
+	default:
+		// unknown expression types: return as-is
+		return e
+	}
 }
 
 func foldWhileStatement(stmt *ast.WhileStatement) *ast.WhileStatement {

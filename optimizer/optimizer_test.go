@@ -28,7 +28,16 @@ func build_args() []testCase {
 			 let x = 10;
 			 let y = 20;
 			 let z = x + y;
-			   return y;
+			 let srt:string = "Hello, World!";
+			 let pattern:string = "Hello*";
+				if srt not like pattern {
+					z = z + 1;
+				} 
+				y=y+z
+				if y between 10 and 200{
+					y=x+main()
+				}
+				return y;
 			 stop
 			 `,
 		status: 0,
@@ -82,9 +91,9 @@ func TestAnalyze(t *testing.T) {
 			// Étape 4: Optimisation
 			// var optimizedProgram *ast.Program = action
 			opt := NewOptimizer()
-			// optimizedProgram := opt.Optimize(action)
-			opt.Optimize(action)
-			// fmt.Printf("\n✓ Action (%s) optimisée avec succès\n Lines:%d\n", tc.name, len(optimizedProgram.Statements))
+			optimizedProgram := opt.Optimize(action)
+			// opt.Optimize(action)
+			fmt.Printf("\n✓ Action (%s) optimisée avec succès\n Lines:%d\n", tc.name, len(optimizedProgram.Statements))
 			if len(opt.Warnings) > 0 {
 				fmt.Println("Avertissements d'optimisation:")
 			}

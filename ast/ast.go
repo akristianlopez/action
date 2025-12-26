@@ -271,6 +271,7 @@ type AssignmentStatement struct {
 	Value    Expression
 }
 
+func (as *AssignmentStatement) statementNode()       {}
 func (as *AssignmentStatement) expressionNode()      {}
 func (as *AssignmentStatement) Line() int            { return as.Token.Line }
 func (as *AssignmentStatement) Column() int          { return as.Token.Column }

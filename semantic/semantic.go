@@ -208,6 +208,8 @@ func (sa *SemanticAnalyzer) visitStatement(stmt ast.Statement, t *TypeInfo) {
 		sa.visitFunctionStatement(s)
 	case *ast.StructStatement:
 		sa.visitStructStatement(s)
+	case *ast.AssignmentStatement:
+		sa.visitAssignmentStatement(s)
 	case *ast.IfStatement:
 		sa.visitIfStatement(s, t)
 	case *ast.WhileStatement:
@@ -1023,6 +1025,63 @@ func (sa *SemanticAnalyzer) visitLetStatement(node *ast.LetStatement) {
 	sa.registerSymbol(node.Name.Value, VariableSymbol, varType, node)
 }
 
+func (sa *SemanticAnalyzer) visitAssignmentStatement(node *ast.AssignmentStatement) *TypeInfo {
+	if node == nil {
+		return &TypeInfo{Name: "void"}
+	}
+
+	// Determine the type that can receive a value from the left side
+	var leftType *TypeInfo
+
+	switch left := node.Variable.(type) {
+	case *ast.Identifier:
+		sym := sa.lookupSymbol(left.Value)
+		if sym == nil {
+			sa.addError("Non declared identifier: %s line:%d column:%d", left.Value, left.Token.Line, left.Token.Column)
+			return &TypeInfo{Name: "void"}
+		}
+		leftType = sym.DataType
+
+	case *ast.IndexExpression:
+		// visitIndexExpression returns the element type for arrays
+		leftType = sa.visitIndexExpression(left)
+		if leftType == nil {
+			// visitIndexExpression reports its own errors
+			sa.addError("Invalid left side in assignment: %s. line:%d column:%d", left.String(), left.Line(), left.Column())
+			return &TypeInfo{Name: "void"}
+		}
+
+	case *ast.TypeMember:
+		// visitTypeMember returns the member type
+		leftType = sa.visitTypeMember(left)
+		if leftType == nil {
+			// visitTypeMember reports its own errors
+			sa.addError("Invalid left side in assignment: %s. line:%d column:%d", left.String(), left.Line(), left.Column())
+			return &TypeInfo{Name: "void"}
+		}
+
+	default:
+		sa.addError("Invalid Left side in assignment: %s. line:%d column:%d", node.Variable.String(), node.Variable.Line(), node.Variable.Column())
+		return &TypeInfo{Name: "void"}
+	}
+
+	// Evaluate right-hand side and compare types
+	rightType := sa.visitExpression(node.Value)
+	if rightType == nil {
+		// visitExpression may have reported errors
+		sa.addError("Invalid Right side expression has no type. line:%d column:%d",
+			node.Value.Line(), node.Value.Column())
+		return &TypeInfo{Name: "void"}
+	}
+
+	if !sa.areTypesCompatible(leftType, rightType) {
+		sa.addError("Type mismatch in assignment: expected %s, got %s. line:%d column:%d",
+			leftType.Name, rightType.Name, node.Token.Line, node.Token.Column)
+		return &TypeInfo{Name: "void"}
+	}
+	return leftType
+}
+
 func (sa *SemanticAnalyzer) visitFunctionStatement(node *ast.FunctionStatement) {
 	// Vérifier si la fonction est déjà déclarée
 	if sa.lookupSymbol(node.Name.Value) != nil {
@@ -1323,6 +1382,8 @@ func (sa *SemanticAnalyzer) visitExpression(expr ast.Expression) *TypeInfo {
 	// 	return &TypeInfo{Name: "integer"}
 	case *ast.BetweenExpression:
 		return sa.visitBetweenExpression(e)
+	case *ast.AssignmentStatement:
+		return sa.visitAssignmentStatement(e)
 	default:
 		return &TypeInfo{Name: "any"}
 	}

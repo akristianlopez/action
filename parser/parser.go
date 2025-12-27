@@ -308,13 +308,13 @@ func (p *Parser) parseLetStatements() (*ast.LetStatements, *ParserError) {
 		if p.peekTokenIs(token.COLON) {
 			p.nextToken() // :
 			p.nextToken() // type
-			if !p.peekTokenIs(token.ASSIGN) {
-				_, cur := p.l.GetCursorPosition()
-				flag = p.curToken.Type == token.IDENT // type defined by the user
-				stmt.Type = p.parseTypeAnnotation()
-				_, _cur := p.l.GetCursorPosition()
-				flag = flag && cur != _cur
-			}
+			// if !p.peekTokenIs(token.ASSIGN) {
+			_, cur := p.l.GetCursorPosition()
+			flag = p.curToken.Type == token.IDENT // type defined by the user
+			stmt.Type = p.parseTypeAnnotation()
+			_, _cur := p.l.GetCursorPosition()
+			flag = flag && cur != _cur
+			// }
 		}
 		if p.peekTokenIs(token.ASSIGN) {
 			p.nextToken() // =
@@ -601,12 +601,17 @@ func (p *Parser) parseIfStatement() (*ast.IfStatement, *ParserError) {
 		return nil, nil
 	}
 
+	fl := false
 	// Then
 	if !p.peekTokenIs(token.RBRACE) {
 		var tp *ast.BlockStatement
 		tp, pe = p.parseBlockStatement()
 		p.addError(pe)
 		stmt.Then = tp
+		fl = true
+	}
+	if !fl && p.peekTokenIs(token.RBRACE) {
+		p.nextToken()
 	}
 
 	stmt.Else = nil

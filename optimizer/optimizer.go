@@ -1235,12 +1235,15 @@ func (fi *FunctionInlining) Apply(program *ast.Program) *ast.Program {
 	}
 
 	// Garder seulement les fonctions non inlineables
+	arr := make([]ast.Statement, 0)
 	for _, fn := range functions {
 		if !shouldInline(fn) {
-			optimized.Statements = append(optimized.Statements, fn)
+			arr = append(arr, fn)
 		}
 	}
-
+	if len(arr) > 0 {
+		optimized.Statements = append(arr, optimized.Statements...)
+	}
 	return optimized
 }
 

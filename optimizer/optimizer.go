@@ -1595,7 +1595,7 @@ func inlineFunctionsInStatement(stmt ast.Statement, functions map[string]*ast.Fu
 		target := inlineFunctionsInExpression(s.Variable, functions)
 		value := inlineFunctionsInExpression(s.Value, functions)
 		if s.Variable != target || value != s.Value {
-			return &ast.AssignmentStatement{Token: s.Token, Variable: &target, Value: &value}
+			return &ast.AssignmentStatement{Token: s.Token, Variable: target, Value: value}
 		}
 		return s
 	case *ast.ReturnStatement:
@@ -1784,6 +1784,7 @@ func inlineFunctionsInExpression(expr ast.Expression, functions map[string]*ast.
 		return e
 	case *ast.ArrayFunctionCall:
 		// recurse into function expression first
+
 		fnExpr := inlineFunctionsInExpression(e.Function, functions)
 		argsChanged := false
 		newArgs := make([]ast.Expression, 0, len(e.Arguments))

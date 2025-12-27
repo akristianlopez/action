@@ -32,6 +32,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalIdentifier(node, env)
 	case *ast.LetStatement:
 		return evalLetStatement(node, env)
+	case *ast.LetStatements:
+		return evalLetStatements(node, env)
 	case *ast.FunctionStatement:
 		return evalFunctionStatement(node, env)
 	case *ast.StructStatement:
@@ -79,6 +81,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			return val
 		}
 		return &object.ReturnValue{Value: val}
+	case *ast.SQLWithStatement:
+		return evalSQLWithStatement(node, env)
 	case *ast.SQLSelectStatement:
 		return evalSQLSelectStatement(node, env)
 	case *ast.ArrayLiteral:
@@ -99,6 +103,24 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalDurationLiteral(node, env)
 	case *ast.FallthroughStatement:
 		return evalFallthroughStatement(node, env)
+	case *ast.SQLCreateObjectStatement:
+		return evalSQLCreateObject(node, env)
+	case *ast.SQLDropObjectStatement:
+		return evalSQLDropObject(node, env)
+	case *ast.SQLAlterObjectStatement:
+		return evalSQLAlterObject(node, env)
+	case *ast.SQLInsertStatement:
+		return evalSQLInsert(node, env)
+	case *ast.SQLUpdateStatement:
+		return evalSQLUpdate(node, env)
+	case *ast.SQLDeleteStatement:
+		return evalSQLDelete(node, env)
+	case *ast.SQLTruncateStatement:
+		return evalSQLTruncate(node, env)
+	case *ast.SQLCreateIndexStatement:
+		return evalSQLCreateIndex(node, env)
+	default:
+		return newError("Instruction non supportée: %T", node)
 	}
 
 	return nil
@@ -139,6 +161,29 @@ func evalLetStatement(let *ast.LetStatement, env *object.Environment) object.Obj
 	}
 
 	env.Set(let.Name.Value, value)
+	return value
+}
+
+func evalLetStatements(let *ast.LetStatements, env *object.Environment) object.Object {
+	var value object.Object
+	for _, val := range *let {
+		if val.Value != nil {
+			value = Eval(val.Value, env)
+			if isError(value) {
+				return value
+			}
+		} else {
+			// Valeur par défaut selon le type
+			if val.Type != nil {
+				value = getDefaultValue(val.Type.Type)
+			} else {
+				value = object.NULL
+			}
+		}
+
+		env.Set(val.Name.Value, value)
+
+	}
 	return value
 }
 
@@ -471,10 +516,12 @@ func evalPrefixExpression(operator string, right object.Object) object.Object {
 
 func evalInfixExpression(operator string, left, right object.Object) object.Object {
 	switch {
-
 	case left.Type() == object.INTEGER_OBJ && right.Type() == object.INTEGER_OBJ:
 		return evalIntegerInfixExpression(operator, left, right)
-	case left.Type() == object.STRING_OBJ && right.Type() == object.STRING_OBJ:
+	case (left.Type() == object.FLOAT_OBJ || left.Type() == object.INTEGER_OBJ) && (right.Type() == object.INTEGER_OBJ ||
+		right.Type() == object.FLOAT_OBJ):
+		return evalFloatInfixExpression(operator, left, right)
+	case left.Type() == object.STRING_OBJ || right.Type() == object.STRING_OBJ:
 		return evalStringInfixExpression(operator, left, right)
 	case operator == "==":
 		return &object.Boolean{Value: left == right}
@@ -514,10 +561,56 @@ func evalIntegerInfixExpression(operator string, left, right object.Object) obje
 		return &object.Integer{Value: leftVal * rightVal}
 	case "/":
 		return &object.Integer{Value: leftVal / rightVal}
+	case "%":
+		return &object.Integer{Value: leftVal % rightVal}
 	case "<":
 		return &object.Boolean{Value: leftVal < rightVal}
+	case "<=":
+		return &object.Boolean{Value: leftVal <= rightVal}
 	case ">":
 		return &object.Boolean{Value: leftVal > rightVal}
+	case ">=":
+		return &object.Boolean{Value: leftVal >= rightVal}
+	case "==":
+		return &object.Boolean{Value: leftVal == rightVal}
+	case "!=":
+		return &object.Boolean{Value: leftVal != rightVal}
+	default:
+		return newError("Opérateur inconnu: %s %s %s", left.Type(), operator, right.Type())
+	}
+}
+
+func evalFloatInfixExpression(operator string, left, right object.Object) object.Object {
+	var rightVal, leftVal float64
+	_, ok := left.(*object.Float)
+	if ok {
+		leftVal = left.(*object.Float).Value
+	} else {
+		leftVal = float64(left.(*object.Integer).Value)
+	}
+	_, ok = right.(*object.Float)
+	if ok {
+		rightVal = right.(*object.Float).Value
+	} else {
+		rightVal = float64(right.(*object.Integer).Value)
+	}
+	switch operator {
+	case "+":
+		return &object.Float{Value: leftVal + rightVal}
+	case "-":
+		return &object.Float{Value: leftVal - rightVal}
+	case "*":
+		return &object.Float{Value: leftVal * rightVal}
+	case "/":
+		return &object.Float{Value: leftVal / rightVal}
+	case "<":
+		return &object.Boolean{Value: leftVal < rightVal}
+	case "<=":
+		return &object.Boolean{Value: leftVal <= rightVal}
+	case ">":
+		return &object.Boolean{Value: leftVal > rightVal}
+	case ">=":
+		return &object.Boolean{Value: leftVal >= rightVal}
 	case "==":
 		return &object.Boolean{Value: leftVal == rightVal}
 	case "!=":
@@ -534,6 +627,8 @@ func evalStringInfixExpression(operator string, left, right object.Object) objec
 
 	leftVal := left.(*object.String).Value
 	rightVal := right.(*object.String).Value
+	// leftVal := left.Inspect()
+	// rightVal := right.Inspect()
 	return &object.String{Value: leftVal + rightVal}
 }
 
@@ -595,29 +690,6 @@ func isError(obj object.Object) bool {
 		return obj.Type() == object.ERROR_OBJ
 	}
 	return false
-}
-
-func evalSQLStatement(stmt ast.Statement, env *object.Environment) object.Object {
-	switch stmt := stmt.(type) {
-	case *ast.SQLCreateObjectStatement:
-		return evalSQLCreateObject(stmt, env)
-	case *ast.SQLDropObjectStatement:
-		return evalSQLDropObject(stmt, env)
-	case *ast.SQLAlterObjectStatement:
-		return evalSQLAlterObject(stmt, env)
-	case *ast.SQLInsertStatement:
-		return evalSQLInsert(stmt, env)
-	case *ast.SQLUpdateStatement:
-		return evalSQLUpdate(stmt, env)
-	case *ast.SQLDeleteStatement:
-		return evalSQLDelete(stmt, env)
-	case *ast.SQLTruncateStatement:
-		return evalSQLTruncate(stmt, env)
-	case *ast.SQLCreateIndexStatement:
-		return evalSQLCreateIndex(stmt, env)
-	default:
-		return newError("Instruction SQL non supportée: %T", stmt)
-	}
 }
 
 func evalSQLCreateObject(stmt *ast.SQLCreateObjectStatement, env *object.Environment) object.Object {
@@ -1528,7 +1600,20 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 			}
 			ob.Env.Set(field.Name.Value, val)
 		}
-		return Eval(ob.Body, ob.Env)
+		val := Eval(ob.Body, ob.Env)
+		if val == nil {
+			return nil
+		}
+		return val.(*object.ReturnValue).Value
+	}
+	switch node.Function.Value {
+	case "tostring":
+		//TODO: A definir
+		val := Eval(node.Array, env)
+		if isError(val) {
+			return val
+		}
+		return &object.String{Value: val.Inspect()}
 	}
 	array := Eval(node.Array, env)
 	if isError(array) {
@@ -1536,18 +1621,20 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 	}
 
 	if array.Type() != object.ARRAY_OBJ {
+		switch node.Function.Value {
+		case "len", "length":
+			return &object.Integer{Value: int64(len(array.Inspect()))}
+		}
 		return newError("La fonction %s attend un tableau en argument", node.Function.Value)
 	}
 
 	arr := array.(*object.Array)
 
 	switch node.Function.Value {
-	case "tostring":
-		//TODO: A definir
-		return &object.String{Value: ""}
 	case "length":
 		return &object.Integer{Value: int64(len(arr.Elements))}
-
+	case "len":
+		return &object.Integer{Value: int64(len(arr.Elements))}
 	case "append":
 		if len(node.Arguments) != 1 {
 			return newError("La fonction append attend exactement 1 argument")

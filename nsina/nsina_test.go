@@ -24,27 +24,66 @@ func build_args() []testCase {
 	res = append(res, testCase{
 		name: "Test 1.1 : Let statement ",
 		src: `action "Statement 1.1"
-			  function main():integer{
-			  	return 42;
-			  }
-			 start
-			 let x = 10;
-			 let y = 20;
-			 let z = x + y;
-			 let srt:string = "Hello, World!";
-			 let pattern:string = "Hello*";
-				if srt not like pattern {
-					z = z + 1;
-				} 
-				y=y+z
-				if y between 10 and 200{
-					y=x+main()
+			function calculer(a: integer, b: integer): integer {
+				let x = 10 + 20; (* Constant folding: 30 *)
+				let y = a * 2;
+				return x + y;
+			}
+			function estPair(n: integer): boolean {
+				return n % 2 == 0;
+			}
+			function sommeCarres(limite: integer): integer {
+				let total = 0;
+				(* Loop avec invariant *)
+				for let i = 0; i < limite; i = i + 1 {
+					let carre = i * i; (* Peut être optimisé *)
+					total = total + carre;
 				}
-				return y;
-			 stop
+				return total;
+			}
+			start
+				(* Expressions constantes *)
+				let a = 5 * 10 + 2; (* Devrait être foldé en 52 *)
+				let b = calculer(3, 4);
+				(* Code mort potentiel *)
+				let c = 10;
+				let d = 20; (* Non utilisé *)
+				(* Boucle optimisable *)
+				for let i = 0; i < 1000; i = i + 1 {
+					let resultat = estPair(i);
+					if (resultat) {
+						c=c+i
+					}
+				}
+				return c
+			stop
 			 `,
 		status: 0,
 	})
+	// res = append(res, testCase{
+	// 	name: "Test 1.2 : Let statement ",
+	// 	src: `action "Statement 1.1"
+	// 			function main():integer{
+	// 				return 42
+	// 			}
+	// 			function sum(a:integer, b:integer):integer{
+	// 				let res:integer =a+b
+	// 				return res
+	// 			}
+	// 		start
+	// 			let c=sum(10,20) (* c = 30 *)
+	// 			let result:integer
+	// 			result=c+main() (* result = 72 *)
+	// 			if result>=0{
+	// 				let d:integer
+	// 				d=sum(c,50) (* d = 80 *)
+	// 				result=d (* result = 80*)
+	// 			}
+	// 			return result
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
 	return res
 }
 
@@ -60,7 +99,7 @@ func TestAnalyze(t *testing.T) {
 			if p.Errors() != nil && len(p.Errors()) != 0 {
 				fmt.Println("Erreurs de parsing:")
 				for _, msg := range p.Errors() {
-					fmt.Printf("\t%s\n", msg.Message())
+					fmt.Printf("\t%s\tline:%d, column:%d\n", msg.Message(), msg.Line(), msg.Column())
 				}
 				os.Exit(1)
 			}
@@ -106,7 +145,7 @@ func TestAnalyze(t *testing.T) {
 			fmt.Printf("✓ Optimisations appliquées:\n")
 			fmt.Printf("  - Constant folding: %d\n", opt.Stats.ConstantFolds)
 			fmt.Printf("  - Dead code removal: %d\n", opt.Stats.DeadCodeRemovals)
-			// fmt.Printf("  - Function inlining: %d\n", opt.Stats.InlineExpansions)
+			fmt.Printf("  - Function inlining: %d\n", opt.Stats.InlineExpansions)
 			fmt.Printf("  - Loop optimizations: %d\n", opt.Stats.LoopOptimizations)
 			fmt.Printf("---> Remining statements size: %d\n", len(optimizedProgram.Statements))
 

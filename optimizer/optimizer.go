@@ -1240,7 +1240,7 @@ func (fi *FunctionInlining) Apply(program *ast.Program) *ast.Program {
 func shouldInline(fn *ast.FunctionStatement) bool {
 	// Inline les petites fonctions
 	bodySize := estimateFunctionSize(fn)
-	return bodySize <= 5 // Seuil arbitraire
+	return bodySize == 1 // Seuil arbitraire
 }
 
 func estimateFunctionSize(fn *ast.FunctionStatement) int {
@@ -1254,7 +1254,7 @@ func estimateFunctionSize(fn *ast.FunctionStatement) int {
 func estimateStatementSize(stmt ast.Statement) int {
 	switch stmt.(type) {
 	case *ast.ExpressionStatement:
-		return 1
+		return 3
 	case *ast.LetStatement:
 		return 2
 	case *ast.ReturnStatement:
@@ -1269,7 +1269,7 @@ func estimateStatementSize(stmt ast.Statement) int {
 		*ast.SQLWithStatement:
 		return 10
 	default:
-		return 1
+		return 3
 	}
 }
 
@@ -1591,6 +1591,13 @@ func inlineFunctionsInStatement(stmt ast.Statement, functions map[string]*ast.Fu
 			}
 		}
 		return s
+	case *ast.AssignmentStatement:
+		target := inlineFunctionsInExpression(s.Variable, functions)
+		value := inlineFunctionsInExpression(s.Value, functions)
+		if s.Variable != target || value != s.Value {
+			return &ast.AssignmentStatement{Token: s.Token, Variable: &target, Value: &value}
+		}
+		return s
 	case *ast.ReturnStatement:
 		if s.ReturnValue != nil {
 			newVal := inlineFunctionsInExpression(s.ReturnValue, functions)
@@ -1766,6 +1773,13 @@ func inlineFunctionsInExpression(expr ast.Expression, functions map[string]*ast.
 		r := inlineFunctionsInExpression(e.Right, functions)
 		if l != e.Left || r != e.Right {
 			return &ast.LikeExpression{Token: e.Token, Left: l, Right: r, Not: e.Not}
+		}
+		return e
+	case *ast.AssignmentStatement:
+		target := inlineFunctionsInExpression(e.Variable, functions)
+		value := inlineFunctionsInExpression(e.Value, functions)
+		if e.Variable != target || value != e.Value {
+			return &ast.AssignmentStatement{Token: e.Token, Variable: target, Value: value}
 		}
 		return e
 	case *ast.ArrayFunctionCall:

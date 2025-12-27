@@ -1259,7 +1259,7 @@ func (fi *FunctionInlining) Apply(program *ast.Program) *ast.Program {
 	// Garder seulement les fonctions non inlineables
 	arr := make([]ast.Statement, 0)
 	for _, fn := range functions {
-		if !shouldInline(fn) {
+		if !shouldInline(fn) || len(fn.Parameters) > 0 {
 			arr = append(arr, fn)
 		}
 	}

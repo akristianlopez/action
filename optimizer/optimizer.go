@@ -49,6 +49,7 @@ func NewOptimizer() *Optimizer {
 var Warnings func(format string, args ...interface{})
 var IncrementFolding func()
 var IncrementLoopOptimization func()
+var IncrementInlineExpansion func()
 
 func (o *Optimizer) IncrementConstantFolding() {
 	o.Stats.ConstantFolds++
@@ -57,11 +58,17 @@ func (o *Optimizer) IncrementConstantFolding() {
 func (o *Optimizer) IncrementLoopOptimization() {
 	o.Stats.LoopOptimizations++
 }
+
+func (o *Optimizer) IncrementInlineExpansion() {
+	o.Stats.InlineExpansions++
+}
+
 func (o *Optimizer) Optimize(program *ast.Program) *ast.Program {
 	optimized := program
 	Warnings = o.addWarning
 	IncrementFolding = o.IncrementConstantFolding
 	IncrementLoopOptimization = o.IncrementLoopOptimization
+	IncrementInlineExpansion = o.IncrementInlineExpansion
 
 	// Appliquer les optimisations en plusieurs passes
 	for i := 0; i < 10; i++ { // Maximum 10 passes
@@ -83,7 +90,7 @@ func (o *Optimizer) Optimize(program *ast.Program) *ast.Program {
 						o.Stats.DeadCodeRemovals += oSize - len(optimized.Statements)
 					}
 				case *FunctionInlining:
-					o.Stats.InlineExpansions++
+					// o.Stats.InlineExpansions++
 				case *LoopOptimization:
 					// 	o.Stats.LoopOptimizations++
 				}
@@ -1807,6 +1814,7 @@ func inlineFunctionsInExpression(expr ast.Expression, functions map[string]*ast.
 				if paramCount == 0 && fn.Body != nil && len(fn.Body.Statements) == 1 {
 					if ret, ok := fn.Body.Statements[0].(*ast.ReturnStatement); ok && ret.ReturnValue != nil {
 						// inline by returning a copy of the return expression (and recursively inline inside it)
+						IncrementInlineExpansion()
 						inlined := inlineFunctionsInExpression(ret.ReturnValue, functions)
 						return inlined
 					}
@@ -1815,6 +1823,7 @@ func inlineFunctionsInExpression(expr ast.Expression, functions map[string]*ast.
 		}
 		// otherwise rebuild node if any child changed
 		if fnExpr != e.Function || argsChanged || (e.Array != nil && inlineFunctionsInExpression(e.Array, functions) != e.Array) {
+			IncrementInlineExpansion()
 			return &ast.ArrayFunctionCall{
 				Token:     e.Token,
 				Function:  fnExpr.(*ast.Identifier),

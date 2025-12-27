@@ -650,6 +650,20 @@ func isDeadCode(stmt ast.Statement, actions *ast.Program) bool {
 	case *ast.BlockStatement:
 		// Si tous les statements dans le bloc sont morts, le bloc est mort
 		for _, st := range s.Statements {
+			switch s := st.(type) {
+			case *ast.LetStatements:
+				result := false
+				for _, ls := range *s {
+					if !isDeadCode(&ls, actions) {
+						result = true && result
+						continue
+					}
+					result = false
+				}
+				if result {
+					return result
+				}
+			}
 			if !isDeadCode(st, actions) {
 				return false
 			}
@@ -827,6 +841,14 @@ func isFunctionUsedInStatement(stmt ast.Statement, name string) bool {
 		}
 	case *ast.BlockStatement:
 		for _, st := range s.Statements {
+			switch ss := st.(type) {
+			case *ast.LetStatements:
+				for _, ee := range *ss {
+					if isFunctionUsedInStatement(&ee, name) {
+						return true
+					}
+				}
+			}
 			if isFunctionUsedInStatement(st, name) {
 				return true
 			}

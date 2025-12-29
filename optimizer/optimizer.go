@@ -123,14 +123,15 @@ func (cf *ConstantFolding) Apply(program *ast.Program) *ast.Program {
 	}
 
 	for _, stmt := range program.Statements {
-		switch s := stmt.(type) {
-		case *ast.LetStatements:
-			for _, v := range *s {
-				optimized.Statements = append(optimized.Statements, foldConstantsInStatement(&v))
-			}
-		default:
-			optimized.Statements = append(optimized.Statements, foldConstantsInStatement(stmt))
-		}
+		// switch s := stmt.(type) {
+		// case *ast.LetStatements:
+		// 	for _, v := range *s {
+		// 		optimized.Statements = append(optimized.Statements, foldConstantsInStatement(&v))
+		// 	}
+		// default:
+		// 	optimized.Statements = append(optimized.Statements, foldConstantsInStatement(stmt))
+		// }
+		optimized.Statements = append(optimized.Statements, foldConstantsInStatement(stmt))
 	}
 	return optimized
 }
@@ -410,20 +411,20 @@ func (dce *DeadCodeElimination) Apply(program *ast.Program) *ast.Program {
 	}
 	for _, stmt := range program.Statements {
 		switch s := stmt.(type) {
-		case *ast.LetStatements:
-			var usedLets []ast.Statement
-			for _, v := range *s {
-				if !isDeadCode(&v, program) {
-					usedLets = append(usedLets, &v)
-					continue
-				}
-				Warnings("Dead code eliminated: variable '%s' is not used. Line:%d, column:%d", v.Name.Value,
-					v.Token.Line, v.Token.Column)
-			}
-			if len(usedLets) > 0 {
-				optimized.Statements = append(optimized.Statements, usedLets...)
-			}
-			continue
+		// case *ast.LetStatements:
+		// 	var usedLets []ast.Statement
+		// 	for _, v := range *s {
+		// 		if !isDeadCode(&v, program) {
+		// 			usedLets = append(usedLets, &v)
+		// 			continue
+		// 		}
+		// 		Warnings("Dead code eliminated: variable '%s' is not used. Line:%d, column:%d", v.Name.Value,
+		// 			v.Token.Line, v.Token.Column)
+		// 	}
+		// 	if len(usedLets) > 0 {
+		// 		optimized.Statements = append(optimized.Statements, usedLets...)
+		// 	}
+		// 	continue
 		case *ast.LetStatement:
 			if !isDeadCode(s, program) {
 				optimized.Statements = append(optimized.Statements, s)
@@ -649,26 +650,14 @@ func isDeadCode(stmt ast.Statement, actions *ast.Program) bool {
 		return allDead
 	case *ast.BlockStatement:
 		// Si tous les statements dans le bloc sont morts, le bloc est mort
-		for _, st := range s.Statements {
-			switch s := st.(type) {
-			case *ast.LetStatements:
-				result := false
-				for _, ls := range *s {
-					if !isDeadCode(&ls, actions) {
-						result = true && result
-						continue
-					}
-					result = false
-				}
-				if result {
-					return result
-				}
-			}
-			if !isDeadCode(st, actions) {
-				return false
-			}
+		allDead := true
+		if len(s.Statements) == 0 {
+			return allDead
 		}
-		return true
+		for _, st := range s.Statements {
+			allDead = allDead && isDeadCode(st, actions)
+		}
+		return allDead
 	case *ast.ReturnStatement:
 		// Un return est mort s'il n'y a pas de valeur de retour ou si la valeur est pure
 		if s.ReturnValue == nil {
@@ -833,22 +822,22 @@ func isFunctionUsedInStatement(stmt ast.Statement, name string) bool {
 		if s.Value != nil {
 			return isVariableUsedInExpression(s.Value, name)
 		}
-	case *ast.LetStatements:
-		for _, v := range *s {
-			if v.Value != nil && isVariableUsedInExpression(v.Value, name) {
-				return true
-			}
-		}
+	// case *ast.LetStatements:
+	// 	for _, v := range *s {
+	// 		if v.Value != nil && isVariableUsedInExpression(v.Value, name) {
+	// 			return true
+	// 		}
+	// 	}
 	case *ast.BlockStatement:
 		for _, st := range s.Statements {
-			switch ss := st.(type) {
-			case *ast.LetStatements:
-				for _, ee := range *ss {
-					if isFunctionUsedInStatement(&ee, name) {
-						return true
-					}
-				}
-			}
+			// switch ss := st.(type) {
+			// case *ast.LetStatements:
+			// 	for _, ee := range *ss {
+			// 		if isFunctionUsedInStatement(&ee, name) {
+			// 			return true
+			// 		}
+			// 	}
+			// }
 			if isFunctionUsedInStatement(st, name) {
 				return true
 			}
@@ -981,18 +970,23 @@ func optimizeForLoop(stmt *ast.ForStatement) ast.Statement {
 	// Collect declared variable names inside the loop body (lower-cased).
 	declared := map[string]struct{}{}
 	for _, st := range stmt.Body.Statements {
-		switch s := st.(type) {
-		case *ast.LetStatement:
-			if s.Name != nil {
-				declared[strings.ToLower(s.Name.Value)] = struct{}{}
-			}
-		case *ast.LetStatements:
-			for _, v := range *s {
-				if v.Name != nil {
-					declared[strings.ToLower(v.Name.Value)] = struct{}{}
-				}
+		if v, ok := st.(*ast.LetStatement); ok {
+			if v.Name != nil {
+				declared[strings.ToLower(v.Name.Value)] = struct{}{}
 			}
 		}
+		// switch s := st.(type) {
+		// case *ast.LetStatement:
+		// 	if s.Name != nil {
+		// 		declared[strings.ToLower(s.Name.Value)] = struct{}{}
+		// 	}
+		// case *ast.LetStatements:
+		// 	for _, v := range *s {
+		// 		if v.Name != nil {
+		// 			declared[strings.ToLower(v.Name.Value)] = struct{}{}
+		// 		}
+		// 	}
+		// }
 	}
 
 	var moved []ast.Statement
@@ -1058,18 +1052,23 @@ func optimizeWhileLoop(stmt *ast.WhileStatement) ast.Statement {
 	// Collect declared variable names inside the loop body (lower-cased).
 	declared := map[string]struct{}{}
 	for _, st := range stmt.Body.Statements {
-		switch s := st.(type) {
-		case *ast.LetStatement:
+		if s, ok := st.(*ast.LetStatement); s != nil && ok {
 			if s.Name != nil {
 				declared[strings.ToLower(s.Name.Value)] = struct{}{}
 			}
-		case *ast.LetStatements:
-			for _, v := range *s {
-				if v.Name != nil {
-					declared[strings.ToLower(v.Name.Value)] = struct{}{}
-				}
-			}
 		}
+		// switch s := st.(type) {
+		// case *ast.LetStatement:
+		// 	if s.Name != nil {
+		// 		declared[strings.ToLower(s.Name.Value)] = struct{}{}
+		// 	}
+		// case *ast.LetStatements:
+		// 	for _, v := range *s {
+		// 		if v.Name != nil {
+		// 			declared[strings.ToLower(v.Name.Value)] = struct{}{}
+		// 		}
+		// 	}
+		// }
 	}
 
 	var moved []ast.Statement
@@ -1133,18 +1132,23 @@ func optimizeForEachLoop(stmt *ast.ForEachStatement) ast.Statement {
 	// Collect declared variable names inside the loop body (lower-cased).
 	declared := map[string]struct{}{}
 	for _, st := range stmt.Body.Statements {
-		switch s := st.(type) {
-		case *ast.LetStatement:
+		if s, ok := st.(*ast.LetStatement); s != nil && ok {
 			if s.Name != nil {
 				declared[strings.ToLower(s.Name.Value)] = struct{}{}
 			}
-		case *ast.LetStatements:
-			for _, v := range *s {
-				if v.Name != nil {
-					declared[strings.ToLower(v.Name.Value)] = struct{}{}
-				}
-			}
 		}
+		// switch s := st.(type) {
+		// case *ast.LetStatement:
+		// 	if s.Name != nil {
+		// 		declared[strings.ToLower(s.Name.Value)] = struct{}{}
+		// 	}
+		// case *ast.LetStatements:
+		// 	for _, v := range *s {
+		// 		if v.Name != nil {
+		// 			declared[strings.ToLower(v.Name.Value)] = struct{}{}
+		// 		}
+		// 	}
+		// }
 	}
 
 	var moved []ast.Statement
@@ -1595,34 +1599,34 @@ func inlineFunctionsInStatement(stmt ast.Statement, functions map[string]*ast.Fu
 			}
 		}
 		return s
-	case *ast.LetStatements:
-		changed := false
-		out := make([]ast.Statement, 0, len(*s))
-		for _, v := range *s {
-			ls := v
-			if ls.Value != nil {
-				newVal := inlineFunctionsInExpression(ls.Value, functions)
-				if newVal != ls.Value {
-					ls = ast.LetStatement{
-						Token: ls.Token,
-						Name:  ls.Name,
-						Type:  ls.Type,
-						Value: newVal,
-					}
-					changed = true
-				}
-			}
-			out = append(out, &ls)
-		}
-		if changed {
-			// convert back to []*ast.LetStatement if that's the original shape;
-			// we use []ast.Statement which is acceptable to the optimizer pipeline
-			return &ast.BlockStatement{
-				Token:      (*s)[0].Token,
-				Statements: out,
-			}
-		}
-		return s
+	// case *ast.LetStatements:
+	// 	changed := false
+	// 	out := make([]ast.Statement, 0, len(*s))
+	// 	for _, v := range *s {
+	// 		ls := v
+	// 		if ls.Value != nil {
+	// 			newVal := inlineFunctionsInExpression(ls.Value, functions)
+	// 			if newVal != ls.Value {
+	// 				ls = ast.LetStatement{
+	// 					Token: ls.Token,
+	// 					Name:  ls.Name,
+	// 					Type:  ls.Type,
+	// 					Value: newVal,
+	// 				}
+	// 				changed = true
+	// 			}
+	// 		}
+	// 		out = append(out, &ls)
+	// 	}
+	// 	if changed {
+	// 		// convert back to []*ast.LetStatement if that's the original shape;
+	// 		// we use []ast.Statement which is acceptable to the optimizer pipeline
+	// 		return &ast.BlockStatement{
+	// 			Token:      (*s)[0].Token,
+	// 			Statements: out,
+	// 		}
+	// 	}
+	// 	return s
 	case *ast.AssignmentStatement:
 		target := inlineFunctionsInExpression(s.Variable, functions)
 		value := inlineFunctionsInExpression(s.Value, functions)

@@ -2601,6 +2601,9 @@ func (p *Parser) parseArrayLiteral() ast.Expression {
 
 	for p.peekTokenIs(token.COMMA) {
 		p.nextToken()
+		if p.peekTokenIs(token.RBRACKET) {
+			break
+		}
 		p.nextToken()
 		if p.curTokenIs(token.LBRACE) {
 			array.Elements = append(array.Elements, p.parseStructLiteral())

@@ -558,8 +558,15 @@ func isVariableUsedInExpression(expr ast.Expression, name string) bool {
 	switch e := expr.(type) {
 	case *ast.Identifier:
 		return strings.EqualFold(e.Value, name)
+	case *ast.TypeMember:
+		if t, o := e.Left.(*ast.Identifier); o && t != nil {
+			return strings.EqualFold(t.Value, name)
+		}
+		return false
 	case *ast.InfixExpression:
 		return isVariableUsedInExpression(e.Left, name) || isVariableUsedInExpression(e.Right, name)
+	case *ast.IndexExpression:
+		return isVariableUsedInExpression(e.Left, name) || isVariableUsedInExpression(e.Index, name)
 	case *ast.PrefixExpression:
 		return isVariableUsedInExpression(e.Right, name)
 	case *ast.BetweenExpression:
@@ -704,50 +711,49 @@ func isDefinedStructDead(s *ast.StructStatement, actions *ast.Program) bool {
 // NOTE: this implementation requires importing "reflect".
 // importedReflectPlaceholder struct{} // placeholder to hint that reflect is used; remove if you add the import
 
-func isStructNameUsedAsType(node interface{}, name string) bool {
+func isStructNameUsedAsType(node ast.Statement, name string) bool {
 	if node == nil {
 		return false
 	}
-	return scanForTypeLikeField(reflect.ValueOf(node), name)
-}
-
-func scanForTypeLikeField(v reflect.Value, name string) bool {
-	if !v.IsValid() {
-		return false
-	}
-	// Dereference pointers
-	for v.Kind() == reflect.Ptr {
-		if v.IsNil() {
+	switch st := node.(type) {
+	case *ast.LetStatement:
+		return scanForTypeLikeField(st, name)
+	case *ast.BlockStatement:
+		if len(st.Statements) == 0 {
 			return false
 		}
-		v = v.Elem()
-	}
-
-	switch v.Kind() {
-	case reflect.Struct:
-		t := v.Type()
-		for i := 0; i < t.NumField(); i++ {
-			fieldVal := v.Field(i)
-			fieldName := t.Field(i).Name
-			lname := strings.ToLower(fieldName)
-
-			// Si le nom du champ suggère qu'il s'agit d'un emplacement de type, rechercher l'identifiant dedans.
-			if strings.Contains(lname, "type") || strings.Contains(lname, "return") ||
-				strings.Contains(lname, "param") || strings.Contains(lname, "field") ||
-				strings.Contains(lname, "fields") || strings.Contains(lname, "typ") {
-				if containsIdentifierWithName(fieldVal, name) {
-					return true
-				}
-			}
-
-			// Toujours descendre récursivement, au cas où la structure de types serait imbriquée.
-			if scanForTypeLikeField(fieldVal, name) {
+		for _, v := range st.Statements {
+			if isStructNameUsedAsType(v, name) {
 				return true
 			}
 		}
-	case reflect.Slice, reflect.Array:
-		for i := 0; i < v.Len(); i++ {
-			if scanForTypeLikeField(v.Index(i), name) {
+		return false
+	case *ast.IfStatement:
+		return isStructNameUsedAsType(st.Then, name) || isStructNameUsedAsType(st.Else, name)
+	case *ast.ForEachStatement:
+		return isStructNameUsedAsType(st.Body, name)
+	case *ast.ForStatement:
+		return isStructNameUsedAsType(st.Init, name) || isStructNameUsedAsType(st.Body, name) ||
+			isStructNameUsedAsType(st.Update, name)
+	case *ast.WhileStatement:
+		return isStructNameUsedAsType(st.Body, name)
+	case *ast.FunctionStatement:
+		for _, arg := range st.Parameters {
+			if scanForTypeLikeField(arg, name) {
+				return true
+			}
+		}
+		return isStructNameUsedAsType(st.Body, name)
+	case *ast.SwitchStatement:
+		for _, stm := range st.Cases {
+			if isStructNameUsedAsType(stm.Body, name) {
+				return true
+			}
+		}
+		return isStructNameUsedAsType(st.DefaultCase, name)
+	case *ast.StructStatement:
+		for _, stm := range st.Fields {
+			if isTypeLike(stm.Type, name) {
 				return true
 			}
 		}
@@ -755,40 +761,28 @@ func scanForTypeLikeField(v reflect.Value, name string) bool {
 	return false
 }
 
-func containsIdentifierWithName(v reflect.Value, name string) bool {
-	if !v.IsValid() {
+func isTypeLike(let *ast.TypeAnnotation, name string) bool {
+	if let == nil {
 		return false
 	}
-	// Dereference pointers
-	for v.Kind() == reflect.Ptr {
-		if v.IsNil() {
-			return false
-		}
-		v = v.Elem()
+	if let.ArrayType == nil {
+		return strings.EqualFold(let.Type, name)
 	}
+	if let.ArrayType.ElementType != nil {
+		return strings.EqualFold(let.ArrayType.ElementType.Type, name)
+	}
+	return false
+}
 
-	identType := reflect.TypeOf((*ast.Identifier)(nil)).Elem()
-	if v.Type() == identType {
-		f := v.FieldByName("Value")
-		if f.IsValid() && f.Kind() == reflect.String {
-			return strings.EqualFold(f.String(), name)
-		}
+func scanForTypeLikeField(node ast.Node, name string) bool {
+	if node == nil {
 		return false
 	}
-
-	switch v.Kind() {
-	case reflect.Struct:
-		for i := 0; i < v.NumField(); i++ {
-			if containsIdentifierWithName(v.Field(i), name) {
-				return true
-			}
-		}
-	case reflect.Slice, reflect.Array:
-		for i := 0; i < v.Len(); i++ {
-			if containsIdentifierWithName(v.Index(i), name) {
-				return true
-			}
-		}
+	switch let := node.(type) {
+	case *ast.LetStatement:
+		return isTypeLike(let.Type, name)
+	case *ast.FunctionParameter:
+		return isTypeLike(let.Type, name)
 	}
 	return false
 }
@@ -814,6 +808,11 @@ func isFunctionUsedInStatement(stmt ast.Statement, name string) bool {
 	case *ast.AssignmentStatement:
 		return isVariableUsedInExpression(s.Variable, name) ||
 			isVariableUsedInExpression(s.Value, name)
+	case *ast.TypeMember:
+		if t, o := s.Left.(*ast.Identifier); o && t != nil {
+			return strings.EqualFold(t.Value, name)
+		}
+		return false
 	case *ast.ReturnStatement:
 		if s.ReturnValue != nil {
 			return isVariableUsedInExpression(s.ReturnValue, name)
@@ -822,22 +821,8 @@ func isFunctionUsedInStatement(stmt ast.Statement, name string) bool {
 		if s.Value != nil {
 			return isVariableUsedInExpression(s.Value, name)
 		}
-	// case *ast.LetStatements:
-	// 	for _, v := range *s {
-	// 		if v.Value != nil && isVariableUsedInExpression(v.Value, name) {
-	// 			return true
-	// 		}
-	// 	}
 	case *ast.BlockStatement:
 		for _, st := range s.Statements {
-			// switch ss := st.(type) {
-			// case *ast.LetStatements:
-			// 	for _, ee := range *ss {
-			// 		if isFunctionUsedInStatement(&ee, name) {
-			// 			return true
-			// 		}
-			// 	}
-			// }
 			if isFunctionUsedInStatement(st, name) {
 				return true
 			}
@@ -975,18 +960,6 @@ func optimizeForLoop(stmt *ast.ForStatement) ast.Statement {
 				declared[strings.ToLower(v.Name.Value)] = struct{}{}
 			}
 		}
-		// switch s := st.(type) {
-		// case *ast.LetStatement:
-		// 	if s.Name != nil {
-		// 		declared[strings.ToLower(s.Name.Value)] = struct{}{}
-		// 	}
-		// case *ast.LetStatements:
-		// 	for _, v := range *s {
-		// 		if v.Name != nil {
-		// 			declared[strings.ToLower(v.Name.Value)] = struct{}{}
-		// 		}
-		// 	}
-		// }
 	}
 
 	var moved []ast.Statement

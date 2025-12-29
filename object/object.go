@@ -149,16 +149,25 @@ func (e *Environment) Get(name string) (Object, bool) {
 	return obj, ok
 }
 
-func (e *Environment) Set(name string, val Object) Object {
+func (e *Environment) isExist(name string) (*Environment, bool) {
 	_, ok := e.store[strings.ToLower(name)]
 	if !ok && e.outer != nil {
-		return e.outer.Set(name, val)
+		return e.outer.isExist(name)
+	}
+	if ok {
+		return e, ok
+	}
+	return nil, false
+}
+
+func (e *Environment) Set(name string, val Object) Object {
+	n, ok := e.isExist(name)
+	if ok {
+		n.store[strings.ToLower(name)] = val
+		return val
 	}
 	e.store[strings.ToLower(name)] = val
 	return val
-
-	// e.store[strings.ToLower(name)] = val
-	// return val
 }
 
 func (e *Environment) Clear() {

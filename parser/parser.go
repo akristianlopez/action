@@ -214,7 +214,13 @@ func (p *Parser) ParseProgram() *ast.Program {
 				p.errors = append(p.errors, *pe)
 			}
 			if stmt != nil {
-				program.Statements = append(program.Statements, stmt)
+				if arr, ok := stmt.(*ast.LetStatements); ok {
+					for _, val := range *arr {
+						program.Statements = append(program.Statements, &val)
+					}
+				} else {
+					program.Statements = append(program.Statements, stmt)
+				}
 			}
 			p.nextToken()
 		}

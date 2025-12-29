@@ -160,6 +160,7 @@ func (sa *SemanticAnalyzer) registerBuiltinTypes() {
 	sa.TypeTable["date"] = &TypeInfo{Name: "date"}
 	sa.TypeTable["any"] = &TypeInfo{Name: "any"} // Type générique
 	sa.TypeTable["duration"] = &TypeInfo{Name: "duration"}
+	sa.TypeTable["datetime"] = &TypeInfo{Name: "datetime"}
 
 	sa.TypeSql["integer"] = &TypeInfo{Name: "number"}
 	sa.TypeSql["smallint"] = &TypeInfo{Name: "smallint"}
@@ -202,8 +203,8 @@ func (sa *SemanticAnalyzer) visitStatement(stmt ast.Statement, t *TypeInfo) {
 	switch s := stmt.(type) {
 	case *ast.LetStatement:
 		sa.visitLetStatement(s)
-	case *ast.LetStatements:
-		sa.visitLetStatements(s)
+	// case *ast.LetStatements:
+	// 	sa.visitLetStatements(s)
 	case *ast.FunctionStatement:
 		sa.visitFunctionStatement(s)
 	case *ast.StructStatement:
@@ -1982,6 +1983,12 @@ func (sa *SemanticAnalyzer) areTypesCompatible(t1, t2 *TypeInfo) bool {
 		return true
 	}
 	if t1.Name == "float" && t2.Name == "integer" {
+		return true
+	}
+	if t1.Name == "date" && t2.Name == "datetime" {
+		return true
+	}
+	if t1.Name == "datetime" && t2.Name == "date" {
 		return true
 	}
 	if t1.IsArray && t2.IsArray {

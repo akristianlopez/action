@@ -968,35 +968,35 @@ func (sa *SemanticAnalyzer) visitSQLWithStatement(sw *ast.SQLWithStatement, ctes
 	return sa.visitSQLSelectStatement(sw.Select)
 }
 
-func (sa *SemanticAnalyzer) visitLetStatements(nodes *ast.LetStatements) {
-	// Vérifier si la variable est déjà déclarée
-	var varType *TypeInfo
-	for _, node := range *nodes {
-		varType = nil
-		if sa.lookupSymbol(node.Name.Value) != nil {
-			sa.addError("Variable '%s' already declared. line:%d column:%d",
-				node.Name.Value, node.Name.Token.Line, node.Name.Token.Column)
-			return
-		}
-		if node.Type != nil {
-			varType = sa.resolveTypeAnnotation(node.Type)
-		}
-		// Si une valeur est fournie, vérifier la compatibilité des types
-		if node.Value != nil {
-			valueType := sa.visitExpression(node.Value)
-			if varType != nil && !sa.areTypesCompatible(varType, valueType) {
-				sa.addError("Type mismatch for the variable '%s': expected %s, got %s. line:%d column:%d",
-					node.Name.Value, varType.String(), valueType.String(), node.Token.Line, node.Token.Column)
-			}
-			// Si le type n'est pas spécifié, l'inférer
-			if varType == nil {
-				varType = valueType
-			}
-		}
-		// Enregistrer la variable
-		sa.registerSymbol(node.Name.Value, VariableSymbol, varType, &node)
-	}
-}
+// func (sa *SemanticAnalyzer) visitLetStatements(nodes *ast.LetStatements) {
+// 	// Vérifier si la variable est déjà déclarée
+// 	var varType *TypeInfo
+// 	for _, node := range *nodes {
+// 		varType = nil
+// 		if sa.lookupSymbol(node.Name.Value) != nil {
+// 			sa.addError("Variable '%s' already declared. line:%d column:%d",
+// 				node.Name.Value, node.Name.Token.Line, node.Name.Token.Column)
+// 			return
+// 		}
+// 		if node.Type != nil {
+// 			varType = sa.resolveTypeAnnotation(node.Type)
+// 		}
+// 		// Si une valeur est fournie, vérifier la compatibilité des types
+// 		if node.Value != nil {
+// 			valueType := sa.visitExpression(node.Value)
+// 			if varType != nil && !sa.areTypesCompatible(varType, valueType) {
+// 				sa.addError("Type mismatch for the variable '%s': expected %s, got %s. line:%d column:%d",
+// 					node.Name.Value, varType.String(), valueType.String(), node.Token.Line, node.Token.Column)
+// 			}
+// 			// Si le type n'est pas spécifié, l'inférer
+// 			if varType == nil {
+// 				varType = valueType
+// 			}
+// 		}
+// 		// Enregistrer la variable
+// 		sa.registerSymbol(node.Name.Value, VariableSymbol, varType, &node)
+// 	}
+// }
 
 func (sa *SemanticAnalyzer) visitLetStatement(node *ast.LetStatement) {
 	// Vérifier si la variable est déjà déclarée

@@ -214,7 +214,7 @@ func (p *Parser) ParseProgram() *ast.Program {
 				p.errors = append(p.errors, *pe)
 			}
 			if stmt != nil {
-				if arr, ok := stmt.(*ast.LetStatements); ok {
+				if arr, ok := stmt.(*ast.LetStatements); ok && arr != nil {
 					for _, val := range *arr {
 						program.Statements = append(program.Statements, &val)
 					}

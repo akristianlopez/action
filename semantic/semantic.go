@@ -148,6 +148,17 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.registerSymbol("var", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "var"}, -1, 0)
 	sa.CurrentScope = oldScope
 	sa.registerSymbol("typeOf", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "typeOf"}, 4)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("val", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "val"}, -1, 0)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("length", FunctionSymbol, &TypeInfo{Name: "integer"}, &ast.Identifier{Value: "val"}, 5)
+
 }
 
 func (sa *SemanticAnalyzer) registerBuiltinTypes() {

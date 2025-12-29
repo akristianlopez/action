@@ -2,6 +2,7 @@ package object
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -37,19 +38,129 @@ type Object interface {
 	Inspect() string
 }
 
+type Constraints struct {
+	MaxDigits     int
+	DecimalPlaces int
+	MaxLength     int
+}
 type Integer struct {
 	Value int64
+	limit *map[string]Object
 }
 
+func (i *Integer) Set(name string, value Object) bool {
+	if i.limit == nil {
+		o := make(map[string]Object)
+		i.limit = &o
+	}
+	if value.Type() != INTEGER_OBJ {
+		return false
+	}
+	(*i.limit)[strings.ToLower(name)] = value
+	return true
+}
+func (i *Integer) IsValid() (bool, string) {
+	result := true
+	if i.limit == nil {
+		return result, ""
+	}
+	m, o := (*i.limit)[strings.ToLower("min")]
+	if o {
+		val := m.(*Integer).Value
+		result = result && val <= i.Value
+		if !result {
+			return false, "Value '" + i.Inspect() + "' is lower than '" + strconv.FormatInt(val, 10) + "'"
+		}
+	}
+	m, o = (*i.limit)[strings.ToLower("max")]
+	if o {
+		val := m.(*Integer).Value
+		result = result && val >= i.Value
+		if !result {
+			return false, "Value '" + i.Inspect() + "' is greater than '" + strconv.FormatInt(val, 10) + "'"
+		}
+	}
+	m, o = (*i.limit)[strings.ToLower("MaxLength")]
+	if o {
+		val := m.(*Integer).Value
+		result = result && int64(len(i.Inspect())) <= val
+		if !result {
+			return false, "Value '" + i.Inspect() + "' too much digits than expected"
+		}
+	}
+	return result, ""
+}
 func (i *Integer) Type() ObjectType { return INTEGER_OBJ }
 func (i *Integer) Inspect() string  { return fmt.Sprintf("%d", i.Value) }
 
 type Float struct {
 	Value float64
+	limit *map[string]Object
 }
 
+func (f *Float) Set(name string, value Object) bool {
+	if f.limit == nil {
+		o := make(map[string]Object)
+		f.limit = &o
+	}
+	if value.Type() != INTEGER_OBJ && value.Type() != FLOAT_OBJ {
+		return false
+	}
+	if value.Type() == INTEGER_OBJ {
+		if value.(*Integer).limit != nil {
+			if t, e := (*value.(*Integer).limit)["min"]; e {
+				(*value.(*Integer).limit)["min"] = &Float{Value: float64(t.(*Integer).Value), limit: nil}
+			}
+			if t, e := (*value.(*Integer).limit)["max"]; e {
+				(*value.(*Integer).limit)["max"] = &Float{Value: float64(t.(*Integer).Value), limit: nil}
+			}
+		}
+		(*f.limit)[strings.ToLower(name)] = &Float{Value: float64(value.(*Integer).Value), limit: value.(*Integer).limit}
+		return true
+	}
+	(*f.limit)[strings.ToLower(name)] = value
+	return true
+}
+func (f *Float) IsValid() (bool, string) {
+	result := true
+	if f.limit == nil {
+		return result, ""
+	}
+	m, o := (*f.limit)[strings.ToLower("min")]
+	if o {
+		val := m.(*Float).Value
+		result = result && val <= f.Value
+		if !result {
+			return false, "Value '" + f.Inspect() + "' is lower than '" + m.(*Float).Inspect() + "'"
+		}
+	}
+	m, o = (*f.limit)[strings.ToLower("max")]
+	if o {
+		val := m.(*Float).Value
+		result = result && val >= f.Value
+		if !result {
+			return false, "Value '" + f.Inspect() + "' is greater than '" + m.(*Float).Inspect() + "'"
+		}
+	}
+	m, o = (*f.limit)[strings.ToLower("MaxDigits")]
+	if o {
+		val := m.(*Integer).Value
+		result = result && int64(countDigitsBeforeDecimal(f.Value)) <= val
+		if !result {
+			return false, "Value '" + f.Inspect() + "' too much digits than expected"
+		}
+	}
+	return result, ""
+}
 func (f *Float) Type() ObjectType { return FLOAT_OBJ }
-func (f *Float) Inspect() string  { return fmt.Sprintf("%f", f.Value) }
+func (f *Float) Inspect() string {
+	m, o := (*f.limit)[strings.ToLower("DecimalPlaces")]
+	if o {
+		str := "%." + m.(*Integer).Inspect() + "f"
+		return fmt.Sprintf(str, f.Value)
+	}
+	return fmt.Sprintf("%f", f.Value)
+}
 
 type Boolean struct {
 	Value bool
@@ -60,8 +171,33 @@ func (b *Boolean) Inspect() string  { return fmt.Sprintf("%t", b.Value) }
 
 type String struct {
 	Value string
+	limit *map[string]Object
 }
 
+func (s *String) Set(name string, value Object) bool {
+	if s.limit == nil {
+		o := make(map[string]Object)
+		s.limit = &o
+	}
+	(*s.limit)[strings.ToLower(name)] = value
+	return true
+}
+
+func (s *String) IsValid() (bool, string) {
+	result := true
+	if s.limit == nil {
+		return result, ""
+	}
+	m, o := (*s.limit)[strings.ToLower("MaxLength")]
+	if o {
+		val := m.(*Integer).Value
+		result = result && int64(len(s.Inspect())) <= val
+		if !result {
+			return false, "String '" + s.Inspect() + "' too long than expected"
+		}
+	}
+	return result, ""
+}
 func (s *String) Type() ObjectType { return STRING_OBJ }
 func (s *String) Inspect() string  { return s.Value }
 
@@ -444,4 +580,23 @@ func ParseDuration(literal string) (*Duration, error) {
 		Nanoseconds: totalNanos,
 		Original:    literal,
 	}, nil
+}
+
+// countDigitsBeforeDecimal returns the number of digits in the integer part
+func countDigitsBeforeDecimal(f float64) int {
+	f = math.Abs(f)
+	if f < 1 {
+		return 1 // e.g., 0.x has 1 digit before decimal
+	}
+	return int(math.Floor(math.Log10(f))) + 1
+}
+
+// countDigitsAfterDecimal returns the number of digits after the decimal point
+func countDigitsAfterDecimal(f float64) int {
+	// Convert to string without scientific notation
+	s := strconv.FormatFloat(f, 'f', -1, 64)
+	if strings.Contains(s, ".") {
+		return len(strings.Split(s, ".")[1])
+	}
+	return 0
 }

@@ -150,8 +150,19 @@ func (e *Environment) Get(name string) (Object, bool) {
 }
 
 func (e *Environment) Set(name string, val Object) Object {
+	_, ok := e.store[strings.ToLower(name)]
+	if !ok && e.outer != nil {
+		return e.outer.Set(name, val)
+	}
 	e.store[strings.ToLower(name)] = val
 	return val
+
+	// e.store[strings.ToLower(name)] = val
+	// return val
+}
+
+func (e *Environment) Clear() {
+	e.store = make(map[string]Object)
 }
 
 // SQLTable - Représente une table/objet SQL

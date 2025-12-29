@@ -193,7 +193,14 @@ func (p *Parser) ParseProgram() *ast.Program {
 			p.errors = append(p.errors, *pe)
 		}
 		if stmt != nil {
-			program.Statements = append(program.Statements, stmt)
+			if arr, ok := stmt.(*ast.LetStatements); ok {
+				for _, val := range *arr {
+					program.Statements = append(program.Statements, &val)
+				}
+			} else {
+				program.Statements = append(program.Statements, stmt)
+			}
+
 		}
 		p.nextToken()
 	}
@@ -692,7 +699,12 @@ func (p *Parser) parseForStatement() (ast.Statement, *ParserError) {
 			p.errors = append(p.errors, *pe)
 		}
 		if stm != nil {
-			stmt.Init = stm
+			if arr, ok := stm.(*ast.LetStatements); ok {
+				stmt.Init = &(*arr)[0]
+			} else {
+				stmt.Init = stm
+			}
+			// stmt.Init = stm
 		}
 		if !p.curTokenIs(token.SEMICOLON) {
 			p.curError(token.SEMICOLON)
@@ -847,7 +859,14 @@ func (p *Parser) parseBlockStatement() (*ast.BlockStatement, *ParserError) {
 			p.errors = append(p.errors, *pe)
 		}
 		if stmt != nil {
-			block.Statements = append(block.Statements, stmt)
+			if arr, ok := stmt.(*ast.LetStatements); ok {
+				for _, val := range *arr {
+					block.Statements = append(block.Statements, &val)
+				}
+			} else {
+				block.Statements = append(block.Statements, stmt)
+			}
+
 		}
 		p.nextToken()
 	}

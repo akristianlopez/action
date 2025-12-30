@@ -319,9 +319,8 @@ type Boolean struct {
 	Value bool
 }
 
-func (b *Boolean) Type() ObjectType      { return BOOLEAN_OBJ }
-func (b *Boolean) Inspect() string       { return fmt.Sprintf("%t", b.Value) }
-func (b *Boolean) Valid() (bool, string) { return true, "" }
+func (b *Boolean) Type() ObjectType { return BOOLEAN_OBJ }
+func (b *Boolean) Inspect() string  { return fmt.Sprintf("%t", b.Value) }
 
 type String struct {
 	Value string
@@ -442,12 +441,22 @@ func (e *Environment) Clear() {
 	e.store = make(map[string]Object)
 }
 
-func (e *Environment) Limit(name string, val Limits) {
+func (e *Environment) Limit(name string, val *Limits) {
+	if val == nil {
+		return
+	}
 	if e.limits == nil {
 		o := make(map[string]Limits)
 		e.limits = &o
 	}
-	(*e.limits)[strings.ToLower(name)] = val
+	(*e.limits)[strings.ToLower(name)] = *val
+}
+func (e *Environment) HasLimits(name string) bool {
+	if e.limits == nil {
+		return false
+	}
+	_, ok := (*e.limits)[strings.ToLower(name)]
+	return ok
 }
 
 func (e *Environment) Valid(name string, value Object) (bool, string) {
@@ -469,7 +478,6 @@ func (st *SQLTable) Type() ObjectType { return "SQL_TABLE" }
 func (st *SQLTable) Inspect() string {
 	return fmt.Sprintf("TABLE %s (%d colonnes, %d lignes)", st.Name, len(st.Columns), len(st.Data))
 }
-func (d *SQLTable) Valid() (bool, string) { return true, "" }
 
 // SQLColumn - Colonne d'une table
 type SQLColumn struct {
@@ -503,7 +511,6 @@ func (sr *SQLResult) Inspect() string {
 	}
 	return fmt.Sprintf("SQLResult(%d ligne(s) affectée(s))", sr.RowsAffected)
 }
-func (d *SQLResult) Valid() (bool, string) { return true, "" }
 
 // HierarchicalTree - Arbre hiérarchique
 type HierarchicalTree struct {

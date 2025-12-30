@@ -114,7 +114,7 @@ func (l *Limits) isValidInt(value *Integer) (bool, string) {
 			return false, "Value '" + value.Inspect() + "' is greater than '" + m.(*Integer).Inspect() + "'"
 		}
 	}
-	m, o = (*l.limit)[strings.ToLower("MaxLength")]
+	m, o = (*l.limit)[strings.ToLower("MaxDigits")]
 	if o {
 		val := m.(*Integer).Value
 		result = result && int64(len(m.(*Integer).Inspect())) <= val
@@ -464,6 +464,41 @@ func (e *Environment) Valid(name string, value Object) (bool, string) {
 		return lim.Valid(value)
 	}
 	return true, ""
+}
+
+func (e *Environment) IsStructExist(node *Struct, env *Environment) string {
+	// keys := make([]string, 0)
+	Scope := env
+	returnType := ""
+	for {
+		ok := false
+		for _, val := range env.store {
+			if val.Type() == STRUCT_OBJ {
+				st := val.(*Struct)
+				ok = true
+				for name, field := range node.Fields {
+					currentType := field.Type()
+					expectedType, exists := st.Fields[strings.ToLower(name)]
+					if !exists || expectedType.Type() != currentType {
+						ok = false
+						break
+					}
+				}
+				if ok {
+					returnType = st.Name
+					break
+				}
+			}
+		}
+		if ok {
+			break
+		}
+		Scope = Scope.outer
+		if Scope == nil {
+			break
+		}
+	}
+	return returnType
 }
 
 // SQLTable - Représente une table/objet SQL

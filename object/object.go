@@ -196,8 +196,9 @@ func (s *String) IsValid() (bool, string) {
 	}
 	return result, ""
 }
-func (s *String) Type() ObjectType { return STRING_OBJ }
-func (s *String) Inspect() string  { return s.Value }
+func (s *String) Type() ObjectType      { return STRING_OBJ }
+func (s *String) Inspect() string       { return s.Value }
+func (s *String) Valid() (bool, string) { return s.IsValid() }
 
 type Time struct {
 	Value time.Time

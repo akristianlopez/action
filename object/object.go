@@ -38,11 +38,6 @@ type Object interface {
 	Inspect() string
 }
 
-type Constraints struct {
-	MaxDigits     int
-	DecimalPlaces int
-	MaxLength     int
-}
 type Integer struct {
 	Value int64
 	limit *map[string]Object
@@ -182,7 +177,6 @@ func (s *String) Set(name string, value Object) bool {
 	(*s.limit)[strings.ToLower(name)] = value
 	return true
 }
-
 func (s *String) IsValid() (bool, string) {
 	result := true
 	if s.limit == nil {
@@ -203,15 +197,87 @@ func (s *String) Inspect() string  { return s.Value }
 
 type Time struct {
 	Value time.Time
+	limit *map[string]Object
 }
 
+func (t *Time) Set(name string, value Object) bool {
+	if value.Type() != TIME_OBJ {
+		return false
+	}
+	if t.limit == nil {
+		o := make(map[string]Object)
+		t.limit = &o
+	}
+	(*t.limit)[strings.ToLower(name)] = value
+	return true
+}
+func (t *Time) IsValid() (bool, string) {
+	result := true
+	if t.limit == nil {
+		return result, ""
+	}
+
+	m, o := (*t.limit)[strings.ToLower("min")]
+	if o {
+		val := m.(*Time).Value
+		result = result && val.Compare(t.Value) <= 0
+		if !result {
+			return false, "Value '" + t.Inspect() + "' is lower than '" + m.(*Time).Inspect() + "'"
+		}
+	}
+	m, o = (*t.limit)[strings.ToLower("max")]
+	if o {
+		val := m.(*Time).Value
+		result = result && val.Compare(t.Value) >= 0
+		if !result {
+			return false, "Value '" + t.Inspect() + "' is greater than '" + m.(*Time).Inspect() + "'"
+		}
+	}
+	return result, ""
+}
 func (t *Time) Type() ObjectType { return TIME_OBJ }
 func (t *Time) Inspect() string  { return t.Value.Format("15:04:05") }
 
 type Date struct {
 	Value time.Time
+	limit *map[string]Object
 }
 
+func (d *Date) Set(name string, value Object) bool {
+	if value.Type() != DATE_OBJ {
+		return false
+	}
+	if d.limit == nil {
+		o := make(map[string]Object)
+		d.limit = &o
+	}
+	(*d.limit)[strings.ToLower(name)] = value
+	return true
+}
+func (d *Date) IsValid() (bool, string) {
+	result := true
+	if d.limit == nil {
+		return result, ""
+	}
+
+	m, o := (*d.limit)[strings.ToLower("min")]
+	if o {
+		val := m.(*Time).Value
+		result = result && val.Compare(d.Value) <= 0
+		if !result {
+			return false, "Value '" + d.Inspect() + "' is lower than '" + m.(*Time).Inspect() + "'"
+		}
+	}
+	m, o = (*d.limit)[strings.ToLower("max")]
+	if o {
+		val := m.(*Time).Value
+		result = result && val.Compare(d.Value) >= 0
+		if !result {
+			return false, "Value '" + d.Inspect() + "' is greater than '" + m.(*Time).Inspect() + "'"
+		}
+	}
+	return result, ""
+}
 func (d *Date) Type() ObjectType { return DATE_OBJ }
 func (d *Date) Inspect() string  { return d.Value.Format("2006-01-02") }
 
@@ -429,8 +495,44 @@ func (c *Continue) Inspect() string  { return "continue" }
 type Duration struct {
 	Nanoseconds int64  // Stockage interne en nanosecondes
 	Original    string // Représentation originale
+	limit       *map[string]Object
 }
 
+func (d *Duration) Set(name string, value Object) bool {
+	if value.Type() != DURATION_OBJ {
+		return false
+	}
+	if d.limit == nil {
+		o := make(map[string]Object)
+		d.limit = &o
+	}
+	(*d.limit)[strings.ToLower(name)] = value
+	return true
+}
+func (d *Duration) IsValid() (bool, string) {
+	result := true
+	if d.limit == nil {
+		return result, ""
+	}
+
+	m, o := (*d.limit)[strings.ToLower("min")]
+	if o {
+		val := m.(*Duration).Nanoseconds
+		result = result && val <= d.Nanoseconds
+		if !result {
+			return false, "Value '" + d.Inspect() + "' is lower than '" + m.(*Duration).Inspect() + "'"
+		}
+	}
+	m, o = (*d.limit)[strings.ToLower("max")]
+	if o {
+		val := m.(*Duration).Nanoseconds
+		result = result && val >= d.Nanoseconds
+		if !result {
+			return false, "Value '" + d.Inspect() + "' is greater than '" + m.(*Duration).Inspect() + "'"
+		}
+	}
+	return result, ""
+}
 func (d *Duration) Type() ObjectType { return DURATION_OBJ }
 func (d *Duration) Inspect() string {
 	if d.Original != "" {

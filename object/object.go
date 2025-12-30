@@ -36,6 +36,7 @@ const (
 type Object interface {
 	Type() ObjectType
 	Inspect() string
+	Valid() (bool, string)
 }
 
 type Integer struct {
@@ -85,8 +86,9 @@ func (i *Integer) IsValid() (bool, string) {
 	}
 	return result, ""
 }
-func (i *Integer) Type() ObjectType { return INTEGER_OBJ }
-func (i *Integer) Inspect() string  { return fmt.Sprintf("%d", i.Value) }
+func (i *Integer) Type() ObjectType      { return INTEGER_OBJ }
+func (i *Integer) Inspect() string       { return fmt.Sprintf("%d", i.Value) }
+func (i *Integer) Valid() (bool, string) { return i.IsValid() }
 
 type Float struct {
 	Value float64
@@ -156,13 +158,15 @@ func (f *Float) Inspect() string {
 	}
 	return fmt.Sprintf("%f", f.Value)
 }
+func (f *Float) Valid() (bool, string) { return f.IsValid() }
 
 type Boolean struct {
 	Value bool
 }
 
-func (b *Boolean) Type() ObjectType { return BOOLEAN_OBJ }
-func (b *Boolean) Inspect() string  { return fmt.Sprintf("%t", b.Value) }
+func (b *Boolean) Type() ObjectType      { return BOOLEAN_OBJ }
+func (b *Boolean) Inspect() string       { return fmt.Sprintf("%t", b.Value) }
+func (b *Boolean) Valid() (bool, string) { return true, "" }
 
 type String struct {
 	Value string
@@ -235,8 +239,9 @@ func (t *Time) IsValid() (bool, string) {
 	}
 	return result, ""
 }
-func (t *Time) Type() ObjectType { return TIME_OBJ }
-func (t *Time) Inspect() string  { return t.Value.Format("15:04:05") }
+func (t *Time) Type() ObjectType      { return TIME_OBJ }
+func (t *Time) Inspect() string       { return t.Value.Format("15:04:05") }
+func (t *Time) Valid() (bool, string) { return t.IsValid() }
 
 type Date struct {
 	Value time.Time
@@ -278,27 +283,31 @@ func (d *Date) IsValid() (bool, string) {
 	}
 	return result, ""
 }
-func (d *Date) Type() ObjectType { return DATE_OBJ }
-func (d *Date) Inspect() string  { return d.Value.Format("2006-01-02") }
+func (d *Date) Type() ObjectType      { return DATE_OBJ }
+func (d *Date) Inspect() string       { return d.Value.Format("2006-01-02") }
+func (d *Date) Valid() (bool, string) { return d.IsValid() }
 
 type Null struct{}
 
-func (n *Null) Type() ObjectType { return NULL_OBJ }
-func (n *Null) Inspect() string  { return "null" }
+func (n *Null) Type() ObjectType      { return NULL_OBJ }
+func (n *Null) Inspect() string       { return "null" }
+func (n *Null) Valid() (bool, string) { return true, "" }
 
 type ReturnValue struct {
 	Value Object
 }
 
-func (rv *ReturnValue) Type() ObjectType { return RETURN_VALUE_OBJ }
-func (rv *ReturnValue) Inspect() string  { return rv.Value.Inspect() }
+func (rv *ReturnValue) Type() ObjectType      { return RETURN_VALUE_OBJ }
+func (rv *ReturnValue) Inspect() string       { return rv.Value.Inspect() }
+func (rv *ReturnValue) Valid() (bool, string) { return true, "" }
 
 type Error struct {
 	Message string
 }
 
-func (e *Error) Type() ObjectType { return ERROR_OBJ }
-func (e *Error) Inspect() string  { return "ERREUR: " + e.Message }
+func (e *Error) Type() ObjectType      { return ERROR_OBJ }
+func (e *Error) Inspect() string       { return "ERREUR: " + e.Message }
+func (d *Error) Valid() (bool, string) { return true, "" }
 
 type Function struct {
 	Parameters []*ast.FunctionParameter
@@ -310,6 +319,7 @@ func (f *Function) Type() ObjectType { return FUNCTION_OBJ }
 func (f *Function) Inspect() string {
 	return "function"
 }
+func (f *Function) Valid() (bool, string) { return true, "" }
 
 type Struct struct {
 	Name   string
@@ -320,6 +330,7 @@ func (s *Struct) Type() ObjectType { return STRUCT_OBJ }
 func (s *Struct) Inspect() string {
 	return fmt.Sprintf("struct %s", s.Name)
 }
+func (d *Struct) Valid() (bool, string) { return true, "" }
 
 var (
 	NULL  = &Null{}
@@ -388,6 +399,7 @@ func (st *SQLTable) Type() ObjectType { return "SQL_TABLE" }
 func (st *SQLTable) Inspect() string {
 	return fmt.Sprintf("TABLE %s (%d colonnes, %d lignes)", st.Name, len(st.Columns), len(st.Data))
 }
+func (d *SQLTable) Valid() (bool, string) { return true, "" }
 
 // SQLColumn - Colonne d'une table
 type SQLColumn struct {
@@ -421,6 +433,7 @@ func (sr *SQLResult) Inspect() string {
 	}
 	return fmt.Sprintf("SQLResult(%d ligne(s) affectée(s))", sr.RowsAffected)
 }
+func (d *SQLResult) Valid() (bool, string) { return true, "" }
 
 // HierarchicalTree - Arbre hiérarchique
 type HierarchicalTree struct {
@@ -432,6 +445,7 @@ func (ht *HierarchicalTree) Type() ObjectType { return "HIERARCHICAL_TREE" }
 func (ht *HierarchicalTree) Inspect() string {
 	return fmt.Sprintf("HierarchicalTree(%d racines, %d nœuds)", len(ht.Roots), len(ht.Nodes))
 }
+func (d *HierarchicalTree) Valid() (bool, string) { return true, "" }
 
 // HierarchicalNode - Nœud dans un arbre hiérarchique
 type HierarchicalNode struct {
@@ -472,25 +486,29 @@ func (a *Array) Inspect() string {
 	out.WriteString("]")
 	return out.String()
 }
+func (a *Array) Valid() (bool, string) { return int64(len(a.Elements)) <= a.Size, "" }
 
 type Break struct{}
 
-func (b *Break) Type() ObjectType { return BREAK_OBJ }
-func (b *Break) Inspect() string  { return "break" }
+func (b *Break) Type() ObjectType      { return BREAK_OBJ }
+func (b *Break) Inspect() string       { return "break" }
+func (d *Break) Valid() (bool, string) { return true, "" }
 
 // Fallthrough - Type fallthrough
 type Fallthrough struct {
 	Value bool
 }
 
-func (f *Fallthrough) Type() ObjectType { return FALLTHROUGH_OBJ }
-func (f *Fallthrough) Inspect() string  { return "fallthrough" }
+func (f *Fallthrough) Type() ObjectType      { return FALLTHROUGH_OBJ }
+func (f *Fallthrough) Inspect() string       { return "fallthrough" }
+func (d *Fallthrough) Valid() (bool, string) { return true, "" }
 
 // Continue - Type continue (pour les boucles)
 type Continue struct{}
 
-func (c *Continue) Type() ObjectType { return CONTINUE_OBJ }
-func (c *Continue) Inspect() string  { return "continue" }
+func (c *Continue) Type() ObjectType      { return CONTINUE_OBJ }
+func (c *Continue) Inspect() string       { return "continue" }
+func (d *Continue) Valid() (bool, string) { return true, "" }
 
 type Duration struct {
 	Nanoseconds int64  // Stockage interne en nanosecondes
@@ -540,6 +558,7 @@ func (d *Duration) Inspect() string {
 	}
 	return formatDuration(d.Nanoseconds)
 }
+func (d *Duration) Valid() (bool, string) { return d.IsValid() }
 
 func formatDuration(nanos int64) string {
 	if nanos == 0 {

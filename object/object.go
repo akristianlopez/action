@@ -36,15 +36,53 @@ const (
 type Object interface {
 	Type() ObjectType
 	Inspect() string
-	Valid() (bool, string)
 }
-
-type Integer struct {
-	Value int64
+type Limits struct {
+	_type ObjectType
 	limit *map[string]Object
 }
 
-func (i *Integer) Set(name string, value Object) bool {
+func (l *Limits) Valid(value Object) (bool, string) {
+	switch l._type {
+	case INTEGER_OBJ:
+		return l.isValidInt(value.(*Integer))
+	case FLOAT_OBJ:
+		return l.isValidFloat(value.(*Float))
+	case STRING_OBJ:
+		return l.isValidString(value.(*String))
+	case TIME_OBJ:
+		return l.isValidTime(value.(*Time))
+	case DATE_OBJ:
+		return l.isValidDate(value.(*Date))
+	case DURATION_OBJ:
+		return l.isValidDuration(value.(*Duration))
+	}
+	return false, "Type non supported"
+}
+func (l *Limits) SetType(t ObjectType) {
+	l._type = t
+}
+func (l *Limits) Type() ObjectType {
+	return l._type
+}
+func (l *Limits) Set(name string, value Object) bool {
+	switch l._type {
+	case INTEGER_OBJ:
+		return l.setIntLimit(name, value)
+	case FLOAT_OBJ:
+		return l.setFloatLimit(name, value)
+	case STRING_OBJ:
+		return l.setStringLimit(name, value)
+	case TIME_OBJ:
+		return l.setTimeLimit(name, value)
+	case DATE_OBJ:
+		return l.setDateLimit(name, value)
+	case DURATION_OBJ:
+		return l.setDurationLimit(name, value)
+	}
+	return false
+}
+func (i *Limits) setIntLimit(name string, value Object) bool {
 	if i.limit == nil {
 		o := make(map[string]Object)
 		i.limit = &o
@@ -55,110 +93,227 @@ func (i *Integer) Set(name string, value Object) bool {
 	(*i.limit)[strings.ToLower(name)] = value
 	return true
 }
-func (i *Integer) IsValid() (bool, string) {
+func (l *Limits) isValidInt(value *Integer) (bool, string) {
 	result := true
-	if i.limit == nil {
+	if l.limit == nil {
 		return result, ""
 	}
-	m, o := (*i.limit)[strings.ToLower("min")]
+	m, o := (*l.limit)[strings.ToLower("min")]
 	if o {
 		val := m.(*Integer).Value
-		result = result && val <= i.Value
+		result = result && val <= value.Value
 		if !result {
-			return false, "Value '" + i.Inspect() + "' is lower than '" + strconv.FormatInt(val, 10) + "'"
+			return false, "Value '" + value.Inspect() + "' is lower than '" + m.(*Integer).Inspect() + "'"
 		}
 	}
-	m, o = (*i.limit)[strings.ToLower("max")]
+	m, o = (*l.limit)[strings.ToLower("max")]
 	if o {
 		val := m.(*Integer).Value
-		result = result && val >= i.Value
+		result = result && val >= value.Value
 		if !result {
-			return false, "Value '" + i.Inspect() + "' is greater than '" + strconv.FormatInt(val, 10) + "'"
+			return false, "Value '" + value.Inspect() + "' is greater than '" + m.(*Integer).Inspect() + "'"
 		}
 	}
-	m, o = (*i.limit)[strings.ToLower("MaxLength")]
+	m, o = (*l.limit)[strings.ToLower("MaxLength")]
 	if o {
 		val := m.(*Integer).Value
-		result = result && int64(len(i.Inspect())) <= val
+		result = result && int64(len(m.(*Integer).Inspect())) <= val
 		if !result {
-			return false, "Value '" + i.Inspect() + "' too much digits than expected"
+			return false, "Value '" + value.Inspect() + "' too much digits than expected"
 		}
 	}
 	return result, ""
 }
-func (i *Integer) Type() ObjectType      { return INTEGER_OBJ }
-func (i *Integer) Inspect() string       { return fmt.Sprintf("%d", i.Value) }
-func (i *Integer) Valid() (bool, string) { return i.IsValid() }
-
-type Float struct {
-	Value float64
-	limit *map[string]Object
-}
-
-func (f *Float) Set(name string, value Object) bool {
-	if f.limit == nil {
+func (l *Limits) setFloatLimit(name string, value Object) bool {
+	if l.limit == nil {
 		o := make(map[string]Object)
-		f.limit = &o
+		l.limit = &o
 	}
 	if value.Type() != INTEGER_OBJ && value.Type() != FLOAT_OBJ {
 		return false
 	}
 	if value.Type() == INTEGER_OBJ {
-		if value.(*Integer).limit != nil {
-			if t, e := (*value.(*Integer).limit)["min"]; e {
-				(*value.(*Integer).limit)["min"] = &Float{Value: float64(t.(*Integer).Value), limit: nil}
-			}
-			if t, e := (*value.(*Integer).limit)["max"]; e {
-				(*value.(*Integer).limit)["max"] = &Float{Value: float64(t.(*Integer).Value), limit: nil}
-			}
-		}
-		(*f.limit)[strings.ToLower(name)] = &Float{Value: float64(value.(*Integer).Value), limit: value.(*Integer).limit}
+		(*l.limit)[strings.ToLower(name)] = &Float{Value: float64(value.(*Integer).Value)}
 		return true
 	}
-	(*f.limit)[strings.ToLower(name)] = value
+	(*l.limit)[strings.ToLower(name)] = value
 	return true
 }
-func (f *Float) IsValid() (bool, string) {
+func (l *Limits) isValidFloat(value *Float) (bool, string) {
 	result := true
-	if f.limit == nil {
+	if l.limit == nil {
 		return result, ""
 	}
-	m, o := (*f.limit)[strings.ToLower("min")]
+	m, o := (*l.limit)[strings.ToLower("min")]
 	if o {
 		val := m.(*Float).Value
-		result = result && val <= f.Value
+		result = result && val <= value.Value
 		if !result {
-			return false, "Value '" + f.Inspect() + "' is lower than '" + m.(*Float).Inspect() + "'"
+			return false, "Value '" + value.Inspect() + "' is lower than '" + m.(*Float).Inspect() + "'"
 		}
 	}
-	m, o = (*f.limit)[strings.ToLower("max")]
+	m, o = (*l.limit)[strings.ToLower("max")]
 	if o {
 		val := m.(*Float).Value
-		result = result && val >= f.Value
+		result = result && val >= value.Value
 		if !result {
-			return false, "Value '" + f.Inspect() + "' is greater than '" + m.(*Float).Inspect() + "'"
+			return false, "Value '" + value.Inspect() + "' is greater than '" + m.(*Float).Inspect() + "'"
 		}
 	}
-	m, o = (*f.limit)[strings.ToLower("MaxDigits")]
+	m, o = (*l.limit)[strings.ToLower("MaxDigits")]
 	if o {
 		val := m.(*Integer).Value
-		result = result && int64(countDigitsBeforeDecimal(f.Value)) <= val
+		result = result && int64(countDigitsBeforeDecimal(value.Value)) <= val
 		if !result {
-			return false, "Value '" + f.Inspect() + "' too much digits than expected"
+			return false, "Value '" + value.Inspect() + "' too much digits than expected"
 		}
 	}
 	return result, ""
 }
+func (l *Limits) setStringLimit(name string, value Object) bool {
+	if l.limit == nil {
+		o := make(map[string]Object)
+		l.limit = &o
+	}
+	(*l.limit)[strings.ToLower(name)] = value
+	return true
+}
+func (l *Limits) isValidString(value *String) (bool, string) {
+	result := true
+	if l.limit == nil {
+		return result, ""
+	}
+	m, o := (*l.limit)[strings.ToLower("MaxLength")]
+	if o {
+		val := m.(*Integer).Value
+		result = result && int64(len(value.Inspect())) <= val
+		if !result {
+			return false, "String '" + value.Inspect() + "' too long than expected"
+		}
+	}
+	return result, ""
+}
+func (l *Limits) setTimeLimit(name string, value Object) bool {
+	if value.Type() != TIME_OBJ {
+		return false
+	}
+	if l.limit == nil {
+		o := make(map[string]Object)
+		l.limit = &o
+	}
+	(*l.limit)[strings.ToLower(name)] = value
+	return true
+}
+func (l *Limits) isValidTime(value *Time) (bool, string) {
+	result := true
+	if l.limit == nil {
+		return result, ""
+	}
+
+	m, o := (*l.limit)[strings.ToLower("min")]
+	if o {
+		val := m.(*Time).Value
+		result = result && val.Compare(value.Value) <= 0
+		if !result {
+			return false, "Value '" + value.Inspect() + "' is lower than '" + m.(*Time).Inspect() + "'"
+		}
+	}
+	m, o = (*l.limit)[strings.ToLower("max")]
+	if o {
+		val := m.(*Time).Value
+		result = result && val.Compare(value.Value) >= 0
+		if !result {
+			return false, "Value '" + value.Inspect() + "' is greater than '" + m.(*Time).Inspect() + "'"
+		}
+	}
+	return result, ""
+}
+func (l *Limits) setDateLimit(name string, value Object) bool {
+	if value.Type() != DATE_OBJ {
+		return false
+	}
+	if l.limit == nil {
+		o := make(map[string]Object)
+		l.limit = &o
+	}
+	(*l.limit)[strings.ToLower(name)] = value
+	return true
+}
+func (l *Limits) isValidDate(value *Date) (bool, string) {
+	result := true
+	if l.limit == nil {
+		return result, ""
+	}
+
+	m, o := (*l.limit)[strings.ToLower("min")]
+	if o {
+		val := m.(*Time).Value
+		result = result && val.Compare(value.Value) <= 0
+		if !result {
+			return false, "Value '" + value.Inspect() + "' is lower than '" + m.(*Time).Inspect() + "'"
+		}
+	}
+	m, o = (*l.limit)[strings.ToLower("max")]
+	if o {
+		val := m.(*Time).Value
+		result = result && val.Compare(value.Value) >= 0
+		if !result {
+			return false, "Value '" + value.Inspect() + "' is greater than '" + m.(*Time).Inspect() + "'"
+		}
+	}
+	return result, ""
+}
+func (l *Limits) setDurationLimit(name string, value Object) bool {
+	if value.Type() != DURATION_OBJ {
+		return false
+	}
+	if l.limit == nil {
+		o := make(map[string]Object)
+		l.limit = &o
+	}
+	(*l.limit)[strings.ToLower(name)] = value
+	return true
+}
+func (l *Limits) isValidDuration(d *Duration) (bool, string) {
+	result := true
+	if l.limit == nil {
+		return result, ""
+	}
+
+	m, o := (*l.limit)[strings.ToLower("min")]
+	if o {
+		val := m.(*Duration).Nanoseconds
+		result = result && val <= d.Nanoseconds
+		if !result {
+			return false, "Value '" + d.Inspect() + "' is lower than '" + m.(*Duration).Inspect() + "'"
+		}
+	}
+	m, o = (*l.limit)[strings.ToLower("max")]
+	if o {
+		val := m.(*Duration).Nanoseconds
+		result = result && val >= d.Nanoseconds
+		if !result {
+			return false, "Value '" + d.Inspect() + "' is greater than '" + m.(*Duration).Inspect() + "'"
+		}
+	}
+	return result, ""
+}
+
+type Integer struct {
+	Value int64
+}
+
+func (i *Integer) Type() ObjectType { return INTEGER_OBJ }
+func (i *Integer) Inspect() string  { return fmt.Sprintf("%d", i.Value) }
+
+type Float struct {
+	Value float64
+}
+
 func (f *Float) Type() ObjectType { return FLOAT_OBJ }
 func (f *Float) Inspect() string {
-	m, o := (*f.limit)[strings.ToLower("DecimalPlaces")]
-	if o {
-		str := "%." + m.(*Integer).Inspect() + "f"
-		return fmt.Sprintf(str, f.Value)
-	}
 	return fmt.Sprintf("%f", f.Value)
 }
-func (f *Float) Valid() (bool, string) { return f.IsValid() }
 
 type Boolean struct {
 	Value bool
@@ -170,145 +325,43 @@ func (b *Boolean) Valid() (bool, string) { return true, "" }
 
 type String struct {
 	Value string
-	limit *map[string]Object
 }
 
-func (s *String) Set(name string, value Object) bool {
-	if s.limit == nil {
-		o := make(map[string]Object)
-		s.limit = &o
-	}
-	(*s.limit)[strings.ToLower(name)] = value
-	return true
-}
-func (s *String) IsValid() (bool, string) {
-	result := true
-	if s.limit == nil {
-		return result, ""
-	}
-	m, o := (*s.limit)[strings.ToLower("MaxLength")]
-	if o {
-		val := m.(*Integer).Value
-		result = result && int64(len(s.Inspect())) <= val
-		if !result {
-			return false, "String '" + s.Inspect() + "' too long than expected"
-		}
-	}
-	return result, ""
-}
-func (s *String) Type() ObjectType      { return STRING_OBJ }
-func (s *String) Inspect() string       { return s.Value }
-func (s *String) Valid() (bool, string) { return s.IsValid() }
+func (s *String) Type() ObjectType { return STRING_OBJ }
+func (s *String) Inspect() string  { return s.Value }
 
 type Time struct {
 	Value time.Time
-	limit *map[string]Object
 }
 
-func (t *Time) Set(name string, value Object) bool {
-	if value.Type() != TIME_OBJ {
-		return false
-	}
-	if t.limit == nil {
-		o := make(map[string]Object)
-		t.limit = &o
-	}
-	(*t.limit)[strings.ToLower(name)] = value
-	return true
-}
-func (t *Time) IsValid() (bool, string) {
-	result := true
-	if t.limit == nil {
-		return result, ""
-	}
-
-	m, o := (*t.limit)[strings.ToLower("min")]
-	if o {
-		val := m.(*Time).Value
-		result = result && val.Compare(t.Value) <= 0
-		if !result {
-			return false, "Value '" + t.Inspect() + "' is lower than '" + m.(*Time).Inspect() + "'"
-		}
-	}
-	m, o = (*t.limit)[strings.ToLower("max")]
-	if o {
-		val := m.(*Time).Value
-		result = result && val.Compare(t.Value) >= 0
-		if !result {
-			return false, "Value '" + t.Inspect() + "' is greater than '" + m.(*Time).Inspect() + "'"
-		}
-	}
-	return result, ""
-}
-func (t *Time) Type() ObjectType      { return TIME_OBJ }
-func (t *Time) Inspect() string       { return t.Value.Format("15:04:05") }
-func (t *Time) Valid() (bool, string) { return t.IsValid() }
+func (t *Time) Type() ObjectType { return TIME_OBJ }
+func (t *Time) Inspect() string  { return t.Value.Format("15:04:05") }
 
 type Date struct {
 	Value time.Time
-	limit *map[string]Object
 }
 
-func (d *Date) Set(name string, value Object) bool {
-	if value.Type() != DATE_OBJ {
-		return false
-	}
-	if d.limit == nil {
-		o := make(map[string]Object)
-		d.limit = &o
-	}
-	(*d.limit)[strings.ToLower(name)] = value
-	return true
-}
-func (d *Date) IsValid() (bool, string) {
-	result := true
-	if d.limit == nil {
-		return result, ""
-	}
-
-	m, o := (*d.limit)[strings.ToLower("min")]
-	if o {
-		val := m.(*Time).Value
-		result = result && val.Compare(d.Value) <= 0
-		if !result {
-			return false, "Value '" + d.Inspect() + "' is lower than '" + m.(*Time).Inspect() + "'"
-		}
-	}
-	m, o = (*d.limit)[strings.ToLower("max")]
-	if o {
-		val := m.(*Time).Value
-		result = result && val.Compare(d.Value) >= 0
-		if !result {
-			return false, "Value '" + d.Inspect() + "' is greater than '" + m.(*Time).Inspect() + "'"
-		}
-	}
-	return result, ""
-}
-func (d *Date) Type() ObjectType      { return DATE_OBJ }
-func (d *Date) Inspect() string       { return d.Value.Format("2006-01-02") }
-func (d *Date) Valid() (bool, string) { return d.IsValid() }
+func (d *Date) Type() ObjectType { return DATE_OBJ }
+func (d *Date) Inspect() string  { return d.Value.Format("2006-01-02") }
 
 type Null struct{}
 
-func (n *Null) Type() ObjectType      { return NULL_OBJ }
-func (n *Null) Inspect() string       { return "null" }
-func (n *Null) Valid() (bool, string) { return true, "" }
+func (n *Null) Type() ObjectType { return NULL_OBJ }
+func (n *Null) Inspect() string  { return "null" }
 
 type ReturnValue struct {
 	Value Object
 }
 
-func (rv *ReturnValue) Type() ObjectType      { return RETURN_VALUE_OBJ }
-func (rv *ReturnValue) Inspect() string       { return rv.Value.Inspect() }
-func (rv *ReturnValue) Valid() (bool, string) { return true, "" }
+func (rv *ReturnValue) Type() ObjectType { return RETURN_VALUE_OBJ }
+func (rv *ReturnValue) Inspect() string  { return rv.Value.Inspect() }
 
 type Error struct {
 	Message string
 }
 
-func (e *Error) Type() ObjectType      { return ERROR_OBJ }
-func (e *Error) Inspect() string       { return "ERREUR: " + e.Message }
-func (d *Error) Valid() (bool, string) { return true, "" }
+func (e *Error) Type() ObjectType { return ERROR_OBJ }
+func (e *Error) Inspect() string  { return "ERREUR: " + e.Message }
 
 type Function struct {
 	Parameters []*ast.FunctionParameter
@@ -320,7 +373,6 @@ func (f *Function) Type() ObjectType { return FUNCTION_OBJ }
 func (f *Function) Inspect() string {
 	return "function"
 }
-func (f *Function) Valid() (bool, string) { return true, "" }
 
 type Struct struct {
 	Name   string
@@ -331,7 +383,6 @@ func (s *Struct) Type() ObjectType { return STRUCT_OBJ }
 func (s *Struct) Inspect() string {
 	return fmt.Sprintf("struct %s", s.Name)
 }
-func (d *Struct) Valid() (bool, string) { return true, "" }
 
 var (
 	NULL  = &Null{}
@@ -340,18 +391,21 @@ var (
 )
 
 type Environment struct {
-	store map[string]Object
-	outer *Environment
+	store  map[string]Object
+	outer  *Environment
+	limits *map[string]Limits
 }
 
 func NewEnvironment() *Environment {
 	s := make(map[string]Object)
-	return &Environment{store: s, outer: nil}
+
+	return &Environment{store: s, outer: nil, limits: nil}
 }
 
 func NewEnclosedEnvironment(outer *Environment) *Environment {
 	env := NewEnvironment()
 	env.outer = outer
+	env.limits = nil
 	return env
 }
 
@@ -386,6 +440,21 @@ func (e *Environment) Set(name string, val Object) Object {
 
 func (e *Environment) Clear() {
 	e.store = make(map[string]Object)
+}
+
+func (e *Environment) Limit(name string, val Limits) {
+	if e.limits == nil {
+		o := make(map[string]Limits)
+		e.limits = &o
+	}
+	(*e.limits)[strings.ToLower(name)] = val
+}
+
+func (e *Environment) Valid(name string, value Object) (bool, string) {
+	if lim, ok := (*e.limits)[strings.ToLower(name)]; ok {
+		return lim.Valid(value)
+	}
+	return true, ""
 }
 
 // SQLTable - Représente une table/objet SQL
@@ -446,7 +515,6 @@ func (ht *HierarchicalTree) Type() ObjectType { return "HIERARCHICAL_TREE" }
 func (ht *HierarchicalTree) Inspect() string {
 	return fmt.Sprintf("HierarchicalTree(%d racines, %d nœuds)", len(ht.Roots), len(ht.Nodes))
 }
-func (d *HierarchicalTree) Valid() (bool, string) { return true, "" }
 
 // HierarchicalNode - Nœud dans un arbre hiérarchique
 type HierarchicalNode struct {
@@ -487,71 +555,31 @@ func (a *Array) Inspect() string {
 	out.WriteString("]")
 	return out.String()
 }
-func (a *Array) Valid() (bool, string) { return int64(len(a.Elements)) <= a.Size, "" }
 
 type Break struct{}
 
-func (b *Break) Type() ObjectType      { return BREAK_OBJ }
-func (b *Break) Inspect() string       { return "break" }
-func (d *Break) Valid() (bool, string) { return true, "" }
+func (b *Break) Type() ObjectType { return BREAK_OBJ }
+func (b *Break) Inspect() string  { return "break" }
 
 // Fallthrough - Type fallthrough
 type Fallthrough struct {
 	Value bool
 }
 
-func (f *Fallthrough) Type() ObjectType      { return FALLTHROUGH_OBJ }
-func (f *Fallthrough) Inspect() string       { return "fallthrough" }
-func (d *Fallthrough) Valid() (bool, string) { return true, "" }
+func (f *Fallthrough) Type() ObjectType { return FALLTHROUGH_OBJ }
+func (f *Fallthrough) Inspect() string  { return "fallthrough" }
 
 // Continue - Type continue (pour les boucles)
 type Continue struct{}
 
-func (c *Continue) Type() ObjectType      { return CONTINUE_OBJ }
-func (c *Continue) Inspect() string       { return "continue" }
-func (d *Continue) Valid() (bool, string) { return true, "" }
+func (c *Continue) Type() ObjectType { return CONTINUE_OBJ }
+func (c *Continue) Inspect() string  { return "continue" }
 
 type Duration struct {
 	Nanoseconds int64  // Stockage interne en nanosecondes
 	Original    string // Représentation originale
-	limit       *map[string]Object
 }
 
-func (d *Duration) Set(name string, value Object) bool {
-	if value.Type() != DURATION_OBJ {
-		return false
-	}
-	if d.limit == nil {
-		o := make(map[string]Object)
-		d.limit = &o
-	}
-	(*d.limit)[strings.ToLower(name)] = value
-	return true
-}
-func (d *Duration) IsValid() (bool, string) {
-	result := true
-	if d.limit == nil {
-		return result, ""
-	}
-
-	m, o := (*d.limit)[strings.ToLower("min")]
-	if o {
-		val := m.(*Duration).Nanoseconds
-		result = result && val <= d.Nanoseconds
-		if !result {
-			return false, "Value '" + d.Inspect() + "' is lower than '" + m.(*Duration).Inspect() + "'"
-		}
-	}
-	m, o = (*d.limit)[strings.ToLower("max")]
-	if o {
-		val := m.(*Duration).Nanoseconds
-		result = result && val >= d.Nanoseconds
-		if !result {
-			return false, "Value '" + d.Inspect() + "' is greater than '" + m.(*Duration).Inspect() + "'"
-		}
-	}
-	return result, ""
-}
 func (d *Duration) Type() ObjectType { return DURATION_OBJ }
 func (d *Duration) Inspect() string {
 	if d.Original != "" {
@@ -559,7 +587,6 @@ func (d *Duration) Inspect() string {
 	}
 	return formatDuration(d.Nanoseconds)
 }
-func (d *Duration) Valid() (bool, string) { return d.IsValid() }
 
 func formatDuration(nanos int64) string {
 	if nanos == 0 {

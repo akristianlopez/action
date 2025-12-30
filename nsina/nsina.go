@@ -32,8 +32,6 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalIdentifier(node, env)
 	case *ast.LetStatement:
 		return evalLetStatement(node, env)
-	case *ast.LetStatements:
-		return evalLetStatements(node, env)
 	case *ast.FunctionStatement:
 		return evalFunctionStatement(node, env)
 	case *ast.StructStatement:
@@ -64,6 +62,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalWhileStatement(node, env)
 	case *ast.TypeMember:
 		//TODO: A definir
+		return evalTypeMember(node, env)
 	case *ast.BetweenExpression:
 		//TODO: A definir
 		return evalBetweenExpression(node, env)
@@ -123,7 +122,24 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return newError("Instruction non supportée: %T", node)
 	}
 
-	return nil
+	// return nil
+}
+
+func evalTypeMember(node *ast.TypeMember, env *object.Environment) object.Object {
+	obj, fl := env.Get(node.Left.String())
+	if !fl {
+		return newError("Invalid structure name '%s'", node.Left.String())
+	}
+	if obj.Type() == object.STRUCT_OBJ {
+		ob := obj.(*object.Struct)
+		if _, exists := ob.Fields[node.Right.String()]; exists {
+			value := ob.Fields[node.Right.String()]
+			return value
+		}
+		return newError("Invalid field name '%s'.", node.Right.String())
+	}
+	return newError("Invalid type of object '%s'. expected '%v', got '%v'", node.Left.String(),
+		object.STRUCT_OBJ, obj.Type())
 }
 
 func evalProgram(program *ast.Program, env *object.Environment) object.Object {
@@ -139,7 +155,6 @@ func evalProgram(program *ast.Program, env *object.Environment) object.Object {
 			return result
 		}
 	}
-
 	return result
 }
 
@@ -159,33 +174,34 @@ func evalLetStatement(let *ast.LetStatement, env *object.Environment) object.Obj
 			value = object.NULL
 		}
 	}
+	if let.Type != nil {
+		value = defConstraints(let.Type, value, env)
+	}
 
 	env.Set(let.Name.Value, value)
 	return value
 }
 
-func evalLetStatements(let *ast.LetStatements, env *object.Environment) object.Object {
-	var value object.Object
-	for _, val := range *let {
-		if val.Value != nil {
-			value = Eval(val.Value, env)
-			if isError(value) {
-				return value
-			}
-		} else {
-			// Valeur par défaut selon le type
-			if val.Type != nil {
-				value = getDefaultValue(val.Type.Type)
-			} else {
-				value = object.NULL
-			}
-		}
-
-		env.Set(val.Name.Value, value)
-
-	}
-	return value
-}
+// func evalLetStatements(let *ast.LetStatements, env *object.Environment) object.Object {
+// 	var value object.Object
+// 	for _, val := range *let {
+// 		if val.Value != nil {
+// 			value = Eval(val.Value, env)
+// 			if isError(value) {
+// 				return value
+// 			}
+// 		} else {
+// 			// Valeur par défaut selon le type
+// 			if val.Type != nil {
+// 				value = getDefaultValue(val.Type.Type)
+// 			} else {
+// 				value = object.NULL
+// 			}
+// 		}
+// 		env.Set(val.Name.Value, value)
+// 	}
+// 	return value
+// }
 
 func evalAssignmentStatement(node *ast.AssignmentStatement, env *object.Environment) object.Object {
 	// Évaluer la valeur droite
@@ -198,7 +214,10 @@ func evalAssignmentStatement(node *ast.AssignmentStatement, env *object.Environm
 	switch target := node.Variable.(type) {
 	case *ast.Identifier:
 		// Assignation simple à une variable
-		env.Set(target.Value, value)
+		res := env.Set(target.Value, value)
+		if res == object.NULL {
+			return newError("Invalid name '%s'. Line:%d, column:%d", target.Value, target.Line(), target.Column())
+		}
 		return value
 	case *ast.TypeMember:
 		obj, fl := env.Get(target.Left.String())
@@ -251,6 +270,88 @@ func evalAssignmentStatement(node *ast.AssignmentStatement, env *object.Environm
 
 }
 
+func defConstraints(ta *ast.TypeAnnotation, value object.Object, env *object.Environment) object.Object {
+	if ta == nil || value == nil || ta.Constraints == nil {
+		return value
+	}
+	tc := ta.Constraints
+	tp := ta
+	if ta.ArrayType != nil && ta.Constraints != nil {
+		tp = ta.ArrayType.ElementType
+		tc = ta.ArrayType.ElementType.Constraints
+	}
+
+	switch tp.Type {
+	case "integer":
+		result := value.(*object.Integer)
+		if tc.MaxLength != nil {
+			result.Set("MaxLength", Eval(tc.MaxLength, env))
+		}
+		if tc.IntegerRange != nil && tc.IntegerRange.Min != nil {
+			result.Set("Min", Eval(tc.IntegerRange.Min, env))
+		}
+		if tc.IntegerRange != nil && tc.IntegerRange.Max != nil {
+			result.Set("Min", Eval(tc.IntegerRange.Max, env))
+		}
+		return result
+	case "float":
+		result := value.(*object.Float)
+		if tc.MaxDigits != nil {
+			result.Set("MaxDigits", Eval(tc.MaxDigits, env))
+		}
+		if tc.DecimalPlaces != nil {
+			result.Set("DecimalPlaces", Eval(tc.MaxDigits, env))
+		}
+		if tc.IntegerRange != nil && tc.IntegerRange.Min != nil {
+			result.Set("Min", Eval(tc.IntegerRange.Min, env))
+		}
+		if tc.IntegerRange != nil && tc.IntegerRange.Max != nil {
+			result.Set("Min", Eval(tc.IntegerRange.Max, env))
+		}
+		return result
+	case "string":
+		result := value.(*object.String)
+		if tc.MaxLength != nil {
+			result.Set("MaxLength", Eval(tc.MaxLength, env))
+		}
+		if tc.IntegerRange != nil && tc.IntegerRange.Min != nil {
+			result.Set("Min", Eval(tc.IntegerRange.Min, env))
+		}
+		if tc.IntegerRange != nil && tc.IntegerRange.Max != nil {
+			result.Set("Min", Eval(tc.IntegerRange.Max, env))
+		}
+		return result
+	case "time":
+		result := value.(*object.Time)
+		if tc.IntegerRange != nil && tc.IntegerRange.Min != nil {
+			result.Set("Min", Eval(tc.IntegerRange.Min, env))
+		}
+		if tc.IntegerRange != nil && tc.IntegerRange.Max != nil {
+			result.Set("Min", Eval(tc.IntegerRange.Max, env))
+		}
+		return result
+	case "date":
+		result := value.(*object.Date)
+		if tc.IntegerRange != nil && tc.IntegerRange.Min != nil {
+			result.Set("Min", Eval(tc.IntegerRange.Min, env))
+		}
+		if tc.IntegerRange != nil && tc.IntegerRange.Max != nil {
+			result.Set("Min", Eval(tc.IntegerRange.Max, env))
+		}
+		return result
+	case "duration":
+		result := value.(*object.Duration)
+		if tc.IntegerRange != nil && tc.IntegerRange.Min != nil {
+			result.Set("Min", Eval(tc.IntegerRange.Min, env))
+		}
+		if tc.IntegerRange != nil && tc.IntegerRange.Max != nil {
+			result.Set("Min", Eval(tc.IntegerRange.Max, env))
+		}
+		return result
+	default:
+		return value
+	}
+}
 func getDefaultValue(typeName string) object.Object {
 	switch typeName {
 	case "integer":
@@ -264,6 +365,8 @@ func getDefaultValue(typeName string) object.Object {
 	case "time":
 		return &object.Time{Value: time.Now()}
 	case "date":
+		return &object.Date{Value: time.Now()}
+	case "datetime":
 		return &object.Date{Value: time.Now()}
 	case "array":
 		return &object.Array{Elements: []object.Object{}}
@@ -285,7 +388,7 @@ func evalFunctionStatement(fn *ast.FunctionStatement, env *object.Environment) o
 	function := &object.Function{
 		Parameters: fn.Parameters,
 		Body:       fn.Body,
-		Env:        env,
+		Env:        object.NewEnclosedEnvironment(env),
 	}
 	env.Set(fn.Name.Value, function)
 	return function
@@ -298,7 +401,7 @@ func evalStructStatement(st *ast.StructStatement, env *object.Environment) objec
 	}
 
 	for _, field := range st.Fields {
-		structObj.Fields[field.Name.Value] = getDefaultValue(field.Type.Type)
+		structObj.Fields[strings.ToLower(field.Name.Value)] = getDefaultValue(field.Type.Type)
 	}
 
 	env.Set(st.Name.Value, structObj)
@@ -327,8 +430,11 @@ func evalBlockStatement(block *ast.BlockStatement, env *object.Environment) obje
 }
 
 func evalForStatement(forStmt *ast.ForStatement, env *object.Environment) object.Object {
+	scope := object.NewEnclosedEnvironment(env)
+	bodyEnv := object.NewEnclosedEnvironment(scope)
+
 	if forStmt.Init != nil {
-		initResult := Eval(forStmt.Init, env)
+		initResult := Eval(forStmt.Init, scope) //env
 		if isError(initResult) {
 			return initResult
 		}
@@ -337,7 +443,7 @@ func evalForStatement(forStmt *ast.ForStatement, env *object.Environment) object
 	for {
 		// Évaluer la condition
 		if forStmt.Condition != nil {
-			condition := Eval(forStmt.Condition, env)
+			condition := Eval(forStmt.Condition, scope) //env
 			if isError(condition) {
 				return condition
 			}
@@ -348,7 +454,8 @@ func evalForStatement(forStmt *ast.ForStatement, env *object.Environment) object
 		}
 
 		// Évaluer le corps
-		result := evalForBody(forStmt.Body, env)
+		bodyEnv.Clear()
+		result := evalForBody(forStmt.Body, bodyEnv) //env
 
 		if result != nil {
 			rt := result.Type()
@@ -370,7 +477,7 @@ func evalForStatement(forStmt *ast.ForStatement, env *object.Environment) object
 	update:
 		// Évaluer l'update
 		if forStmt.Update != nil {
-			updateResult := Eval(forStmt.Update, env)
+			updateResult := Eval(forStmt.Update, scope) //env
 			if isError(updateResult) {
 				return updateResult
 			}
@@ -476,7 +583,7 @@ func evalStructLiteral(node *ast.StructLiteral, env *object.Environment) object.
 		if isError(val) {
 			return val
 		}
-		structObj.Fields[f.Name.Value] = val
+		structObj.Fields[strings.ToLower(f.Name.Value)] = val
 	}
 
 	return structObj
@@ -488,15 +595,15 @@ func evalIfStatement(node *ast.IfStatement, env *object.Environment) object.Obje
 	if isError(condition) {
 		return condition
 	}
-
+	scope := object.NewEnclosedEnvironment(env)
 	// Si la condition est vraie, évaluer le bloc conséquence
 	if isTruthy(condition) {
-		return evalBlockStatement(node.Then, env)
+		return evalBlockStatement(node.Then, scope)
 	}
 
 	// Sinon, si une alternative existe, l'évaluer
 	if node.Else != nil {
-		return evalBlockStatement(node.Else, env)
+		return evalBlockStatement(node.Else, scope)
 	}
 
 	// Par défaut, retourner NULL
@@ -669,15 +776,14 @@ func evalIdentifier(node *ast.Identifier, env *object.Environment) object.Object
 }
 
 func isTruthy(obj object.Object) bool {
-	switch obj {
-	case object.NULL:
+	if obj == nil || obj == object.NULL {
 		return false
-	case object.TRUE:
-		return true
-	case object.FALSE:
-		return false
+	}
+	switch v := obj.(type) {
+	case *object.Boolean:
+		return v.Value
 	default:
-		return true
+		return false
 	}
 }
 
@@ -1561,12 +1667,28 @@ func arrayContains(array *object.Array, element object.Object) bool {
 
 func objectsEqual(a, b object.Object) bool {
 	if a.Type() != b.Type() {
+		if (a.Type() == object.INTEGER_OBJ && b.Type() == object.FLOAT_OBJ) ||
+			(b.Type() == object.INTEGER_OBJ && a.Type() == object.FLOAT_OBJ) {
+			var v, w float64
+			if s, ok := a.(*object.Integer); ok {
+				v = float64(s.Value)
+			}
+			v = a.(*object.Float).Value
+			if s, ok := b.(*object.Integer); ok {
+				w = float64(s.Value)
+			}
+			w = b.(*object.Float).Value
+			return v == w
+		}
 		return false
 	}
 
 	switch a := a.(type) {
 	case *object.Integer:
 		b := b.(*object.Integer)
+		return a.Value == b.Value
+	case *object.Float:
+		b := b.(*object.Float)
 		return a.Value == b.Value
 	case *object.String:
 		b := b.(*object.String)
@@ -1606,7 +1728,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		}
 		return val.(*object.ReturnValue).Value
 	}
-	switch node.Function.Value {
+	switch strings.ToLower(node.Function.Value) {
 	case "tostring":
 		//TODO: A definir
 		val := Eval(node.Array, env)
@@ -1621,16 +1743,18 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 	}
 
 	if array.Type() != object.ARRAY_OBJ {
-		switch node.Function.Value {
+		switch strings.ToLower(node.Function.Value) {
 		case "len", "length":
 			return &object.Integer{Value: int64(len(array.Inspect()))}
+		case "tostring":
+			return &object.String{Value: array.Inspect()}
 		}
 		return newError("La fonction %s attend un tableau en argument", node.Function.Value)
 	}
 
 	arr := array.(*object.Array)
 
-	switch node.Function.Value {
+	switch strings.ToLower(node.Function.Value) {
 	case "length":
 		return &object.Integer{Value: int64(len(arr.Elements))}
 	case "len":
@@ -1794,7 +1918,8 @@ func NewFixedSizeArray(size int64, elementType string) *object.Array {
 }
 func evalSwitchStatement(node *ast.SwitchStatement, env *object.Environment) object.Object {
 	// Évaluer l'expression du switch
-	switchValue := Eval(node.Expression, env)
+	scope := object.NewEnclosedEnvironment(env)
+	switchValue := Eval(node.Expression, scope)
 	if isError(switchValue) {
 		return switchValue
 	}
@@ -1807,7 +1932,7 @@ func evalSwitchStatement(node *ast.SwitchStatement, env *object.Environment) obj
 		if !matched {
 			// Vérifier si l'une des expressions du case correspond
 			for _, caseExpr := range caseStmt.Expressions {
-				caseValue := Eval(caseExpr, env)
+				caseValue := Eval(caseExpr, scope)
 				if isError(caseValue) {
 					return caseValue
 				}
@@ -1815,7 +1940,7 @@ func evalSwitchStatement(node *ast.SwitchStatement, env *object.Environment) obj
 				// Comparer les valeurs
 				if objectsEqual(switchValue, caseValue) {
 					matched = true
-					result = evalSwitchCaseBody(caseStmt.Body, env)
+					result = evalSwitchCaseBody(caseStmt.Body, scope)
 					if isError(result) || isBreakOrReturn(result) {
 						return cleanReturn(result)
 					}
@@ -1827,7 +1952,7 @@ func evalSwitchStatement(node *ast.SwitchStatement, env *object.Environment) obj
 
 	// Si aucun case ne correspond, exécuter le default
 	if !matched && node.DefaultCase != nil {
-		result = evalBlockStatement(node.DefaultCase, env)
+		result = evalBlockStatement(node.DefaultCase, scope)
 		if isError(result) {
 			return result
 		}
@@ -1916,6 +2041,7 @@ func evalForBody(body *ast.BlockStatement, env *object.Environment) object.Objec
 }
 
 func evalWhileStatement(whileStmt *ast.WhileStatement, env *object.Environment) object.Object {
+	scope := object.NewEnclosedEnvironment(env)
 	for {
 		// Évaluer la condition
 		condition := Eval(whileStmt.Condition, env)
@@ -1928,7 +2054,7 @@ func evalWhileStatement(whileStmt *ast.WhileStatement, env *object.Environment) 
 		}
 
 		// Évaluer le corps
-		result := evalForBody(whileStmt.Body, env)
+		result := evalForBody(whileStmt.Body, scope)
 
 		if result != nil {
 			rt := result.Type()

@@ -9,6 +9,8 @@ import (
 	"github.com/akristianlopez/action/object"
 )
 
+var struct_id int = 0
+
 func Eval(node ast.Node, env *object.Environment) object.Object {
 	if node == nil {
 		return nil
@@ -175,33 +177,35 @@ func evalLetStatement(let *ast.LetStatement, env *object.Environment) object.Obj
 		}
 	}
 	if let.Type != nil {
-		value = defConstraints(let.Type, value, env)
+		env.Limit(let.Name.Value, defConstraints(let.Type, env))
+		if st, ok := value.(*object.Struct); ok && st.Name == "" && let.Type.Type != "" {
+			objtype := env.IsStructExist(st, env)
+			if objtype == "" {
+				struct_id++
+				objtype = fmt.Sprintf("%s_%d", "struct_id", struct_id)
+				defType(objtype, value, env)
+			}
+			st.Name = objtype
+			value = st
+		}
 	}
-
-	env.Set(let.Name.Value, value)
-	return value
+	if ok, msg := env.Valid(let.Name.Value, value); !ok {
+		return &object.Error{Message: msg}
+	}
+	return env.Set(let.Name.Value, value)
 }
 
-// func evalLetStatements(let *ast.LetStatements, env *object.Environment) object.Object {
-// 	var value object.Object
-// 	for _, val := range *let {
-// 		if val.Value != nil {
-// 			value = Eval(val.Value, env)
-// 			if isError(value) {
-// 				return value
-// 			}
-// 		} else {
-// 			// Valeur par défaut selon le type
-// 			if val.Type != nil {
-// 				value = getDefaultValue(val.Type.Type)
-// 			} else {
-// 				value = object.NULL
-// 			}
-// 		}
-// 		env.Set(val.Name.Value, value)
-// 	}
-// 	return value
-// }
+func defType(objtype string, value object.Object, env *object.Environment) {
+	structObj := &object.Struct{
+		Name:   objtype,
+		Fields: make(map[string]object.Object),
+	}
+	st := value.(*object.Struct)
+	for name, field := range st.Fields {
+		structObj.Fields[strings.ToLower(name)] = field
+	}
+	env.Set(objtype, structObj)
+}
 
 func evalAssignmentStatement(node *ast.AssignmentStatement, env *object.Environment) object.Object {
 	// Évaluer la valeur droite
@@ -214,6 +218,12 @@ func evalAssignmentStatement(node *ast.AssignmentStatement, env *object.Environm
 	switch target := node.Variable.(type) {
 	case *ast.Identifier:
 		// Assignation simple à une variable
+		if env.HasLimits(target.Value) {
+			ok, msg := env.Valid(target.Value, value)
+			if !ok {
+				return newError(msg+".Line:%d, column:%d", target.Value, target.Line(), target.Column())
+			}
+		}
 		res := env.Set(target.Value, value)
 		if res == object.NULL {
 			return newError("Invalid name '%s'. Line:%d, column:%d", target.Value, target.Line(), target.Column())
@@ -227,6 +237,12 @@ func evalAssignmentStatement(node *ast.AssignmentStatement, env *object.Environm
 		if obj.Type() == object.STRUCT_OBJ {
 			ob := obj.(*object.Struct)
 			if _, exists := ob.Fields[target.Right.String()]; exists {
+				if env.HasLimits(ob.Name + "." + target.Right.String()) {
+					ok, msg := env.Valid(ob.Name+"."+target.Right.String(), value)
+					if !ok {
+						return newError(msg+".Line:%d, column:%d", target.Line(), target.Column())
+					}
+				}
 				ob.Fields[target.Right.String()] = value
 				return value
 			}
@@ -256,6 +272,12 @@ func evalAssignmentStatement(node *ast.AssignmentStatement, env *object.Environm
 			if idx < 0 || idx >= int64(len(arr.Elements)) {
 				return newError("Index hors de portée: %d", idx)
 			}
+			if env.HasLimits(target.Left.String()) {
+				ok, msg := env.Valid(target.Left.String(), value)
+				if !ok {
+					return newError(msg+".Line:%d, column:%d", target.Left.Line(), target.Left.Column())
+				}
+			}
 			arr.Elements[idx] = value
 			return value
 		}
@@ -270,9 +292,9 @@ func evalAssignmentStatement(node *ast.AssignmentStatement, env *object.Environm
 
 }
 
-func defConstraints(ta *ast.TypeAnnotation, value object.Object, env *object.Environment) object.Object {
-	if ta == nil || value == nil || ta.Constraints == nil {
-		return value
+func defConstraints(ta *ast.TypeAnnotation, env *object.Environment) *object.Limits {
+	if ta == nil || ta.Constraints == nil || env == nil {
+		return nil
 	}
 	tc := ta.Constraints
 	tp := ta
@@ -280,22 +302,23 @@ func defConstraints(ta *ast.TypeAnnotation, value object.Object, env *object.Env
 		tp = ta.ArrayType.ElementType
 		tc = ta.ArrayType.ElementType.Constraints
 	}
-
-	switch tp.Type {
+	// var result object.Limits
+	result := object.Limits{}
+	switch strings.ToLower(tp.Type) {
 	case "integer":
-		result := value.(*object.Integer)
-		if tc.MaxLength != nil {
-			result.Set("MaxLength", Eval(tc.MaxLength, env))
+		result.SetType(object.INTEGER_OBJ)
+		if tc.MaxDigits != nil {
+			result.Set("MaxDigits", Eval(tc.MaxDigits, env))
 		}
 		if tc.IntegerRange != nil && tc.IntegerRange.Min != nil {
 			result.Set("Min", Eval(tc.IntegerRange.Min, env))
 		}
 		if tc.IntegerRange != nil && tc.IntegerRange.Max != nil {
-			result.Set("Min", Eval(tc.IntegerRange.Max, env))
+			result.Set("Max", Eval(tc.IntegerRange.Max, env))
 		}
-		return result
+		return &result
 	case "float":
-		result := value.(*object.Float)
+		result.SetType(object.FLOAT_OBJ)
 		if tc.MaxDigits != nil {
 			result.Set("MaxDigits", Eval(tc.MaxDigits, env))
 		}
@@ -306,11 +329,11 @@ func defConstraints(ta *ast.TypeAnnotation, value object.Object, env *object.Env
 			result.Set("Min", Eval(tc.IntegerRange.Min, env))
 		}
 		if tc.IntegerRange != nil && tc.IntegerRange.Max != nil {
-			result.Set("Min", Eval(tc.IntegerRange.Max, env))
+			result.Set("Max", Eval(tc.IntegerRange.Max, env))
 		}
-		return result
+		return &result
 	case "string":
-		result := value.(*object.String)
+		result.SetType(object.STRING_OBJ)
 		if tc.MaxLength != nil {
 			result.Set("MaxLength", Eval(tc.MaxLength, env))
 		}
@@ -318,38 +341,38 @@ func defConstraints(ta *ast.TypeAnnotation, value object.Object, env *object.Env
 			result.Set("Min", Eval(tc.IntegerRange.Min, env))
 		}
 		if tc.IntegerRange != nil && tc.IntegerRange.Max != nil {
-			result.Set("Min", Eval(tc.IntegerRange.Max, env))
+			result.Set("Max", Eval(tc.IntegerRange.Max, env))
 		}
-		return result
+		return &result
 	case "time":
-		result := value.(*object.Time)
+		result.SetType(object.TIME_OBJ)
 		if tc.IntegerRange != nil && tc.IntegerRange.Min != nil {
 			result.Set("Min", Eval(tc.IntegerRange.Min, env))
 		}
 		if tc.IntegerRange != nil && tc.IntegerRange.Max != nil {
-			result.Set("Min", Eval(tc.IntegerRange.Max, env))
+			result.Set("Max", Eval(tc.IntegerRange.Max, env))
 		}
-		return result
+		return &result
 	case "date":
-		result := value.(*object.Date)
+		result.SetType(object.DATE_OBJ)
 		if tc.IntegerRange != nil && tc.IntegerRange.Min != nil {
 			result.Set("Min", Eval(tc.IntegerRange.Min, env))
 		}
 		if tc.IntegerRange != nil && tc.IntegerRange.Max != nil {
-			result.Set("Min", Eval(tc.IntegerRange.Max, env))
+			result.Set("Max", Eval(tc.IntegerRange.Max, env))
 		}
-		return result
+		return &result
 	case "duration":
-		result := value.(*object.Duration)
+		result.SetType(object.DURATION_OBJ)
 		if tc.IntegerRange != nil && tc.IntegerRange.Min != nil {
 			result.Set("Min", Eval(tc.IntegerRange.Min, env))
 		}
 		if tc.IntegerRange != nil && tc.IntegerRange.Max != nil {
-			result.Set("Min", Eval(tc.IntegerRange.Max, env))
+			result.Set("Max", Eval(tc.IntegerRange.Max, env))
 		}
-		return result
+		return &result
 	default:
-		return value
+		return nil
 	}
 }
 func getDefaultValue(typeName string) object.Object {
@@ -390,6 +413,10 @@ func evalFunctionStatement(fn *ast.FunctionStatement, env *object.Environment) o
 		Body:       fn.Body,
 		Env:        object.NewEnclosedEnvironment(env),
 	}
+	if fn.ReturnType != nil {
+		env.Limit(fn.Name.Value, defConstraints(fn.ReturnType, env))
+	}
+
 	env.Set(fn.Name.Value, function)
 	return function
 }
@@ -399,9 +426,12 @@ func evalStructStatement(st *ast.StructStatement, env *object.Environment) objec
 		Name:   st.Name.Value,
 		Fields: make(map[string]object.Object),
 	}
-
+	objName := st.Name.Value
 	for _, field := range st.Fields {
 		structObj.Fields[strings.ToLower(field.Name.Value)] = getDefaultValue(field.Type.Type)
+		if field.Type != nil {
+			env.Limit(objName+"."+field.Name.Value, defConstraints(field.Type, env))
+		}
 	}
 
 	env.Set(st.Name.Value, structObj)

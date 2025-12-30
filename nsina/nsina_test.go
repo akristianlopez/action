@@ -257,8 +257,8 @@ func build_args() []testCase {
 				age:integer(3)[15..150]
 			}
 			start
-			   Let emp:Employe=Employees[3]
-			   emp.age=emp.age-5
+			   Let emp:Employe={Matricule:'616624-J',Nom:'FRU',Prenom:'Paul Erick',Age:201}
+			   emp.age=emp.age-50
 			   return emp.age
  			stop
 			 `,

@@ -581,7 +581,7 @@ func (sa *SemanticAnalyzer) canReceivedValue(s ast.Expression) *TypeInfo {
 	case *ast.IndexExpression:
 		return sa.visitIndexExpression(exp)
 	case *ast.TypeMember:
-		return sa.visitTypeMember(exp)
+		return sa.visitTypeMember(exp, "")
 	case *ast.SQLSelectStatement:
 		return sa.visitSQLSelectStatement(exp)
 	}
@@ -1065,7 +1065,7 @@ func (sa *SemanticAnalyzer) visitAssignmentStatement(node *ast.AssignmentStateme
 
 	case *ast.TypeMember:
 		// visitTypeMember returns the member type
-		leftType = sa.visitTypeMember(left)
+		leftType = sa.visitTypeMember(left, "")
 		if leftType == nil {
 			// visitTypeMember reports its own errors
 			sa.addError("Invalid left side in assignment: %s. line:%d column:%d", left.String(), left.Line(), left.Column())
@@ -1151,6 +1151,10 @@ func (sa *SemanticAnalyzer) visitStructStatement(node *ast.StructStatement) {
 
 	// Analyser les champs
 	for _, field := range node.Fields {
+		if strings.EqualFold(field.Type.Type, node.Name.Value) {
+			structType.Fields[lower(field.Name.Value)] = structType
+			continue
+		}
 		fieldType := sa.resolveTypeAnnotation(field.Type)
 		structType.Fields[lower(field.Name.Value)] = fieldType
 	}
@@ -1353,7 +1357,7 @@ func (sa *SemanticAnalyzer) visitExpression(expr ast.Expression) *TypeInfo {
 	case *ast.IntegerLiteral:
 		return &TypeInfo{Name: "integer"}
 	case *ast.TypeMember:
-		return sa.visitTypeMember(e)
+		return sa.visitTypeMember(e, "")
 	case *ast.LikeExpression:
 		return sa.visitLikeExpression(e)
 	case *ast.FloatLiteral:
@@ -1542,19 +1546,40 @@ func (sa *SemanticAnalyzer) visitIdentifier(node *ast.Identifier) *TypeInfo {
 	return symbol.DataType
 }
 
-func (sa *SemanticAnalyzer) visitTypeMember(node *ast.TypeMember) *TypeInfo {
+func (sa *SemanticAnalyzer) visitTypeMember(node *ast.TypeMember, path string) *TypeInfo {
 	switch t := node.Left.(type) {
 	case *ast.Identifier:
-		l := sa.lookupSymbol(t.Value)
+		name := t.Value
+		var l *Symbol
+		if path != "" {
+			tb := strings.Split(path, ".")
+			for k := 0; k < len(tb); k++ {
+				l = sa.lookupSymbol(tb[k])
+				if l == nil {
+					sa.addError("Invalid field type name '%s'. Line:%d, column:%d", name, t.Line(), t.Column())
+					return &TypeInfo{Name: "void"}
+				}
+			}
+			ta, exists := l.DataType.Fields[strings.ToLower(name)]
+			if !exists {
+				sa.addError("Field '%s' does not exist. line:%d, column:%d", t.String(),
+					t.Line(), t.Column())
+				return &TypeInfo{Name: "void"}
+			}
+			l = sa.lookupSymbol(strings.ToLower(ta.Name))
+		} else {
+			l = sa.lookupSymbol(name)
+		}
+
 		if l == nil {
-			sa.addError("Non declared variable '%s'. line:%d, column:%d", node.String(),
+			sa.addError("Non declared variable '%s'. line:%d, column:%d", t.String(),
 				node.Line(), node.Column())
 			return &TypeInfo{Name: "void"}
 		}
 		if l.Type == DbObjectSymbol {
 			return &TypeInfo{Name: "any"}
 		}
-		if l.Type == VariableSymbol && !l.DataType.IsArray &&
+		if (l.Type == VariableSymbol || l.Type == StructSymbol) && !l.DataType.IsArray &&
 			len(l.DataType.Fields) > 0 {
 			switch node.Right.(type) {
 			case *ast.Identifier:
@@ -1565,6 +1590,13 @@ func (sa *SemanticAnalyzer) visitTypeMember(node *ast.TypeMember) *TypeInfo {
 					return &TypeInfo{Name: "void"}
 				}
 				return ta
+			case *ast.TypeMember:
+				if path == "" {
+					path = node.Left.String()
+				} else {
+					path = fmt.Sprintf("%s.%s", path, l.DataType.Name)
+				}
+				return sa.visitTypeMember(node.Right.(*ast.TypeMember), path)
 			case *ast.ArrayFunctionCall:
 				sa.addError("Invalid expression '%s'. line:%d, column:%d", node.Right.String(),
 					node.Right.Line(), node.Right.Column())
@@ -1576,7 +1608,7 @@ func (sa *SemanticAnalyzer) visitTypeMember(node *ast.TypeMember) *TypeInfo {
 			}
 		}
 	case *ast.TypeMember:
-		return sa.visitTypeMember(t)
+		return sa.visitTypeMember(t, path)
 	case *ast.ArrayFunctionCall:
 		sa.addError("Invalid expression '%s'. line:%d, column:%d", node.Left.String(),
 			node.Left.Line(), node.Left.Column())
@@ -1623,9 +1655,11 @@ func (sa *SemanticAnalyzer) ifExists(node *ast.StructLiteral) *TypeInfo {
 			if sym.Type == StructSymbol {
 				ok = true
 				for _, field := range node.Fields {
+
 					currentType := sa.visitExpression(field.Value)
 					expectedType, exists := sym.DataType.Fields[lower(field.Name.Value)]
-					if !exists || expectedType.Name != currentType.Name {
+					if !exists || (expectedType.Name != currentType.Name &&
+						!strings.EqualFold(currentType.Name, "null")) {
 						ok = false
 						break
 					}

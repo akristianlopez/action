@@ -451,6 +451,7 @@ func (e *Environment) Limit(name string, val *Limits) {
 	}
 	(*e.limits)[strings.ToLower(name)] = *val
 }
+
 func (e *Environment) HasLimits(name string) bool {
 	if e.limits == nil {
 		return false
@@ -458,7 +459,22 @@ func (e *Environment) HasLimits(name string) bool {
 	_, ok := (*e.limits)[strings.ToLower(name)]
 	return ok
 }
-
+func (e *Environment) GetLimitEnv(name string) *Environment {
+	env := e
+	if env.limits == nil {
+		env = env.outer
+	}
+	if env == nil {
+		return nil
+	}
+	for !env.HasLimits(name) {
+		env = env.outer
+		if env == nil {
+			break
+		}
+	}
+	return env
+}
 func (e *Environment) Valid(name string, value Object) (bool, string) {
 	if lim, ok := (*e.limits)[strings.ToLower(name)]; ok {
 		return lim.Valid(value)
@@ -479,7 +495,8 @@ func (e *Environment) IsStructExist(node *Struct, env *Environment) string {
 				for name, field := range node.Fields {
 					currentType := field.Type()
 					expectedType, exists := st.Fields[strings.ToLower(name)]
-					if !exists || expectedType.Type() != currentType {
+					if !exists || ((expectedType.Type() != currentType) &&
+						(expectedType.Type() != NULL_OBJ || currentType != STRUCT_OBJ)) {
 						ok = false
 						break
 					}

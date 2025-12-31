@@ -178,18 +178,6 @@ const (
 	ARRAY = "ARRAY"
 	OF    = "OF"
 
-	// Opérateurs de tableau
-	// CONCAT = "||"
-	// NOT_IN = "NOT IN"
-
-	// Fonctions de tableau ces fonctions seront supprimees comme token
-	// LENGTH   = "LENGTH"
-	// APPEND   = "APPEND"
-	// PREPEND  = "PREPEND"
-	// REMOVE   = "REMOVE"
-	// SLICE    = "SLICE"
-	// CONTAINS = "CONTAINS"
-
 	SWITCH      = "SWITCH"
 	CASE        = "CASE"
 	BREAK       = "BREAK"

@@ -301,13 +301,7 @@ var keywords = map[string]TokenType{
 	"ntile":       NTILE,
 	"array":       ARRAY,
 	"of":          OF,
-	// "length":      LENGTH,
-	// "append":      APPEND,
-	// "prepend":     PREPEND,
-	// "remove":      REMOVE,
-	// "slice":       SLICE,
-	// "contains":    CONTAINS,
-	"duration": DURATION,
+	"duration":    DURATION,
 
 	// Switch statement
 	"switch":      SWITCH,

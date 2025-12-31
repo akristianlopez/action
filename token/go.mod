@@ -1,3 +1,3 @@
-module action/token
+module github.com/akristianlopez/action/token
 
-go 1.25.5
+go 1.25.4

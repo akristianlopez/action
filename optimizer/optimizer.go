@@ -411,20 +411,6 @@ func (dce *DeadCodeElimination) Apply(program *ast.Program) *ast.Program {
 	}
 	for _, stmt := range program.Statements {
 		switch s := stmt.(type) {
-		// case *ast.LetStatements:
-		// 	var usedLets []ast.Statement
-		// 	for _, v := range *s {
-		// 		if !isDeadCode(&v, program) {
-		// 			usedLets = append(usedLets, &v)
-		// 			continue
-		// 		}
-		// 		Warnings("Dead code eliminated: variable '%s' is not used. Line:%d, column:%d", v.Name.Value,
-		// 			v.Token.Line, v.Token.Column)
-		// 	}
-		// 	if len(usedLets) > 0 {
-		// 		optimized.Statements = append(optimized.Statements, usedLets...)
-		// 	}
-		// 	continue
 		case *ast.LetStatement:
 			if !isDeadCode(s, program) {
 				optimized.Statements = append(optimized.Statements, s)
@@ -719,6 +705,9 @@ func isStructNameUsedAsType(node ast.Statement, name string) bool {
 	case *ast.LetStatement:
 		return scanForTypeLikeField(st, name)
 	case *ast.BlockStatement:
+		if st == nil {
+			return false
+		}
 		if len(st.Statements) == 0 {
 			return false
 		}
@@ -738,6 +727,9 @@ func isStructNameUsedAsType(node ast.Statement, name string) bool {
 	case *ast.WhileStatement:
 		return isStructNameUsedAsType(st.Body, name)
 	case *ast.FunctionStatement:
+		if st == nil {
+			return false
+		}
 		for _, arg := range st.Parameters {
 			if scanForTypeLikeField(arg, name) {
 				return true
@@ -745,6 +737,9 @@ func isStructNameUsedAsType(node ast.Statement, name string) bool {
 		}
 		return isStructNameUsedAsType(st.Body, name)
 	case *ast.SwitchStatement:
+		if st == nil {
+			return false
+		}
 		for _, stm := range st.Cases {
 			if isStructNameUsedAsType(stm.Body, name) {
 				return true
@@ -752,6 +747,9 @@ func isStructNameUsedAsType(node ast.Statement, name string) bool {
 		}
 		return isStructNameUsedAsType(st.DefaultCase, name)
 	case *ast.StructStatement:
+		if st == nil {
+			return false
+		}
 		for _, stm := range st.Fields {
 			if isTypeLike(stm.Type, name) {
 				return true

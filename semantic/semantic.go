@@ -214,8 +214,6 @@ func (sa *SemanticAnalyzer) visitStatement(stmt ast.Statement, t *TypeInfo) {
 	switch s := stmt.(type) {
 	case *ast.LetStatement:
 		sa.visitLetStatement(s)
-	// case *ast.LetStatements:
-	// 	sa.visitLetStatements(s)
 	case *ast.FunctionStatement:
 		sa.visitFunctionStatement(s)
 	case *ast.StructStatement:
@@ -979,36 +977,6 @@ func (sa *SemanticAnalyzer) visitSQLWithStatement(sw *ast.SQLWithStatement, ctes
 	return sa.visitSQLSelectStatement(sw.Select)
 }
 
-// func (sa *SemanticAnalyzer) visitLetStatements(nodes *ast.LetStatements) {
-// 	// Vérifier si la variable est déjà déclarée
-// 	var varType *TypeInfo
-// 	for _, node := range *nodes {
-// 		varType = nil
-// 		if sa.lookupSymbol(node.Name.Value) != nil {
-// 			sa.addError("Variable '%s' already declared. line:%d column:%d",
-// 				node.Name.Value, node.Name.Token.Line, node.Name.Token.Column)
-// 			return
-// 		}
-// 		if node.Type != nil {
-// 			varType = sa.resolveTypeAnnotation(node.Type)
-// 		}
-// 		// Si une valeur est fournie, vérifier la compatibilité des types
-// 		if node.Value != nil {
-// 			valueType := sa.visitExpression(node.Value)
-// 			if varType != nil && !sa.areTypesCompatible(varType, valueType) {
-// 				sa.addError("Type mismatch for the variable '%s': expected %s, got %s. line:%d column:%d",
-// 					node.Name.Value, varType.String(), valueType.String(), node.Token.Line, node.Token.Column)
-// 			}
-// 			// Si le type n'est pas spécifié, l'inférer
-// 			if varType == nil {
-// 				varType = valueType
-// 			}
-// 		}
-// 		// Enregistrer la variable
-// 		sa.registerSymbol(node.Name.Value, VariableSymbol, varType, &node)
-// 	}
-// }
-
 func (sa *SemanticAnalyzer) visitLetStatement(node *ast.LetStatement) {
 	// Vérifier si la variable est déjà déclarée
 	var varType *TypeInfo
@@ -1652,7 +1620,7 @@ func (sa *SemanticAnalyzer) ifExists(node *ast.StructLiteral) *TypeInfo {
 	for {
 		ok := false
 		for _, sym := range Scope.Symbols {
-			if sym.Type == StructSymbol {
+			if sym.Type == StructSymbol && len(sym.DataType.Fields) == len(node.Fields) {
 				ok = true
 				for _, field := range node.Fields {
 
@@ -2016,6 +1984,10 @@ func (sa *SemanticAnalyzer) getArraySize(size *ast.IntegerLiteral) int64 {
 
 func (sa *SemanticAnalyzer) areTypesCompatible(t1, t2 *TypeInfo) bool {
 	if t1.Name == "any" || t2.Name == "any" {
+		return true
+	}
+
+	if t1.Name == "null" || t2.Name == "null" {
 		return true
 	}
 

@@ -30,6 +30,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return &object.Boolean{Value: node.Value}
 	case *ast.DateTimeLiteral:
 		return evalDateTimeLiteral(node)
+	case *ast.NullLiteral:
+		return &object.Null{}
 	case *ast.Identifier:
 		return evalIdentifier(node, env)
 	case *ast.LetStatement:
@@ -132,10 +134,24 @@ func evalTypeMember(node *ast.TypeMember, env *object.Environment) object.Object
 	if !fl {
 		return newError("Invalid structure name '%s'", node.Left.String())
 	}
+	key := node.Right
+	for val, ok := key.(*ast.TypeMember); ok; {
+		ok = false
+		if ob, o := obj.(*object.Struct); o {
+			if vl, exists := ob.Fields[strings.ToLower(val.Left.String())]; exists {
+				obj = vl
+				key = val.Right
+				val, ok = key.(*ast.TypeMember)
+				continue
+			}
+			return newError("Invalid field name '%s'. Line:%d, column:%d", val.Left.String(),
+				key.Line(), key.Column())
+		}
+		break
+	}
 	if obj.Type() == object.STRUCT_OBJ {
 		ob := obj.(*object.Struct)
-		if _, exists := ob.Fields[node.Right.String()]; exists {
-			value := ob.Fields[node.Right.String()]
+		if value, exists := ob.Fields[key.String()]; exists {
 			return value
 		}
 		return newError("Invalid field name '%s'.", node.Right.String())
@@ -184,6 +200,16 @@ func evalLetStatement(let *ast.LetStatement, env *object.Environment) object.Obj
 				struct_id++
 				objtype = fmt.Sprintf("%s_%d", "struct_id", struct_id)
 				defType(objtype, value, env)
+			} else { //check if all values are ok
+				for k, v := range st.Fields {
+					en := env.GetLimitEnv(fmt.Sprintf("%s.%s", objtype, k))
+					if en != nil {
+						ok, msg := en.Valid(fmt.Sprintf("%s.%s", objtype, k), v)
+						if !ok {
+							return newError(msg+". Line:%d, column:%d", let.Value.Line(), let.Value.Column())
+						}
+					}
+				}
 			}
 			st.Name = objtype
 			value = st
@@ -217,9 +243,9 @@ func evalAssignmentStatement(node *ast.AssignmentStatement, env *object.Environm
 	// Gérer différentes cibles d'affectation
 	switch target := node.Variable.(type) {
 	case *ast.Identifier:
-		// Assignation simple à une variable
-		if env.HasLimits(target.Value) {
-			ok, msg := env.Valid(target.Value, value)
+		// Assignation simple à une variable env.HasLimits(target.Value)
+		if en := env.GetLimitEnv(target.Value); en != nil {
+			ok, msg := en.Valid(target.Value, value)
 			if !ok {
 				return newError(msg+".Line:%d, column:%d", target.Value, target.Line(), target.Column())
 			}
@@ -234,19 +260,33 @@ func evalAssignmentStatement(node *ast.AssignmentStatement, env *object.Environm
 		if !fl {
 			return newError("Invalid structure name '%s'", target.Left.String())
 		}
+		key := target.Right
+		for val, ok := key.(*ast.TypeMember); ok; {
+			if ob, o := obj.(*object.Struct); o {
+				if vl, exists := ob.Fields[val.Left.String()]; exists {
+					obj = vl
+					key = val.Right
+					continue
+				}
+				return newError("Invalid field name '%s'. Line:%d, column:%d", key.String(),
+					key.Line(), key.Column())
+			}
+			break
+		}
 		if obj.Type() == object.STRUCT_OBJ {
 			ob := obj.(*object.Struct)
-			if _, exists := ob.Fields[target.Right.String()]; exists {
-				if env.HasLimits(ob.Name + "." + target.Right.String()) {
-					ok, msg := env.Valid(ob.Name+"."+target.Right.String(), value)
+			if _, exists := ob.Fields[key.String()]; exists {
+
+				if en := env.GetLimitEnv(ob.Name + "." + key.String()); en != nil {
+					ok, msg := en.Valid(ob.Name+"."+key.String(), value)
 					if !ok {
-						return newError(msg+".Line:%d, column:%d", target.Line(), target.Column())
+						return newError(msg+".Line:%d, column:%d", key.Line(), key.Column())
 					}
 				}
-				ob.Fields[target.Right.String()] = value
+				ob.Fields[key.String()] = value
 				return value
 			}
-			return newError("Invalid field name '%s'.", target.Right.String())
+			return newError("Invalid field name '%s'.", key.String())
 		}
 		return newError("Invalid type of object '%s'. expected '%v', got '%v'", target.Left.String(),
 			object.STRUCT_OBJ, obj.Type())
@@ -272,8 +312,8 @@ func evalAssignmentStatement(node *ast.AssignmentStatement, env *object.Environm
 			if idx < 0 || idx >= int64(len(arr.Elements)) {
 				return newError("Index hors de portée: %d", idx)
 			}
-			if env.HasLimits(target.Left.String()) {
-				ok, msg := env.Valid(target.Left.String(), value)
+			if en := env.GetLimitEnv(target.Left.String()); en != nil {
+				ok, msg := en.Valid(target.Left.String(), value)
 				if !ok {
 					return newError(msg+".Line:%d, column:%d", target.Left.Line(), target.Left.Column())
 				}
@@ -606,16 +646,29 @@ func evalStructLiteral(node *ast.StructLiteral, env *object.Environment) object.
 	}
 
 	for _, f := range node.Fields {
-		// if f == nil {
-		// 	continue
-		// }
 		val := Eval(f.Value, env)
 		if isError(val) {
 			return val
 		}
 		structObj.Fields[strings.ToLower(f.Name.Value)] = val
 	}
-
+	objtype := env.IsStructExist(structObj, env)
+	if objtype == "" {
+		struct_id++
+		objtype = fmt.Sprintf("%s_%d", "struct_id", struct_id)
+		defType(objtype, structObj, env)
+	} else { //check if all values are ok
+		for k, v := range structObj.Fields {
+			en := env.GetLimitEnv(k)
+			if en != nil {
+				ok, msg := en.Valid(k, v)
+				if !ok {
+					return newError(msg+". Line:%d, column:%d", node.Line(), node.Column())
+				}
+			}
+		}
+	}
+	structObj.Name = objtype
 	return structObj
 }
 

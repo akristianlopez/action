@@ -247,19 +247,68 @@ func build_args() []testCase {
 	// 		 `,
 	// 	status: 0,
 	// })
+	// res = append(res, testCase{
+	// 	name: "Test 1.7 : Handling type's constraints",
+	// 	src: `action "Handling type's constraints"
+	// 		type child struct{
+	// 			nom: string(50)
+	// 			prenom:string(150)
+	// 			age:integer(3)[15..150]
+	// 		}
+	// 		type conjoint struct{
+	// 			nom: string(50)
+	// 			prenom:string(150)
+	// 			age:integer(3)[15..150]
+	// 			kids: array of child
+	// 		}
+	// 		type employee struct{
+	// 			matricule:string(8)
+	// 			nom: string(50)
+	// 			prenom:string(150)
+	// 			age:integer(3)[15..150]
+	// 			conjoints:array of conjoint
+	// 		}
+	// 		type Company struct{
+	// 			name:string(150)
+	// 			employees: Array of Employee
+	// 		}
+	// 		start
+	// 		   (* Let emp:Employe={Matricule:'616624-J',Nom:'FRU',Prenom:'Paul Erick',Age:150, kids:
+	// 		   		{nom:'ACHU',prenom:'Mercy Agbor',age:70,kids:NULL} }
+	// 		   emp.age=emp.age+emp.kids.age-202 *)
+	// 		   Let pers:employee={Matricule:'616624-J',Nom:'FRU',Prenom:'Paul Erick',Age:35,
+	// 		   	conjoints:[{nom:'ACHU',prenom:'Mercy Agbor',age:20,kids:NULL},
+	// 				{nom:'ABE',prenom:'Florence EGBE',age:25,kids:[
+	// 					{nom:'ACHU',prenom:'Natyl ABE',age:5},{nom:'FRU',prenom:'Glory Keng',age:2}]}]
+	// 		   }
+	// 		let sumConj:integer=0
+	// 		let sumKids:integer=0
+	// 		for let x of pers.conjoints{
+	// 			sumConj=sumConj+x.age
+	// 			if x.kids!=null{
+	// 				for let y of x.kids{
+	// 					sumKids=sumKids+y.age
+	// 				}
+	// 			}
+	// 		}
+	// 		pers.age=pers.age+15
+	// 		return "Nom :" + pers.nom +", Age: "+ toString(pers.age) +" cumul des ages [wifes:"+ toString(sumConj)+", kids:"+
+	// 				tostring(sumKids)+"]"
+	// 		stop
+	// 		 `,
+	// 	status: 0,
+	// })
 	res = append(res, testCase{
-		name: "Test 1.7 : Handling type's constraints",
-		src: `action "Handling type's constraints"
-			type employe struct{
-				matricule:string(7)
-				nom: string(50)
-				prenom:string(150)
-				age:integer(3)[15..150]
-			}
+		name: "Test 1.8 : Managing SQL Select statement",
+		src: `action "SQL Select statement"
+			let emp:object employee;
+			let lst:string
 			start
-			   Let emp:Employe={Matricule:'616624-J',Nom:'FRU',Prenom:'Paul Erick',Age:201}
-			   emp.age=emp.age-50
-			   return emp.age
+				Let result=select o.nom, o.age, o.sexe From  employee o
+				for let rec of result{
+					lst=lst+rec.nom
+				}
+				return lst		
  			stop
 			 `,
 		status: 0,
@@ -283,6 +332,7 @@ func TestAnalyze(t *testing.T) {
 				}
 				os.Exit(1)
 			}
+			fmt.Printf("✓ action (%s) parsée\n", action.ActionName)
 
 			// Étape 3: Analyse Sémantique
 			analyzer := semantic.NewSemanticAnalyzer()

@@ -166,7 +166,7 @@ func (p *Parser) nextToken() {
 	}
 }
 
-func (p *Parser) ParseProgram() *ast.Action {
+func (p *Parser) ParseAction() *ast.Action {
 	program := &ast.Action{}
 
 	// Vérifier que le programme commence par 'action'

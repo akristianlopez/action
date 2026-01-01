@@ -311,7 +311,7 @@ func (p *Parser) parseLetStatements() (*ast.LetStatements, *ParserError) {
 	// var flag bool
 	for p.curTokenIs(token.IDENT) && !p.peekTokenIs(token.EOF) &&
 		!p.peekTokenIs(token.SEMICOLON) && !p.peekTokenIs(token.STOP) {
-		flag := true
+		flag := false //true
 		stmt := ast.LetStatement{Token: tok}
 		stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 		if !p.peekTokenIs(token.COLON) && !p.peekTokenIs(token.ASSIGN) {
@@ -1816,117 +1816,6 @@ func (p *Parser) parseSQLCreateIndex() (*ast.SQLCreateIndexStatement, *ParserErr
 	return stmt, pe
 }
 
-// // Mettre à jour parseSQLSelect pour supporter les clauses avancées
-// func (p *Parser) parseSQLSelectStatement() ast.Statement {
-// 	selectStmt := &ast.SQLSelectStatement{Token: p.curToken}
-
-// 	// DISTINCT optionnel
-// 	if p.peekTokenIs(token.DISTINCT) {
-// 		p.nextToken()
-// 		selectStmt.Distinct = true
-// 	}
-
-// 	p.nextToken()
-// 	selectStmt.Select = p.parseSelectList()
-
-// 	// FROM
-// 	if !p.expectPeek(token.FROM) {
-// 		return nil
-// 	}
-// 	p.nextToken()
-// 	selectStmt.From = p.parseExpression(LOWEST)
-
-// 	// JOINs optionnels
-// 	for p.peekTokenIs(token.JOIN) ||
-// 		(p.peekTokenIs(token.IDENT) &&
-// 			(p.peekToken.Literal == "INNER" || p.peekToken.Literal == "LEFT" ||
-// 				p.peekToken.Literal == "RIGHT" || p.peekToken.Literal == "FULL")) {
-// 		p.nextToken()
-// 		join := &ast.SQLJoin{Token: p.curToken}
-
-// 		if p.curTokenIs(token.IDENT) {
-// 			join.Type = p.curToken.Literal
-// 			if !p.expectPeek(token.JOIN) {
-// 				return nil
-// 			}
-// 			p.nextToken()
-// 		} else {
-// 			join.Type = "INNER"
-// 		}
-
-// 		join.Table = p.parseExpression(LOWEST)
-
-// 		if !p.expectPeek(token.ON) {
-// 			return nil
-// 		}
-// 		p.nextToken()
-// 		join.On = p.parseExpression(LOWEST)
-
-// 		selectStmt.Joins = append(selectStmt.Joins, join)
-// 	}
-
-// 	// WHERE optionnel
-// 	if p.peekTokenIs(token.WHERE) {
-// 		p.nextToken()
-// 		p.nextToken()
-// 		selectStmt.Where = p.parseExpression(LOWEST)
-// 	}
-
-// 	// GROUP BY optionnel
-// 	if p.peekTokenIs(token.GROUP) {
-// 		p.nextToken() // GROUP
-// 		if !p.expectPeek(token.BY) {
-// 			return nil
-// 		}
-// 		p.nextToken()
-// 		selectStmt.GroupBy = p.parseExpressionList(token.HAVING, token.ORDER, token.LIMIT)
-// 	}
-
-// 	// HAVING optionnel
-// 	if p.peekTokenIs(token.HAVING) {
-// 		p.nextToken()
-// 		p.nextToken()
-// 		selectStmt.Having = p.parseExpression(LOWEST)
-// 	}
-
-// 	// ORDER BY optionnel
-// 	if p.peekTokenIs(token.ORDER) {
-// 		p.nextToken() // ORDER
-// 		if !p.expectPeek(token.BY) {
-// 			return nil
-// 		}
-// 		p.nextToken()
-// 		selectStmt.OrderBy = p.parseOrderByList()
-// 	}
-
-// 	// LIMIT optionnel
-// 	if p.peekTokenIs(token.LIMIT) {
-// 		p.nextToken()
-// 		p.nextToken()
-// 		selectStmt.Limit = p.parseExpression(LOWEST)
-// 	}
-
-// 	// OFFSET optionnel
-// 	if p.peekTokenIs(token.OFFSET) {
-// 		p.nextToken()
-// 		p.nextToken()
-// 		selectStmt.Offset = p.parseExpression(LOWEST)
-// 	}
-
-// 	// UNION optionnel
-// 	if p.peekTokenIs(token.UNION) {
-// 		p.nextToken()
-// 		if p.peekTokenIs(token.ALL) {
-// 			p.nextToken()
-// 			selectStmt.UnionAll = true
-// 		}
-// 		p.nextToken()
-// 		selectStmt.Union = p.parseSQLSelectStatement().(*ast.SQLSelectStatement)
-// 	}
-
-// 	return selectStmt
-// }
-
 func (p *Parser) parseOrderByList() []*ast.SQLOrderBy {
 	var orderByList []*ast.SQLOrderBy
 
@@ -1982,7 +1871,7 @@ func (p *Parser) parseSelectList() []ast.Expression {
 		p.nextToken()
 		return expressions
 	}
-	arg := ast.SelectArgs{}
+	arg := &ast.SelectArgs{}
 	arg.Expr = p.parseExpression(LOWEST)
 	if p.peekTokenIs(token.AS) {
 		p.nextToken()
@@ -1992,17 +1881,17 @@ func (p *Parser) parseSelectList() []ast.Expression {
 		p.nextToken() //move to the new name
 		arg.NewName = p.parseIdentifier().(*ast.Identifier)
 	}
-	expressions = append(expressions, &arg)
+	expressions = append(expressions, arg)
 	for p.peekTokenIs(token.COMMA) {
 		p.nextToken()
 		p.nextToken()
-		arg = ast.SelectArgs{Expr: p.parseExpression(LOWEST), NewName: nil}
+		arg = &ast.SelectArgs{Expr: p.parseExpression(LOWEST), NewName: nil}
 		if p.peekTokenIs(token.AS) {
 			p.nextToken() //as
 			p.nextToken() //move to the new name
 			arg.NewName = p.parseIdentifier().(*ast.Identifier)
 		}
-		expressions = append(expressions, &arg)
+		expressions = append(expressions, arg)
 
 		// expressions = append(expressions, p.parseExpression(LOWEST))
 	}
@@ -2797,6 +2686,14 @@ func (p *Parser) parseTypeAnnotation() *ast.TypeAnnotation {
 
 	if p.curTokenIs(token.ARRAY) {
 		ta.ArrayType = p.parseArrayType()
+		return ta
+	}
+
+	if p.curTokenIs(token.OBJECT) {
+		if !p.expectPeek(token.IDENT) {
+			return nil
+		}
+		ta.Type = p.curToken.Literal
 		return ta
 	}
 

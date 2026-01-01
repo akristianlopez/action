@@ -16,7 +16,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return nil
 	}
 	switch node := node.(type) {
-	case *ast.Program:
+	case *ast.Action:
 		return evalProgram(node, env)
 	case *ast.ExpressionStatement:
 		return Eval(node.Expression, env)
@@ -160,7 +160,7 @@ func evalTypeMember(node *ast.TypeMember, env *object.Environment) object.Object
 		object.STRUCT_OBJ, obj.Type())
 }
 
-func evalProgram(program *ast.Program, env *object.Environment) object.Object {
+func evalProgram(program *ast.Action, env *object.Environment) object.Object {
 	var result object.Object
 
 	for _, statement := range program.Statements {
@@ -583,6 +583,57 @@ func evalDateTimeLiteral(dt *ast.DateTimeLiteral) object.Object {
 	}
 }
 
+func toString(selectStmt *ast.SQLSelectStatement, env *object.Environment) object.Object {
+	strSelect := ""
+	for _, ex := range selectStmt.Select {
+		if strSelect == "" {
+			strSelect = ex.String()
+		} else {
+			strSelect = fmt.Sprintf("%s, %s", strSelect, ex.String())
+		}
+	}
+	from := evalFromClause(selectStmt.From, env)
+	strFrom := selectStmt.From.String()
+	if isError(from) {
+		return from
+	}
+	// Traiter la champ Join avant de passer a la clause where
+	// puis executer la requete SQL et charger les resultats
+	for _, step := range selectStmt.Joins {
+		from = evalFromClause(step.Table, env)
+		strFrom = fmt.Sprintf("%s %s JOIN %s ON %s", strFrom, step.Type, step.Table.String(), step.On.String())
+	}
+
+	strSQL := fmt.Sprintf("SELECT %s\nFROM %s", strSelect, strFrom)
+	// Traiter la clause WHERE
+	if selectStmt.Where != nil {
+		whereResult := Eval(selectStmt.Where, env)
+		strSQL = fmt.Sprintf("%s\nWHERE (%s)", strSQL, whereResult.Inspect())
+		if isError(whereResult) {
+			return whereResult
+		}
+	}
+	if selectStmt.GroupBy != nil {
+		strGroup := ""
+		for k, v := range selectStmt.GroupBy {
+			if k == 0 {
+				strGroup = v.String()
+				continue
+			}
+			strGroup = fmt.Sprintf("%s, %s", strGroup, v.String())
+		}
+		strSQL = fmt.Sprintf("%s\nGROUP BY \n%s", strSQL, strGroup)
+	}
+	if selectStmt.Having != nil {
+		strHaving := Eval(selectStmt.Having, env)
+		strSQL = fmt.Sprintf("%s\nHAVING(%s)", strSQL, strHaving.Inspect())
+	}
+	if selectStmt.Union != nil {
+		strSQL = fmt.Sprintf("%s\nUNION\n (%s)", strSQL, toString(selectStmt.Union, env))
+	}
+	return &object.String{Value: strSQL}
+}
+
 func evalSQLSelectStatement(selectStmt *ast.SQLSelectStatement, env *object.Environment) object.Object {
 	// Implémentation simplifiée pour la démonstration
 	// Dans une vraie implémentation, cela interagirait avec une base de données
@@ -593,31 +644,31 @@ func evalSQLSelectStatement(selectStmt *ast.SQLSelectStatement, env *object.Envi
 	}
 
 	// Traiter la clause SELECT
-	for _, expr := range selectStmt.Select {
-		if ident, ok := expr.(*ast.Identifier); ok {
-			if ident.Value == "*" {
-				// Sélectionner toutes les colonnes
-				// Implémentation simplifiée
-			} else {
-				result.Columns = append(result.Columns, ident.Value)
+	for _, ex := range selectStmt.Select {
+
+		if e, True := ex.(*ast.SelectArgs); True {
+			if _, ok := e.Expr.(*ast.TypeMember); ok {
+				result.Columns = append(result.Columns, e.String())
+				continue
+			}
+			if ident, ok := e.Expr.(*ast.Identifier); ok { //expr.(*ast.Identifier)
+				if ident.Value == "*" {
+					// Sélectionner toutes les colonnes
+					// Implémentation simplifiée
+					continue
+				} else {
+					result.Columns = append(result.Columns, ident.Value)
+				}
 			}
 		}
+
 	}
 
 	// Traiter la clause FROM
-	from := evalFromClause(selectStmt.From, env)
-	if isError(from) {
-		return from
-	}
-
-	// Traiter la clause WHERE
-	if selectStmt.Where != nil {
-		whereResult := Eval(selectStmt.Where, env)
-		if isError(whereResult) {
-			return whereResult
-		}
-	}
-
+	// Build SQL String to run in the database
+	// strSelect := toString(selectStmt)
+	toString(selectStmt, env)
+	//Executer la requete SQL puis retourner le resultat.
 	return result
 }
 
@@ -625,9 +676,19 @@ func evalFromClause(from ast.Expression, env *object.Environment) object.Object 
 	switch from := from.(type) {
 	case *ast.Identifier:
 		// Rechercher l'objet dans l'environnement
-		obj, ok := env.Get(from.Value)
+		obj, ok := env.Get(strings.ToLower(from.Value))
 		if !ok {
 			return newError("Objet non trouvé: %s", from.Value)
+		}
+		return obj
+	case *ast.FromIdentifier:
+		// n := Eval(from.Value, env)
+		obj, ok := env.Get(strings.ToLower(from.Value.String()))
+		if !ok {
+			return newError("Objet non trouvé: %s", from.Value)
+		}
+		if from.NewName != nil {
+			env.Set(from.NewName.String(), obj)
 		}
 		return obj
 	default:
@@ -2328,6 +2389,41 @@ func evalForEachStatement(n ast.Node, env *object.Environment) object.Object {
 	}
 
 	switch coll := collection.(type) {
+	case *object.SQLResult:
+		for _, el := range coll.Rows {
+			loopEnv := object.NewEnclosedEnvironment(env)
+
+			// Si une variable clé est présente, la définir (index)
+			// if node.Key != nil {
+			// 	loopEnv.Set(node.Key.Value, &object.Integer{Value: int64(i)})
+			// }
+
+			// // Si une variable valeur est présente, la définir
+			// if node.Value != nil {
+			// 	loopEnv.Set(node.Value.Value, el)
+			// }
+			loopEnv.Set(node.Variable.Value, &object.Struct{Name: "", Fields: el})
+			// Évaluer le corps avec l'environnement local
+			result := evalForBody(node.Body, loopEnv)
+			if result != nil {
+				rt := result.Type()
+
+				if rt == object.BREAK_OBJ {
+					// sortir de la boucle
+					return object.NULL
+				}
+
+				if rt == object.CONTINUE_OBJ {
+					// passer à l'itération suivante
+					continue
+				}
+
+				if rt == object.RETURN_VALUE_OBJ || rt == object.ERROR_OBJ {
+					return result
+				}
+			}
+		}
+		return object.NULL
 	case *object.Array:
 		for _, el := range coll.Elements {
 			loopEnv := object.NewEnclosedEnvironment(env)

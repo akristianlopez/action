@@ -300,11 +300,18 @@ func build_args() []testCase {
 	// })
 	res = append(res, testCase{
 		name: "Test 1.8 : Managing SQL Select statement",
-		src: `action "SQL Select statement"
-			let emp:object employee;
-			let lst:string
+		src: `action "SQL Select statement" (* (liste des parametres) : type valeur de retour *)			
 			start
+				(* Table pour les structures organisationnelles *)
+				CREATE OBJECT Employee (
+					Id INTEGER PRIMARY KEY,
+					Nom VARCHAR(100) NOT NULL,
+					Age INTEGER,
+					Sexe VARCHAR(8),
+				);		
 				Let result=select o.nom, o.age, o.sexe From  employee o
+				let emp:object employee;
+				let lst:string
 				for let rec of result{
 					lst=lst+rec.nom
 				}
@@ -324,7 +331,7 @@ func TestAnalyze(t *testing.T) {
 
 			// Étape 2: Parsing
 			p := parser.New(l)
-			action := p.ParseProgram()
+			action := p.ParseAction()
 			if p.Errors() != nil && len(p.Errors()) != 0 {
 				fmt.Println("Erreurs de parsing:")
 				for _, msg := range p.Errors() {
@@ -361,7 +368,7 @@ func TestAnalyze(t *testing.T) {
 			}
 
 			// Étape 4: Optimisation
-			var optimizedProgram *ast.Program = action
+			var optimizedProgram *ast.Action = action
 			opt := optimizer.NewOptimizer()
 			optimizedProgram = opt.Optimize(action)
 			// opt.Optimize(action)

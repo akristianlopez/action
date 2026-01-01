@@ -24,8 +24,8 @@ type OptimizationStats struct {
 
 type Optimization interface {
 	Name() string
-	Apply(*ast.Program) *ast.Program
-	CanApply(*ast.Program) bool
+	Apply(*ast.Action) *ast.Action
+	CanApply(*ast.Action) bool
 }
 
 type ConstantFolding struct{}
@@ -63,7 +63,7 @@ func (o *Optimizer) IncrementInlineExpansion() {
 	o.Stats.InlineExpansions++
 }
 
-func (o *Optimizer) Optimize(program *ast.Program) *ast.Program {
+func (o *Optimizer) Optimize(program *ast.Action) *ast.Action {
 	optimized := program
 	Warnings = o.addWarning
 	IncrementFolding = o.IncrementConstantFolding
@@ -112,12 +112,12 @@ func (o *Optimizer) addWarning(format string, args ...interface{}) {
 // CONSTANT FOLDING
 func (cf *ConstantFolding) Name() string { return "ConstantFolding" }
 
-func (cf *ConstantFolding) CanApply(program *ast.Program) bool {
+func (cf *ConstantFolding) CanApply(program *ast.Action) bool {
 	return hasConstantExpressions(program)
 }
 
-func (cf *ConstantFolding) Apply(program *ast.Program) *ast.Program {
-	optimized := &ast.Program{
+func (cf *ConstantFolding) Apply(program *ast.Action) *ast.Action {
+	optimized := &ast.Action{
 		ActionName: program.ActionName,
 		Statements: []ast.Statement{},
 	}
@@ -399,13 +399,13 @@ func isConstant(expr ast.Expression) bool {
 // DEAD CODE ELIMINATION
 func (dce *DeadCodeElimination) Name() string { return "DeadCodeElimination" }
 
-func (dce *DeadCodeElimination) CanApply(program *ast.Program) bool {
+func (dce *DeadCodeElimination) CanApply(program *ast.Action) bool {
 	return true // Toujours applicable
 }
 
-func (dce *DeadCodeElimination) Apply(program *ast.Program) *ast.Program {
+func (dce *DeadCodeElimination) Apply(program *ast.Action) *ast.Action {
 	//Eliminating of the unused let statements
-	optimized := &ast.Program{
+	optimized := &ast.Action{
 		ActionName: program.ActionName,
 		Statements: []ast.Statement{},
 	}
@@ -500,7 +500,7 @@ func (dce *DeadCodeElimination) Apply(program *ast.Program) *ast.Program {
 	return optimized
 }
 
-func isUsed(name string, actions *ast.Program) bool {
+func isUsed(name string, actions *ast.Action) bool {
 	// Vérifier si la variable est utilisée dans le programme
 	for _, stmt := range actions.Statements {
 		if isFunctionUsedInStatement(stmt, name) {
@@ -578,7 +578,7 @@ func isVariableUsedInExpression(expr ast.Expression, name string) bool {
 	return false
 }
 
-func isDeadCode(stmt ast.Statement, actions *ast.Program) bool {
+func isDeadCode(stmt ast.Statement, actions *ast.Action) bool {
 	// Identifier le code mort (variables non utilisées, etc.)
 	switch s := stmt.(type) {
 	case *ast.LetStatement:
@@ -670,7 +670,7 @@ func isUnrichabled(expr ast.Expression) bool {
 	return false
 }
 
-func isDefinedStructDead(s *ast.StructStatement, actions *ast.Program) bool {
+func isDefinedStructDead(s *ast.StructStatement, actions *ast.Action) bool {
 	// Retourne true si la structure n'est utilisée nulle part comme type.
 	// Vérifie les déclarations du programme (variables, fonctions, champs, paramètres, retours, etc.)
 	if s == nil || s.Name == nil {
@@ -785,7 +785,7 @@ func scanForTypeLikeField(node ast.Node, name string) bool {
 	return false
 }
 
-func isFunctionDead(fn *ast.FunctionStatement, program *ast.Program) bool {
+func isFunctionDead(fn *ast.FunctionStatement, program *ast.Action) bool {
 	name := fn.Name.Value
 	for _, stmt := range program.Statements {
 		// ignorer la définition même
@@ -908,12 +908,12 @@ func isPureExpression(expr ast.Expression) bool {
 // LOOP OPTIMIZATION
 func (lo *LoopOptimization) Name() string { return "LoopOptimization" }
 
-func (lo *LoopOptimization) CanApply(program *ast.Program) bool {
+func (lo *LoopOptimization) CanApply(program *ast.Action) bool {
 	return hasLoops(program)
 }
 
-func (lo *LoopOptimization) Apply(program *ast.Program) *ast.Program {
-	optimized := &ast.Program{
+func (lo *LoopOptimization) Apply(program *ast.Action) *ast.Action {
+	optimized := &ast.Action{
 		ActionName: program.ActionName,
 		Statements: []ast.Statement{},
 	}
@@ -1204,11 +1204,11 @@ func exprUsesAny(expr ast.Expression, set map[string]struct{}) bool {
 // FUNCTION INLINING
 func (fi *FunctionInlining) Name() string { return "FunctionInlining" }
 
-func (fi *FunctionInlining) CanApply(program *ast.Program) bool {
+func (fi *FunctionInlining) CanApply(program *ast.Action) bool {
 	return hasSmallFunctions(program)
 }
 
-func (fi *FunctionInlining) Apply(program *ast.Program) *ast.Program {
+func (fi *FunctionInlining) Apply(program *ast.Action) *ast.Action {
 	// Collecter les fonctions
 	functions := make(map[string]*ast.FunctionStatement)
 	var otherStatements []ast.Statement
@@ -1222,7 +1222,7 @@ func (fi *FunctionInlining) Apply(program *ast.Program) *ast.Program {
 	}
 
 	// Appliquer l'inline
-	optimized := &ast.Program{
+	optimized := &ast.Action{
 		ActionName: program.ActionName,
 		Statements: []ast.Statement{},
 	}
@@ -1281,7 +1281,7 @@ func estimateStatementSize(stmt ast.Statement) int {
 }
 
 // Fonctions utilitaires pour détecter les opportunités d'optimisation
-func hasConstantExpressions(program *ast.Program) bool {
+func hasConstantExpressions(program *ast.Action) bool {
 	for _, stmt := range program.Statements {
 		if containsConstantExpression(stmt) {
 			return true
@@ -1303,7 +1303,7 @@ func containsConstantExpression(stmt ast.Statement) bool {
 	}
 }
 
-func hasLoops(program *ast.Program) bool {
+func hasLoops(program *ast.Action) bool {
 	for _, stmt := range program.Statements {
 		if containsLoop(stmt) {
 			return true
@@ -1326,7 +1326,7 @@ func containsLoop(stmt ast.Statement) bool {
 	return false
 }
 
-func hasSmallFunctions(program *ast.Program) bool {
+func hasSmallFunctions(program *ast.Action) bool {
 	for _, stmt := range program.Statements {
 		if fn, ok := stmt.(*ast.FunctionStatement); ok {
 			if shouldInline(fn) {

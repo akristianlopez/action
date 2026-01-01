@@ -32,6 +32,7 @@ type Action struct {
 	ActionName string
 	Statements []Statement
 	ReturnType *TypeAnnotation
+	Paramters  []*StructField
 }
 
 func (p *Action) TokenLiteral() string {

@@ -1266,7 +1266,7 @@ func TestParseProgram(t *testing.T) {
 			l := lexer.New(tc.src)
 			p := New(l)
 
-			p.ParseProgram()
+			p.ParseAction()
 			if tc.status == 0 && len(p.Errors()) > 0 {
 				fmt.Println("Erreurs de parsing:")
 				hasError = true

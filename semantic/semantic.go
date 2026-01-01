@@ -193,12 +193,12 @@ func (sa *SemanticAnalyzer) registerBuiltinTypes() {
 	sa.TypeSql["boolean"] = &TypeInfo{Name: "boolean"}
 }
 
-func (sa *SemanticAnalyzer) Analyze(program *ast.Program) []string {
+func (sa *SemanticAnalyzer) Analyze(program *ast.Action) []string {
 	sa.visitProgram(program)
 	return sa.Errors
 }
 
-func (sa *SemanticAnalyzer) visitProgram(node *ast.Program) {
+func (sa *SemanticAnalyzer) visitProgram(node *ast.Action) {
 	// Vérifier la structure du programme
 	if node.ActionName == "" {
 		sa.addError("Then action must start by 'action <nom>'")

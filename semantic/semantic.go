@@ -527,8 +527,43 @@ func (sa *SemanticAnalyzer) visitSQLColumnConstraints(names []string, v *ast.SQL
 			v.Check.String(), v.Check.Line(), v.Check.Column())
 	}
 }
+func toTypeInfo(d *ast.SQLDataType) *TypeInfo {
+	if d == nil {
+		return nil
+	}
+	n := d.Name
+	switch lower(d.Name) {
+	case "varchar", "text":
+		n = "string"
+	case "integer, number":
+		n = "integer"
+	case "decimal", "numeric":
+		n = "float"
+	default:
+		n = "any"
+	}
+	structType := &TypeInfo{
+		Name:      n,
+		IsArray:   false,
+		ArraySize: 0,
+	}
+
+	return structType
+}
+func (sa *SemanticAnalyzer) makeSQLCreateAsStructure(s *ast.SQLCreateObjectStatement) {
+	structType := &TypeInfo{
+		Name:   s.ObjectName.Value,
+		Fields: make(map[string]*TypeInfo),
+	}
+	//build the list of field type
+	for _, sf := range s.Columns {
+		structType.Fields[lower(sf.Name.Value)] = toTypeInfo(sf.DataType)
+	}
+	sa.registerSymbol(s.ObjectName.Value, StructSymbol, structType, s)
+}
 
 func (sa *SemanticAnalyzer) visitSQLCreateObjectStatement(s *ast.SQLCreateObjectStatement) {
+	//After creating an object register it as a type structure
 	if s.ObjectName == nil {
 		sa.addError("The name of the object is missing. line:%d, column:%d", s.Token.Line, s.Token.Column)
 		return
@@ -539,6 +574,8 @@ func (sa *SemanticAnalyzer) visitSQLCreateObjectStatement(s *ast.SQLCreateObject
 	}
 	//Browsing columns
 	names := make([]string, 0)
+	hasConst := false
+
 	for _, v := range s.Columns {
 		if contains(names, lower(v.Name.Value)) {
 			sa.addError("This column '%s' is already existed. line:%d, column:%d",
@@ -547,11 +584,16 @@ func (sa *SemanticAnalyzer) visitSQLCreateObjectStatement(s *ast.SQLCreateObject
 		}
 		names = append(names, lower(v.Name.Value))
 		sa.visitSQLTypeConstraint(v.DataType)
+		if len(v.Constraints) > 0 {
+			hasConst = true
+		}
 	}
+
 	//Browsing Constraints
 	constNames := make([]string, 0)
 	constType := make([]string, 0)
-	if len(s.Constraints) == 0 {
+	if len(s.Constraints) == 0 && !hasConst {
+		sa.addError("Object '%s' does not have at least the primary. line:%d, column:%d", s.ObjectName.Value, s.ObjectName.Line(), s.ObjectName.Column())
 		return
 	}
 	for _, e := range s.Constraints {
@@ -569,6 +611,10 @@ func (sa *SemanticAnalyzer) visitSQLCreateObjectStatement(s *ast.SQLCreateObject
 		if !flag {
 			constType = append(constType, strings.ToLower(e.Type))
 		}
+	}
+	if sa.lookupSymbol(s.ObjectName.Value) == nil {
+		//define this table as structure
+		sa.makeSQLCreateAsStructure(s)
 	}
 }
 
@@ -1359,8 +1405,11 @@ func (sa *SemanticAnalyzer) visitExpression(expr ast.Expression) *TypeInfo {
 		return sa.visitInExpression(e)
 	case *ast.ArrayFunctionCall:
 		return sa.visitArrayFunctionCall(e)
-	case *ast.SQLSelectStatement, *ast.SQLWithStatement:
-		return &TypeInfo{Name: "sql_result"}
+	case *ast.SQLSelectStatement:
+		// Create and register the type of sql_result from select statement field
+		return sa.visitSelectExpression(e)
+	case *ast.SQLWithStatement:
+		return sa.visitWithSelectExpression(e)
 	// case *ast.SQLInsertStatement, *ast.SQLUpdateStatement,
 	// 	*ast.SQLDeleteStatement:
 	// 	return &TypeInfo{Name: "integer"}
@@ -1369,8 +1418,120 @@ func (sa *SemanticAnalyzer) visitExpression(expr ast.Expression) *TypeInfo {
 	case *ast.AssignmentStatement:
 		return sa.visitAssignmentStatement(e)
 	default:
-		return &TypeInfo{Name: "any"}
+		return &TypeInfo{Name: "void"}
 	}
+}
+
+func (sa *SemanticAnalyzer) visitSelectArgs(node *ast.SelectArgs) *TypeInfo {
+	if node == nil {
+		return nil
+	}
+	if fl, ok := node.Expr.(*ast.TypeMember); ok {
+		f, ov := fl.Left.(*ast.Identifier)
+		if !ov {
+			sa.addError("Object '%s' does not exist. Line:%d, column:%d.", fl.Left.String(), fl.Left.Line(), fl.Left.Column())
+			return nil
+		}
+		symp := sa.lookupSymbol(f.Value)
+		if symp == nil {
+			sa.addError("Object '%s' does not exist.", f.Value)
+			return nil
+		}
+		fi, o := fl.Right.(*ast.Identifier)
+		if !o {
+			sa.addError("Object '%s' does not exist. Line:%d, column:%d.", fl.Right.String(), fl.Right.Line(), fl.Right.Column())
+			return nil
+		}
+		res, o := symp.DataType.Fields[lower(fi.Value)]
+		if !o {
+			sa.addError("Object '%s' does not exist. Line:%d, column:%d.", fi.Value, fi.Line(), fi.Column())
+			return nil
+		}
+		return res
+	}
+	return &TypeInfo{Name: "void"}
+}
+func (sa *SemanticAnalyzer) visitFromClauseExpression(node *ast.SQLSelectStatement) {
+	if node == nil {
+		return
+	}
+	fi, o := node.From.(*ast.FromIdentifier)
+	if !o {
+		sa.addError("Invalid expression '%s' does not exist. Line:%d, column:%d.", fi.String(), fi.Line(), fi.Column())
+		return
+	}
+	if fi.NewName != nil {
+		id, ok := fi.NewName.(*ast.Identifier)
+		if !ok {
+			sa.addError("Invalid expression '%s' does not exist. Line:%d, column:%d.", id.String(), id.Line(), id.Column())
+			return
+		}
+		symp := sa.lookupSymbol(fi.Value.String())
+		if symp == nil {
+			sa.addError("Object '%s' does not exist. Line:%d, column:%d.", fi.Value.String(), fi.Value.Line(), fi.Value.Column())
+			return
+		}
+		sa.registerSymbol(lower(id.Value), symp.Type, symp.DataType, fi)
+	}
+	//Traits the other table contained into the field join
+}
+func (sa *SemanticAnalyzer) visitSelectExpression(node *ast.SQLSelectStatement) *TypeInfo {
+	// Vérifier si la structure est déjà déclarée
+	// Créer le type de structure
+	sa.inType++
+	//We should compose this type from the real type of each field.
+	//We should also check the accessiblity of each object.
+	structType := &TypeInfo{
+		Name:   "select_item_" + strconv.FormatInt(int64(sa.inType), 10),
+		Fields: make(map[string]*TypeInfo),
+	}
+	sa.visitFromClauseExpression(node)
+	for _, f := range node.Select {
+		if fld, ok := f.(*ast.SelectArgs); ok {
+			fieldType := sa.visitSelectArgs(fld)
+			if fld.NewName != nil {
+				if fieldType != nil && !strings.EqualFold(fieldType.Name, "void") {
+					structType.Fields[lower(fld.NewName.Value)] = fieldType
+					continue
+				}
+				if strings.EqualFold(fieldType.Name, "void") {
+					structType.Fields[lower(fld.NewName.Value)] = sa.visitExpression(fld.Expr)
+					continue
+				}
+				sa.addError("'%s' is not a field name. Line:%d, column:%d", fld.Expr.String(), fld.Expr.Line(), fld.Expr.Column())
+				break
+			}
+			// if fl, ok := fld.Expr.(*ast.Identifier); ok {
+			// 	structType.Fields[lower(fl.Value)] = &TypeInfo{Name: "any"}
+			// 	continue
+			// }
+			if fl, ok := fld.Expr.(*ast.TypeMember); ok {
+				fi, o := fl.Right.(*ast.Identifier)
+				if fieldType != nil && o && !strings.EqualFold(fieldType.Name, "void") {
+					structType.Fields[lower(fi.Value)] = fieldType
+					continue
+				}
+				sa.addError("Invalid column expression '%s'. line:%d column:%d", fld.Expr.String(),
+					fld.Expr.Line(), fld.Expr.Column())
+				return &TypeInfo{Name: "void"}
+			}
+			sa.addError("'%s' needs to be renamed. line:%d column:%d", fld.Expr.String(),
+				fld.Expr.Line(), fld.Expr.Column())
+			return &TypeInfo{Name: "void"}
+		}
+	}
+
+	// Enregistrer le type
+	sa.TypeTable[lower(structType.Name)] = structType
+	sa.registerSymbol(structType.Name, StructSymbol, structType, node)
+	structType = &TypeInfo{Name: "sql_result_" + strconv.FormatInt(int64(sa.inType), 10), IsArray: true, ElementType: structType}
+	sa.registerSymbol(structType.Name, ArraySymbol, structType, node)
+	return structType
+}
+
+func (sa *SemanticAnalyzer) visitWithSelectExpression(e *ast.SQLWithStatement) *TypeInfo {
+
+	return &TypeInfo{Name: "sql_result", IsArray: true, ElementType: &TypeInfo{Name: "select_item"}}
 }
 
 func (sa *SemanticAnalyzer) visitLikeExpression(e *ast.LikeExpression) *TypeInfo {
@@ -1966,6 +2127,26 @@ func (sa *SemanticAnalyzer) resolveTypeAnnotation(ta *ast.TypeAnnotation) *TypeI
 	// Vérifier si c'est un type défini
 	if typeInfo, exists := sa.TypeTable[lower(ta.Type)]; exists {
 		return typeInfo
+	}
+	if strings.EqualFold(ta.Token.Literal, "object") {
+		resultType := sa.lookupSymbol(ta.Type)
+		if resultType != nil {
+			return resultType.DataType
+		}
+		//lately we should read from the database the real structure of this table/object.
+		// and store it as a structure type.
+
+		m := make(map[string]*TypeInfo)
+		m["*"] = &TypeInfo{Name: "any"}
+		return &TypeInfo{
+			Name:      "array",
+			IsArray:   true,
+			ArraySize: 0,
+			ElementType: &TypeInfo{
+				Name:   ta.Type,
+				Fields: m,
+			},
+		}
 	}
 
 	// Type inconnu

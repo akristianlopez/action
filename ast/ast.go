@@ -27,20 +27,21 @@ type Expression interface {
 	Column() int
 }
 
-// Program - le programme racine
-type Program struct {
+// Action - l'action racine
+type Action struct {
 	ActionName string
 	Statements []Statement
+	ReturnType *TypeAnnotation
 }
 
-func (p *Program) TokenLiteral() string {
+func (p *Action) TokenLiteral() string {
 	if len(p.Statements) > 0 {
 		return p.Statements[0].TokenLiteral()
 	}
 	return ""
 }
 
-func (p *Program) String() string {
+func (p *Action) String() string {
 	var out string
 	for _, s := range p.Statements {
 		out += s.String()

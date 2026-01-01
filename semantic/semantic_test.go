@@ -765,7 +765,7 @@ package semantic
 
 // 			// Étape 2: Parsing
 // 			p := parser.New(l)
-// 			action := p.ParseProgram()
+// 			action := p.ParseAction()
 // 			if p.Errors() != nil && len(p.Errors()) != 0 {
 // 				fmt.Println("Erreurs de parsing:")
 // 				for _, msg := range p.Errors() {

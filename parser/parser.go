@@ -166,8 +166,8 @@ func (p *Parser) nextToken() {
 	}
 }
 
-func (p *Parser) ParseProgram() *ast.Program {
-	program := &ast.Program{}
+func (p *Parser) ParseProgram() *ast.Action {
+	program := &ast.Action{}
 
 	// Vérifier que le programme commence par 'action'
 	if !p.curTokenIs(token.ACTION) {

@@ -2,9 +2,9 @@ module github.com/akristianlopez/action/parser
 
 go 1.25.4
 
-require github.com/akristianlopez/action/ast v0.0.0-20251229054434-d28966b893cd
+require github.com/akristianlopez/action/ast v0.0.0-20260101182116-3431003c7e20
 
 require (
-	github.com/akristianlopez/action/lexer v0.0.0-20251229054434-d28966b893cd
-	github.com/akristianlopez/action/token v0.0.0-20251229054434-d28966b893cd // indirect
+	github.com/akristianlopez/action/lexer v0.0.0-20260101182116-3431003c7e20
+	github.com/akristianlopez/action/token v0.0.0-20260101182116-3431003c7e20 // indirect
 )

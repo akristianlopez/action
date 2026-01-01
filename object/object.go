@@ -476,6 +476,9 @@ func (e *Environment) GetLimitEnv(name string) *Environment {
 	return env
 }
 func (e *Environment) Valid(name string, value Object) (bool, string) {
+	if e.limits == nil {
+		return true, ""
+	}
 	if lim, ok := (*e.limits)[strings.ToLower(name)]; ok {
 		return lim.Valid(value)
 	}

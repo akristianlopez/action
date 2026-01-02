@@ -506,7 +506,7 @@ func (sc *SQLCreateObjectStatement) statementNode()       {}
 func (sc *SQLCreateObjectStatement) TokenLiteral() string { return sc.Token.Literal }
 func (sc *SQLCreateObjectStatement) String() string {
 	var out string
-	out += "CREATE OBJECT "
+	out += "CREATE TABLE "
 	if sc.IfNotExists {
 		out += "IF NOT EXISTS "
 	}

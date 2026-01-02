@@ -400,10 +400,10 @@ type Environment struct {
 	ctx    *context.Context
 }
 
-func NewEnvironment(db *sql.DB, ctx *context.Context) *Environment {
+func NewEnvironment(db *sql.DB, ctx context.Context) *Environment {
 	s := make(map[string]Object)
 
-	return &Environment{store: s, outer: nil, limits: nil, db: db, ctx: ctx}
+	return &Environment{store: s, outer: nil, limits: nil, db: db, ctx: &ctx}
 }
 func (env *Environment) Exec(strSQL string, args ...any) (sql.Result, error) {
 	if env.db != nil && strSQL != "" {
@@ -432,7 +432,7 @@ func (env *Environment) Query(strSQL string, args ...any) (*sql.Rows, error) {
 }
 
 func NewEnclosedEnvironment(outer *Environment) *Environment {
-	env := NewEnvironment(outer.db, outer.ctx)
+	env := NewEnvironment(outer.db, *(outer.ctx))
 	env.outer = outer
 	env.limits = nil
 	return env

@@ -1,6 +1,9 @@
 package object
 
 import (
+	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"math"
 	"strconv"
@@ -393,16 +396,43 @@ type Environment struct {
 	store  map[string]Object
 	outer  *Environment
 	limits *map[string]Limits
+	db     *sql.DB
+	ctx    *context.Context
 }
 
-func NewEnvironment() *Environment {
+func NewEnvironment(db *sql.DB, ctx *context.Context) *Environment {
 	s := make(map[string]Object)
 
-	return &Environment{store: s, outer: nil, limits: nil}
+	return &Environment{store: s, outer: nil, limits: nil, db: db, ctx: ctx}
+}
+func (env *Environment) Exec(strSQL string, args ...any) (sql.Result, error) {
+	if env.db != nil && strSQL != "" {
+		if env.ctx == nil {
+			return nil, errors.New("Nsina: Context is not defined")
+		}
+		return env.db.ExecContext(*env.ctx, strSQL, args...)
+	}
+	if env.db == nil {
+		return nil, errors.New("Nsina: no defined database")
+	}
+	return nil, errors.New("Nsina: no query to be executed")
+}
+
+func (env *Environment) Query(strSQL string, args ...any) (*sql.Rows, error) {
+	if env.db != nil && strSQL != "" {
+		if env.ctx == nil {
+			return nil, errors.New("Nsina: Context is not defined")
+		}
+		return env.db.QueryContext(*env.ctx, strSQL, args)
+	}
+	if env.db == nil {
+		return nil, errors.New("Nsina: no defined database")
+	}
+	return nil, errors.New("Nsina: no query to be executed")
 }
 
 func NewEnclosedEnvironment(outer *Environment) *Environment {
-	env := NewEnvironment()
+	env := NewEnvironment(outer.db, outer.ctx)
 	env.outer = outer
 	env.limits = nil
 	return env

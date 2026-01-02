@@ -1,7 +1,10 @@
 package nsina
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"testing"
 
@@ -11,6 +14,9 @@ import (
 	"github.com/akristianlopez/action/optimizer"
 	"github.com/akristianlopez/action/parser"
 	"github.com/akristianlopez/action/semantic"
+	_ "github.com/go-sql-driver/mysql" // Import du driver MySQL/MariaDB
+	_ "github.com/lib/pq"              // Driver PostgreSQL
+	_ "modernc.org/sqlite"             // Import du driver SQLite
 )
 
 type testCase struct {
@@ -302,20 +308,20 @@ func build_args() []testCase {
 		name: "Test 1.8 : Managing SQL Select statement",
 		src: `action "SQL Select statement" (* (liste des parametres) : type valeur de retour *)			
 			start
-				(* Table pour les structures organisationnelles *)
+				(* Table pour les structures organisationnelles 
 				CREATE OBJECT Employee (
 					Id INTEGER PRIMARY KEY,
 					Nom VARCHAR(100) NOT NULL,
 					Age INTEGER,
 					Sexe VARCHAR(8),
-				);		
+				);*)		
 				Let result=select o.nom, o.age, o.sexe From  employee o
 				let emp:object employee;
 				let lst:string
 				for let rec of result{
 					lst=lst+rec.nom
 				}
-				return lst		
+				return lst
  			stop
 			 `,
 		status: 0,
@@ -323,7 +329,28 @@ func build_args() []testCase {
 	return res
 }
 
+// var db_driver string = "sqllite"
+
 func TestAnalyze(t *testing.T) {
+	//	// Chaîne de connexion : utilisateur:motdepasse@tcp(hôte:port)/base
+	//mariadb dsn := "root:password@tcp(127.0.0.1:3306)/testdb?charset=utf8mb4&parseTime=True&loc=Local"
+	// Connexion à la base
+	// db, err := sql.Open("mysql", dsn)
+
+	// psqlInfo := fmt.Sprintf(
+	// 	"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+	// 	host, port, user, password, dbname,
+	// )
+	// Connexion à la base
+	// db, err := sql.Open("postgres", psqlInfo)
+
+	// 1. Connexion / création de la base SQLite
+	db, err := sql.Open("sqlite", "./nsina2026.db")
+	if err != nil {
+		log.Fatalf("Erreur ouverture base : %v", err)
+	}
+	defer db.Close()
+
 	for _, tc := range build_args() {
 		t.Run(tc.name, func(t *testing.T) {
 			// Étape 1: Lexical Analysis
@@ -342,7 +369,7 @@ func TestAnalyze(t *testing.T) {
 			fmt.Printf("✓ action (%s) parsée\n", action.ActionName)
 
 			// Étape 3: Analyse Sémantique
-			analyzer := semantic.NewSemanticAnalyzer()
+			analyzer := semantic.NewSemanticAnalyzer(db, nil)
 			errors := analyzer.Analyze(action)
 
 			if len(errors) > 0 {
@@ -387,7 +414,7 @@ func TestAnalyze(t *testing.T) {
 			fmt.Printf("---> Remining statements size: %d\n", len(optimizedProgram.Statements))
 
 			// Étape 5: Évaluation
-			env := object.NewEnvironment()
+			env := object.NewEnvironment(db, context.Background())
 			result := Eval(optimizedProgram, env)
 
 			if result != nil {

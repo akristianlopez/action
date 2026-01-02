@@ -7,6 +7,9 @@ import (
 
 	"github.com/akristianlopez/action/ast"
 	"github.com/akristianlopez/action/object"
+	// _ "github.com/go-sql-driver/mysql" // Import du driver MySQL/MariaDB
+	// _ "github.com/lib/pq"              // Driver PostgreSQL
+	// _ "github.com/mattn/go-sqlite3"    // Import du driver SQLite
 )
 
 var struct_id int = 0
@@ -15,9 +18,10 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	if node == nil {
 		return nil
 	}
+
 	switch node := node.(type) {
 	case *ast.Action:
-		return evalProgram(node, env)
+		return evalAction(node, env)
 	case *ast.ExpressionStatement:
 		return Eval(node.Expression, env)
 	case *ast.IntegerLiteral:
@@ -160,7 +164,7 @@ func evalTypeMember(node *ast.TypeMember, env *object.Environment) object.Object
 		object.STRUCT_OBJ, obj.Type())
 }
 
-func evalProgram(program *ast.Action, env *object.Environment) object.Object {
+func evalAction(program *ast.Action, env *object.Environment) object.Object {
 	var result object.Object
 
 	for _, statement := range program.Statements {
@@ -977,11 +981,16 @@ func evalSQLCreateObject(stmt *ast.SQLCreateObjectStatement, env *object.Environ
 
 	// Stocker la table dans l'environnement
 	env.Set(stmt.ObjectName.Value, table)
-
-	return &object.SQLResult{
-		Message:      fmt.Sprintf("OBJECT %s créé avec succès", stmt.ObjectName.Value),
-		RowsAffected: 0,
+	strSQL := stmt.String()
+	res, err := env.Exec(strSQL)
+	if err == nil {
+		r, _ := res.RowsAffected()
+		return &object.SQLResult{
+			Message:      fmt.Sprintf("OBJECT %s créé avec succès", stmt.ObjectName.Value),
+			RowsAffected: r,
+		}
 	}
+	return newError("Nsina: %s", err.Error())
 }
 
 func evalSQLDropObject(stmt *ast.SQLDropObjectStatement, env *object.Environment) object.Object {

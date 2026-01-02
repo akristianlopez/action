@@ -775,7 +775,7 @@ package semantic
 // 			}
 
 // 			// Étape 3: Analyse Sémantique
-// 			analyzer := NewSemanticAnalyzer()
+// 			analyzer := NewSemanticAnalyzer(nil,nil)
 // 			errors := analyzer.Analyze(action)
 
 // 			if len(errors) > 0 {

@@ -1,6 +1,8 @@
 package semantic
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
@@ -64,11 +66,13 @@ type SemanticAnalyzer struct {
 	TypeTable    map[string]*TypeInfo
 	TypeSql      map[string]*TypeInfo
 	inType       int
+	db           *sql.DB
+	ctx          *context.Context
 }
 
 // var tokenList []string
 
-func NewSemanticAnalyzer() *SemanticAnalyzer {
+func NewSemanticAnalyzer(db *sql.DB, ctx *context.Context) *SemanticAnalyzer {
 
 	globalScope := &Scope{
 		Symbols: make(map[string]*Symbol),
@@ -82,6 +86,8 @@ func NewSemanticAnalyzer() *SemanticAnalyzer {
 		TypeTable:    make(map[string]*TypeInfo),
 		TypeSql:      make(map[string]*TypeInfo),
 		inType:       1,
+		db:           db,
+		ctx:          ctx,
 	}
 
 	// Enregistrement des functions standards
@@ -2133,6 +2139,17 @@ func (sa *SemanticAnalyzer) resolveTypeAnnotation(ta *ast.TypeAnnotation) *TypeI
 		if resultType != nil {
 			return resultType.DataType
 		}
+		strSQL := "SELECT * FROM " + ta.Type
+		rows, err := sa.db.QueryContext(*sa.ctx, strSQL)
+		if err == nil && rows != nil {
+			lst, _ := rows.Columns()
+			if len(lst) > 0 {
+				return &TypeInfo{Name: "sql_result"}
+			}
+			return nil
+		}
+		//SELECT sql FROM sqlite_master WHERE type='table' AND name='users';
+
 		//lately we should read from the database the real structure of this table/object.
 		// and store it as a structure type.
 

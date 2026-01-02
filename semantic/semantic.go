@@ -706,29 +706,31 @@ func contains(slice []string, element string) bool {
 	return false
 }
 
-func (sa *SemanticAnalyzer) visitObjectInFromClause(se ast.Expression) *string {
+func (sa *SemanticAnalyzer) visitObjectInFromClause(se ast.Expression) (*string, *string) {
 	if se == nil {
 		sa.addError("From clause must have at least one object. line:%d, column:%d", 0, 0)
-		return nil
+		return nil, nil
 	}
 	res := ""
 	switch s := se.(type) {
 	case *ast.FromIdentifier:
 		switch v := s.Value.(type) {
 		case *ast.Identifier:
+			oldname := strings.ToLower(v.Value)
 			if s.NewName == nil {
-				res = strings.ToLower(v.Value)
-				return &res
+				res = oldname
+				return &res, nil
 			}
 			switch s.NewName.(type) {
 			case *ast.Identifier:
 				res = strings.ToLower(v.Value)
-				return &res
+				return &oldname, &res
 			default:
 				sa.addError("'%s' invalid statement here. line:%d, column:%d", s.NewName.String(), s.NewName.Line(), s.NewName.Column())
-				return nil
+				return &oldname, nil
 			}
 		case *ast.SQLSelectStatement:
+			//pare the statement here
 			if s.NewName == nil {
 				sa.addError("New name expected. line:%d, column:%d", s.Value.Line(), s.Value.Column())
 				break
@@ -739,17 +741,17 @@ func (sa *SemanticAnalyzer) visitObjectInFromClause(se ast.Expression) *string {
 			default:
 				sa.addError("'%s' invalid expression. New name expected. line:%d, column:%d",
 					nn.String(), nn.Line(), nn.Column())
-				return nil
+				return nil, nil
 			}
 		default:
 			sa.addError("'%s' invalid statement here. line:%d, column:%d", s.Value.String(), s.Value.Line(), s.Value.Column())
-			return nil
+			return nil, nil
 		}
 	default:
 		sa.addError("Unknown expression '%s' here. line:%d, column:%d", s.String(), s.Line(), s.Column())
-		return nil
+		return nil, nil
 	}
-	return &res
+	return nil, &res
 }
 
 func (sa *SemanticAnalyzer) visitSQLExpressionWithDotToken(tab []string, expr ast.Expression) {
@@ -779,7 +781,12 @@ func (sa *SemanticAnalyzer) visitSQLExpressionWithDotToken(tab []string, expr as
 		return
 	}
 }
-
+func nullString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
 func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) *TypeInfo {
 	//check for select argumens
 	if ss.Select == nil {
@@ -801,14 +808,15 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 		Parent:  sa.CurrentScope,
 		Symbols: make(map[string]*Symbol),
 	}
-	cf := sa.visitObjectInFromClause(ss.From)
+	nn, cf := sa.visitObjectInFromClause(ss.From)
 	if cf != nil {
 		if !contains(ctes, *cf) && len(ctes) > 0 {
 			sa.addError("'%s' is not defined as CTE. line:%d, column:%d", *cf, ss.From.Line(), ss.From.Column())
 			sa.CurrentScope = oldscope
 			return &TypeInfo{Name: "void"}
 		}
-		tokenList = append(tokenList, *cf)
+		ctes = append(tokenList, nullString(cf))
+		tokenList = append(tokenList, nullString(nn))
 	}
 	sa.CurrentScope = &scope
 	sa.registerTempoSymbols(tokenList)
@@ -816,7 +824,7 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 	//Look on the join clauses
 	if ss.Joins != nil {
 		for _, fm := range ss.Joins {
-			cf = sa.visitObjectInFromClause(fm.Table)
+			nn, cf = sa.visitObjectInFromClause(fm.Table)
 			if !contains(tokenList, *cf) {
 				tokenList = append(tokenList, *cf)
 				tab := make([]string, 0)
@@ -836,7 +844,11 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 			sa.visitSQLExpressionWithDotToken(tokenList, fm.On)
 		}
 	}
-
+	for k, ce := range ctes {
+		if ce != "" && tokenList[k] != "" {
+			sa.CurrentScope.Symbols[lower(ce)] = sa.CurrentScope.Symbols[lower(tokenList[k])]
+		}
+	}
 	argList := make([]string, 0)
 	for _, f := range ss.Select {
 		field := f.(*ast.SelectArgs)
@@ -2298,6 +2310,12 @@ func (sa *SemanticAnalyzer) registerSymbol(name string, symType SymbolType, data
 
 func (sa *SemanticAnalyzer) registerTempoSymbols(names []string) {
 	for _, name := range names {
+		if name == "" {
+			continue
+		}
+		if _, ok := sa.CurrentScope.Symbols[lower(name)]; ok {
+			continue
+		}
 		symbol := &Symbol{
 			Name:     name,
 			Type:     StructSymbol,

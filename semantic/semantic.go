@@ -796,18 +796,19 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 	}
 	//Check the clause From expression
 	tokenList := make([]string, 0)
-	cf := sa.visitObjectInFromClause(ss.From)
-	if cf != nil {
-		if !contains(ctes, *cf) && len(ctes) > 0 {
-			sa.addError("'%s' is not defined as CTE. line:%d, column:%d", *cf, ss.From.Line(), ss.From.Column())
-			return &TypeInfo{Name: "void"}
-		}
-		tokenList = append(tokenList, *cf)
-	}
 	oldscope := sa.CurrentScope
 	scope := Scope{
 		Parent:  sa.CurrentScope,
 		Symbols: make(map[string]*Symbol),
+	}
+	cf := sa.visitObjectInFromClause(ss.From)
+	if cf != nil {
+		if !contains(ctes, *cf) && len(ctes) > 0 {
+			sa.addError("'%s' is not defined as CTE. line:%d, column:%d", *cf, ss.From.Line(), ss.From.Column())
+			sa.CurrentScope = oldscope
+			return &TypeInfo{Name: "void"}
+		}
+		tokenList = append(tokenList, *cf)
 	}
 	sa.CurrentScope = &scope
 	sa.registerTempoSymbols(tokenList)
@@ -1466,30 +1467,49 @@ func (sa *SemanticAnalyzer) visitFromClauseExpression(node *ast.SQLSelectStateme
 		sa.addError("Invalid expression '%s' does not exist. Line:%d, column:%d.", fi.String(), fi.Line(), fi.Column())
 		return
 	}
+	symp := sa.lookupSymbol(fi.Value.String())
+	var resultType *TypeInfo
+	if symp == nil {
+		resultType = sa.resolveTypeFromTableName(fi.Value.String())
+	}
 	if fi.NewName != nil {
+		symp = sa.lookupSymbol(fi.Value.String())
 		id, ok := fi.NewName.(*ast.Identifier)
 		if !ok {
 			sa.addError("Invalid expression '%s' does not exist. Line:%d, column:%d.", id.String(), id.Line(), id.Column())
 			return
 		}
-		symp := sa.lookupSymbol(fi.Value.String())
 		if symp == nil {
-			sa.addError("Object '%s' does not exist. Line:%d, column:%d.", fi.Value.String(), fi.Value.Line(), fi.Value.Column())
+			if resultType == nil {
+				sa.addError("Object '%s' does not exist. Line:%d, column:%d.", fi.Value.String(), fi.Value.Line(), fi.Value.Column())
+				return
+			}
 			return
 		}
-		sa.registerSymbol(lower(id.Value), symp.Type, symp.DataType, fi)
+		sa.CurrentScope.Symbols[lower(id.Value)] = symp
+		// sa.registerSymbol(lower(id.Value), symp.Type, symp.DataType, fi)
 	}
 	//Traits the other table contained into the field join
 }
 func (sa *SemanticAnalyzer) visitSelectExpression(node *ast.SQLSelectStatement) *TypeInfo {
+	oldScope := sa.CurrentScope
+	scope := &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	sa.CurrentScope = scope
 	// Vérifier si la structure est déjà déclarée
 	// Créer le type de structure
 	sa.inType++
 	//We should compose this type from the real type of each field.
 	//We should also check the accessiblity of each object.
 	structType := &TypeInfo{
-		Name:   "select_item_" + strconv.FormatInt(int64(sa.inType), 10),
-		Fields: make(map[string]*TypeInfo),
+		Name:    "Array",
+		IsArray: true,
+		ElementType: &TypeInfo{
+			Name:   strconv.FormatInt(int64(sa.inType), 10),
+			Fields: make(map[string]*TypeInfo),
+		},
 	}
 	sa.visitFromClauseExpression(node)
 	for _, f := range node.Select {
@@ -1497,41 +1517,34 @@ func (sa *SemanticAnalyzer) visitSelectExpression(node *ast.SQLSelectStatement) 
 			fieldType := sa.visitSelectArgs(fld)
 			if fld.NewName != nil {
 				if fieldType != nil && !strings.EqualFold(fieldType.Name, "void") {
-					structType.Fields[lower(fld.NewName.Value)] = fieldType
+					structType.ElementType.Fields[lower(fld.NewName.Value)] = fieldType
 					continue
 				}
 				if strings.EqualFold(fieldType.Name, "void") {
-					structType.Fields[lower(fld.NewName.Value)] = sa.visitExpression(fld.Expr)
+					structType.ElementType.Fields[lower(fld.NewName.Value)] = sa.visitExpression(fld.Expr)
 					continue
 				}
 				sa.addError("'%s' is not a field name. Line:%d, column:%d", fld.Expr.String(), fld.Expr.Line(), fld.Expr.Column())
 				break
 			}
-			// if fl, ok := fld.Expr.(*ast.Identifier); ok {
-			// 	structType.Fields[lower(fl.Value)] = &TypeInfo{Name: "any"}
-			// 	continue
-			// }
 			if fl, ok := fld.Expr.(*ast.TypeMember); ok {
 				fi, o := fl.Right.(*ast.Identifier)
 				if fieldType != nil && o && !strings.EqualFold(fieldType.Name, "void") {
-					structType.Fields[lower(fi.Value)] = fieldType
+					structType.ElementType.Fields[lower(fi.Value)] = fieldType
 					continue
 				}
 				sa.addError("Invalid column expression '%s'. line:%d column:%d", fld.Expr.String(),
 					fld.Expr.Line(), fld.Expr.Column())
+				sa.CurrentScope = oldScope
 				return &TypeInfo{Name: "void"}
 			}
 			sa.addError("'%s' needs to be renamed. line:%d column:%d", fld.Expr.String(),
 				fld.Expr.Line(), fld.Expr.Column())
+			sa.CurrentScope = oldScope
 			return &TypeInfo{Name: "void"}
 		}
 	}
-
-	// Enregistrer le type
-	sa.TypeTable[lower(structType.Name)] = structType
-	sa.registerSymbol(structType.Name, StructSymbol, structType, node)
-	structType = &TypeInfo{Name: "sql_result_" + strconv.FormatInt(int64(sa.inType), 10), IsArray: true, ElementType: structType}
-	sa.registerSymbol(structType.Name, ArraySymbol, structType, node)
+	sa.CurrentScope = oldScope
 	return structType
 }
 
@@ -2098,6 +2111,51 @@ func (sa *SemanticAnalyzer) visitInExpression(node *ast.InExpression) *TypeInfo 
 
 	return &TypeInfo{Name: "boolean"}
 }
+func formType(s string) string {
+	if s == "" {
+		return ""
+	}
+	result := strings.ReplaceAll(lower(s), "nvarchar2", "string")
+	result = strings.ReplaceAll(result, "nvarchar", "string")
+	result = strings.ReplaceAll(result, "varchar2", "string")
+	result = strings.ReplaceAll(result, "varchar", "string")
+	result = strings.ReplaceAll(result, "ntext", "string")
+	result = strings.ReplaceAll(result, "text", "string")
+	result = strings.ReplaceAll(result, "number", "integer")
+	result = strings.ReplaceAll(result, "decimal", "float")
+	result = strings.ReplaceAll(result, "numeric", "float")
+	tab := strings.Split(result, "(")
+	return tab[0]
+}
+func (sa *SemanticAnalyzer) resolveTypeFromTableName(name string) *TypeInfo {
+	strSQL := "SELECT * FROM " + name
+	var (
+		rows *sql.Rows
+		err  error
+	)
+	if sa.ctx == nil {
+		rows, err = sa.db.Query(strSQL)
+	} else {
+		rows, err = sa.db.QueryContext(*sa.ctx, strSQL)
+	}
+	if err == nil && rows != nil {
+		colTypes, _ := rows.ColumnTypes()
+		structType := &TypeInfo{Name: name, Fields: make(map[string]*TypeInfo)}
+		for _, col := range colTypes {
+			structType.Fields[lower(col.Name())] = &TypeInfo{Name: formType(lower(col.DatabaseTypeName()))}
+		}
+
+		sa.registerSymbol(structType.Name, StructSymbol, structType, nil)
+		return &TypeInfo{
+			Name:        "sql_object",
+			IsArray:     true,
+			ArraySize:   0,
+			ElementType: structType,
+		}
+	}
+	sa.addError("Object '%s' does not exist", name)
+	return nil
+}
 
 // Méthodes utilitaires
 func (sa *SemanticAnalyzer) resolveTypeAnnotation(ta *ast.TypeAnnotation) *TypeInfo {
@@ -2139,36 +2197,12 @@ func (sa *SemanticAnalyzer) resolveTypeAnnotation(ta *ast.TypeAnnotation) *TypeI
 		if resultType != nil {
 			return resultType.DataType
 		}
-		strSQL := "SELECT * FROM " + ta.Type
-		rows, err := sa.db.QueryContext(*sa.ctx, strSQL)
-		if err == nil && rows != nil {
-			lst, _ := rows.Columns()
-			if len(lst) > 0 {
-				return &TypeInfo{Name: "sql_result"}
-			}
-			return nil
-		}
-		//SELECT sql FROM sqlite_master WHERE type='table' AND name='users';
-
-		//lately we should read from the database the real structure of this table/object.
-		// and store it as a structure type.
-
-		m := make(map[string]*TypeInfo)
-		m["*"] = &TypeInfo{Name: "any"}
-		return &TypeInfo{
-			Name:      "array",
-			IsArray:   true,
-			ArraySize: 0,
-			ElementType: &TypeInfo{
-				Name:   ta.Type,
-				Fields: m,
-			},
-		}
+		return sa.resolveTypeFromTableName(ta.Type)
 	}
 
 	// Type inconnu
-	sa.addError("Type inconnu: %s", ta.Type)
-	return &TypeInfo{Name: "any"}
+	sa.addError("Unknown type %s", ta.Type)
+	return nil
 }
 func lower(s string) string {
 	return strings.ToLower(s)
@@ -2266,8 +2300,8 @@ func (sa *SemanticAnalyzer) registerTempoSymbols(names []string) {
 	for _, name := range names {
 		symbol := &Symbol{
 			Name:     name,
-			Type:     DbObjectSymbol,
-			DataType: &TypeInfo{Name: "any"},
+			Type:     StructSymbol,
+			DataType: sa.resolveTypeFromTableName(name),
 			Scope:    sa.CurrentScope,
 			Node:     nil,
 			Index:    -1,

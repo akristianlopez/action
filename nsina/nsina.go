@@ -168,14 +168,20 @@ func evalAction(program *ast.Action, env *object.Environment) object.Object {
 	var result object.Object
 
 	for _, statement := range program.Statements {
-		result = Eval(statement, env)
+		select {
+		case <-env.Context().Done():
+			return newError("%s: Canceled by the user", "Nsina")
+		default:
+			result = Eval(statement, env)
 
-		switch result := result.(type) {
-		case *object.ReturnValue:
-			return result.Value
-		case *object.Error:
-			return result
+			switch result := result.(type) {
+			case *object.ReturnValue:
+				return result.Value
+			case *object.Error:
+				return result
+			}
 		}
+
 	}
 	return result
 }

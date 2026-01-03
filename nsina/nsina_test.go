@@ -350,7 +350,8 @@ func TestAnalyze(t *testing.T) {
 		log.Fatalf("Erreur ouverture base : %v", err)
 	}
 	defer db.Close()
-
+	ctx := context.Background()
+	// defer ctx.cancel()
 	for _, tc := range build_args() {
 		t.Run(tc.name, func(t *testing.T) {
 			// Étape 1: Lexical Analysis
@@ -369,7 +370,7 @@ func TestAnalyze(t *testing.T) {
 			fmt.Printf("✓ action (%s) parsée\n", action.ActionName)
 
 			// Étape 3: Analyse Sémantique
-			analyzer := semantic.NewSemanticAnalyzer(db, nil)
+			analyzer := semantic.NewSemanticAnalyzer(ctx, db)
 			errors := analyzer.Analyze(action)
 
 			if len(errors) > 0 {
@@ -414,7 +415,7 @@ func TestAnalyze(t *testing.T) {
 			fmt.Printf("---> Remining statements size: %d\n", len(optimizedProgram.Statements))
 
 			// Étape 5: Évaluation
-			env := object.NewEnvironment(db, context.Background())
+			env := object.NewEnvironment(db, ctx)
 			result := Eval(optimizedProgram, env)
 
 			if result != nil {

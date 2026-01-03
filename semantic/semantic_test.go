@@ -1,6 +1,7 @@
 package semantic
 
 // import (
+// 	"context"
 // 	"fmt"
 // 	"os"
 // 	"testing"
@@ -634,7 +635,7 @@ package semantic
 // 				WHERE info.nom == 'Diana Lopez' and info.date_embauche==#2024-02-05#;
 // 			stop
 // 			 `,
-// 		status: 0,
+// 		status: 1,
 // 	})
 // 	res = append(res, testCase{
 // 		name: "Test 1.18 : SQL Update statement (UPDATE ... SET ... WHERE ...)",
@@ -758,6 +759,7 @@ package semantic
 // }
 
 // func TestAnalyze(t *testing.T) {
+// 	ctx := context.Background()
 // 	for _, tc := range build_args() {
 // 		t.Run(tc.name, func(t *testing.T) {
 // 			// Étape 1: Lexical Analysis
@@ -775,7 +777,7 @@ package semantic
 // 			}
 
 // 			// Étape 3: Analyse Sémantique
-// 			analyzer := NewSemanticAnalyzer(nil,nil)
+// 			analyzer := NewSemanticAnalyzer(ctx, nil)
 // 			errors := analyzer.Analyze(action)
 
 // 			if len(errors) > 0 {

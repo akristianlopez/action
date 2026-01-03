@@ -48,7 +48,18 @@ type TypeInfo struct {
 	IsArray     bool
 	ArraySize   int64
 	ElementType *TypeInfo
+	Constraints *Constraint
 	Fields      map[string]*TypeInfo // Pour les structures
+}
+type Constraint struct {
+	Length    int64
+	Precision int64
+	Scale     int64
+	Range     *RangeValue
+}
+type RangeValue struct {
+	Min any
+	Max any
 }
 
 func (ti *TypeInfo) String() string {
@@ -67,12 +78,12 @@ type SemanticAnalyzer struct {
 	TypeSql      map[string]*TypeInfo
 	inType       int
 	db           *sql.DB
-	ctx          *context.Context
+	ctx          context.Context
 }
 
 // var tokenList []string
 
-func NewSemanticAnalyzer(db *sql.DB, ctx *context.Context) *SemanticAnalyzer {
+func NewSemanticAnalyzer(ctx context.Context, db *sql.DB) *SemanticAnalyzer {
 
 	globalScope := &Scope{
 		Symbols: make(map[string]*Symbol),
@@ -212,7 +223,12 @@ func (sa *SemanticAnalyzer) visitProgram(node *ast.Action) {
 
 	// Visiter toutes les déclarations
 	for _, stmt := range node.Statements {
-		sa.visitStatement(stmt, &TypeInfo{Name: "any"})
+		select {
+		case <-sa.ctx.Done():
+			return
+		default:
+			sa.visitStatement(stmt, &TypeInfo{Name: "any"})
+		}
 	}
 }
 
@@ -1898,11 +1914,11 @@ func (sa *SemanticAnalyzer) visitPrefixExpression(node *ast.PrefixExpression) *T
 	switch node.Operator {
 	case "-", "+":
 		if rightType.Name == "integer" {
-			return &TypeInfo{Name: "integer"}
+			return rightType
 		}
 		if rightType.Name == "float" ||
 			rightType.Name == "numeric" || rightType.Name == "decimal" {
-			return &TypeInfo{Name: "float"}
+			return &TypeInfo{Name: "float", Constraints: rightType.Constraints}
 		}
 		sa.addError("'%s' non supported operation on %s",
 			node.Operator, rightType.Name)
@@ -1921,8 +1937,200 @@ func (sa *SemanticAnalyzer) visitPrefixExpression(node *ast.PrefixExpression) *T
 			node.Operator, rightType.Name)
 	}
 
-	return &TypeInfo{Name: "any"}
+	return &TypeInfo{Name: "void"}
 }
+func (sa *SemanticAnalyzer) rightTypeForPlus(leftType *TypeInfo, rightType *TypeInfo, op string) *TypeInfo {
+	// Opérations Date/Time + Duration
+	if leftType == nil {
+		return rightType
+	}
+	if rightType == nil {
+		return leftType
+	}
+
+	if (leftType.Name == "date" || leftType.Name == "datetime" || leftType.Name == "time") && rightType.Name == "duration" {
+		return leftType
+	}
+	if leftType.Name == "duration" && (rightType.Name == "datetime" || rightType.Name == "date" || rightType.Name == "time") {
+		return rightType
+	}
+	// Duration + Duration
+	if leftType.Name == "duration" && rightType.Name == "duration" {
+		return &TypeInfo{Name: "duration"}
+	}
+	// Duration + Number = Duration
+	if leftType.Name == "duration" && (rightType.Name == "integer" || rightType.Name == "float") {
+		return &TypeInfo{Name: "duration"}
+	}
+	if (leftType.Name == "integer" || leftType.Name == "float") && rightType.Name == "duration" {
+		return &TypeInfo{Name: "duration"}
+	}
+	if leftType.Name == "integer" && rightType.Name == "integer" {
+		return sa.getConstraint(leftType, rightType)
+	}
+	if leftType.Name == "integer" && rightType.Name == "float" {
+		return rightType
+	}
+	if leftType.Name == "float" && rightType.Name == "integer" {
+		return leftType
+	}
+	if (leftType.Name == "float") && rightType.Name == "float" {
+		return sa.getConstraint(leftType, rightType)
+	}
+
+	if leftType.Name == "string" && rightType.Name == "string" && op == "+" {
+		return sa.getConstraint(leftType, rightType)
+	}
+	return nil
+}
+func (sa *SemanticAnalyzer) rightTypeForTimesDivide(leftType *TypeInfo, rightType *TypeInfo, op string) *TypeInfo {
+	if leftType.Name == "duration" && (rightType.Name == "integer" || rightType.Name == "float") {
+		return leftType
+	}
+	if (leftType.Name == "integer" || leftType.Name == "float") && rightType.Name == "duration" {
+		return rightType
+	}
+	// Duration / Duration = Number
+	if leftType.Name == "duration" && rightType.Name == "duration" && op == "/" {
+		return &TypeInfo{Name: "float"}
+	}
+	// Duration / Number = Duration
+	if leftType.Name == "duration" && (rightType.Name == "integer" || rightType.Name == "float") && op == "/" {
+		return leftType
+	}
+	if leftType.Name == "integer" && rightType.Name == "integer" {
+		return sa.getConstraint(leftType, rightType)
+	}
+	if leftType.Name == "float" && rightType.Name == "integer" {
+		return leftType
+	}
+	if leftType.Name == "integer" && rightType.Name == "float" {
+		return rightType
+	}
+	if leftType.Name == "float" && rightType.Name == "float" {
+		return sa.getConstraint(leftType, rightType)
+	}
+	// if (leftType.Name == "integer" || leftType.Name == "float") &&
+	// 	(rightType.Name == "any") {
+	// 	return &TypeInfo{Name: leftType.Name}
+	// }
+	// if (rightType.Name == "integer" || rightType.Name == "float") &&
+	// 	(leftType.Name == "any") {
+	// 	return &TypeInfo{Name: leftType.Name}
+	// }
+	return nil
+}
+func (sa *SemanticAnalyzer) getConstraint(leftType *TypeInfo, rightType *TypeInfo) *TypeInfo {
+	if leftType.Name != rightType.Name {
+		return nil
+	}
+	var rc, lc *Constraint
+	rc = rightType.Constraints
+	lc = leftType.Constraints
+	if lc == nil && rc == nil {
+		return leftType
+	}
+	if lc == nil && rc != nil {
+		return leftType
+	}
+	if lc != nil && rc == nil {
+		return rightType
+	}
+	// return rightType
+	resultType := &TypeInfo{Name: leftType.Name}
+	if leftType.Constraints != nil {
+		resultType.Constraints = &Constraint{Length: lc.Length, Precision: lc.Precision, Scale: lc.Scale, Range: lc.Range}
+	}
+	switch lower(leftType.Name) {
+	case "integer":
+		ok := false
+		if rc.Precision > lc.Precision {
+			// return rightType
+			resultType.Constraints.Precision = rc.Precision
+			ok = true
+		}
+		if lc.Range == nil && rc.Range == nil {
+			if ok {
+				return rightType
+			}
+			return leftType
+		}
+		if lc.Range != nil && rc.Range == nil {
+			if ok {
+				return rightType
+			}
+			return leftType
+		}
+		if lc.Range == nil && rc.Range != nil {
+			return leftType
+		}
+
+		if rc.Range.Max.(int64) > lc.Range.Max.(int64) &&
+			rc.Range.Min.(int64) < lc.Range.Min.(int64) {
+			resultType.Constraints.Range = rc.Range
+			return resultType
+		}
+		if rc.Range.Max.(int64) > lc.Range.Max.(int64) &&
+			rc.Range.Min.(int64) > lc.Range.Min.(int64) {
+			resultType.Constraints.Range.Min = lc.Range.Min
+			resultType.Constraints.Range.Max = lc.Range.Max
+			return resultType
+		}
+	case "float":
+		ok := false
+		if rc.Precision > lc.Precision {
+			resultType.Constraints.Precision = rc.Precision
+			if rc.Scale > lc.Scale {
+				resultType.Constraints.Precision = rc.Scale
+			}
+			ok = true
+		}
+		if lc.Range != nil && rc.Range == nil {
+			if ok {
+				return rightType
+			}
+			return leftType
+		}
+		if lc.Range == nil && rc.Range != nil {
+			return leftType
+		}
+		if rc.Range.Max.(float64) > lc.Range.Max.(float64) &&
+			rc.Range.Min.(float64) < lc.Range.Min.(float64) {
+			resultType.Constraints.Range = rc.Range
+			return resultType
+		}
+		if rc.Range.Max.(float64) > lc.Range.Max.(float64) &&
+			rc.Range.Min.(float64) > lc.Range.Min.(float64) {
+			resultType.Constraints.Range.Min = lc.Range.Min
+			resultType.Constraints.Range.Max = lc.Range.Max
+			return resultType
+		}
+	case "string":
+		if rc.Length > lc.Length {
+			return rightType
+		}
+	}
+	return leftType
+}
+func (sa *SemanticAnalyzer) rightTypeForMinus(leftType *TypeInfo, rightType *TypeInfo) *TypeInfo {
+	res := sa.rightTypeForPlus(leftType, rightType, "-")
+	if res == nil {
+		if leftType.Name == "date" && (rightType.Name == "date" || rightType.Name == "datetime") {
+			return &TypeInfo{Name: "duration"}
+		}
+		if (leftType.Name == "date" || leftType.Name == "datetime") && rightType.Name == "date" {
+			return &TypeInfo{Name: "duration"}
+		}
+		if leftType.Name == "datetime" && (rightType.Name == "date" || rightType.Name == "datetime") {
+			return &TypeInfo{Name: "duration"}
+		}
+		if (leftType.Name == "date" || leftType.Name == "datetime") && rightType.Name == "datetime" {
+			return &TypeInfo{Name: "duration"}
+		}
+	}
+	return res
+}
+
 func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *TypeInfo {
 	leftType := sa.visitExpression(node.Left)
 	rightType := sa.visitExpression(node.Right)
@@ -1931,94 +2139,37 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 	case "%":
 		// Opérations arithmétiques
 		if leftType.Name == "integer" && rightType.Name == "integer" {
-			return &TypeInfo{Name: "integer"}
+			return sa.getConstraint(leftType, rightType)
 		}
 		sa.addError("Non supported operation '%s' between %s and %s",
 			node.Operator, leftType.Name, rightType.Name)
-
-	case "+", "-":
-		// Opérations Date/Time + Duration
-		if (leftType.Name == "date" || leftType.Name == "datetime" || leftType.Name == "time") && rightType.Name == "duration" {
-			return leftType
+	case "+":
+		res := sa.rightTypeForPlus(leftType, rightType, node.Operator)
+		if res == nil {
+			if leftType.IsArray && rightType.IsArray &&
+				sa.areTypesCompatible(leftType, rightType) &&
+				node.Operator == "+" {
+				return leftType
+			}
+			sa.addError("Non supported operation '%s' between %s and %s",
+				node.Operator, leftType.Name, rightType.Name)
 		}
-		if leftType.Name == "duration" && (rightType.Name == "datetime" || rightType.Name == "date" || rightType.Name == "time") {
-			return rightType
+		return res
+	case "-":
+		res := sa.rightTypeForMinus(leftType, rightType)
+		if res == nil {
+			sa.addError("Non supported operation '%s' between %s and %s",
+				node.Operator, leftType.Name, rightType.Name)
 		}
-		// Duration + Duration
-		if leftType.Name == "duration" && rightType.Name == "duration" {
-			return &TypeInfo{Name: "duration"}
-		}
-		// Duration + Number = Duration
-		if leftType.Name == "duration" && (rightType.Name == "integer" || rightType.Name == "float") {
-			return &TypeInfo{Name: "duration"}
-		}
-		if (leftType.Name == "integer" || leftType.Name == "float") && rightType.Name == "duration" {
-			return &TypeInfo{Name: "duration"}
-		}
-		if leftType.Name == "integer" && rightType.Name == "integer" {
-			return &TypeInfo{Name: "integer"}
-		}
-		if (leftType.Name == "integer" || leftType.Name == "float") &&
-			(rightType.Name == "integer" || rightType.Name == "float") {
-			return &TypeInfo{Name: "float"}
-		}
-		if leftType.Name == "date" && (rightType.Name == "date" || rightType.Name == "datetime") && node.Operator == "-" {
-			return &TypeInfo{Name: "duration"}
-		}
-		if (leftType.Name == "date" || leftType.Name == "datetime") && rightType.Name == "date" && node.Operator == "-" {
-			return &TypeInfo{Name: "duration"}
-		}
-		if leftType.Name == "datetime" && (rightType.Name == "date" || rightType.Name == "datetime") && node.Operator == "-" {
-			return &TypeInfo{Name: "duration"}
-		}
-		if (leftType.Name == "date" || leftType.Name == "datetime") && rightType.Name == "datetime" && node.Operator == "-" {
-			return &TypeInfo{Name: "duration"}
-		}
-		if leftType.Name == "string" && rightType.Name == "string" && node.Operator == "+" {
-			return &TypeInfo{Name: "string"}
-		}
-		if leftType.IsArray && rightType.IsArray &&
-			sa.areTypesCompatible(leftType, rightType) &&
-			node.Operator == "+" {
-			return leftType
-		}
-		sa.addError("Unsupported operation '%s' between %s and %s",
-			node.Operator, leftType.Name, rightType.Name)
-
+		return res
 	case "*", "/":
 		// Duration * Number = Duration
-		if leftType.Name == "duration" && (rightType.Name == "integer" || rightType.Name == "float") {
-			return &TypeInfo{Name: "duration"}
+		res := sa.rightTypeForTimesDivide(leftType, rightType, node.Operator)
+		if res == nil {
+			sa.addError("Non supported '%s' operation between %s and %s",
+				node.Operator, leftType.Name, rightType.Name)
 		}
-		if (leftType.Name == "integer" || leftType.Name == "float") && rightType.Name == "duration" {
-			return &TypeInfo{Name: "duration"}
-		}
-		// Duration / Duration = Number
-		if leftType.Name == "duration" && rightType.Name == "duration" {
-			return &TypeInfo{Name: "float"}
-		}
-		// Duration / Number = Duration
-		if leftType.Name == "duration" && (rightType.Name == "integer" || rightType.Name == "float") {
-			return &TypeInfo{Name: "duration"}
-		}
-		if leftType.Name == "integer" && rightType.Name == "integer" {
-			return &TypeInfo{Name: "integer"}
-		}
-		if (leftType.Name == "integer" || leftType.Name == "float") &&
-			(rightType.Name == "integer" || rightType.Name == "float") {
-			return &TypeInfo{Name: "float"}
-		}
-		if (leftType.Name == "integer" || leftType.Name == "float") &&
-			(rightType.Name == "any") {
-			return &TypeInfo{Name: leftType.Name}
-		}
-		if (rightType.Name == "integer" || rightType.Name == "float") &&
-			(leftType.Name == "any") {
-			return &TypeInfo{Name: leftType.Name}
-		}
-		sa.addError("Non supported '%s' operation between %s and %s",
-			node.Operator, leftType.Name, rightType.Name)
-
+		return res
 	case "==", "!=", "<", ">", "<=", ">=":
 		// Comparaisons de durées
 		if leftType.Name == "duration" && rightType.Name == "duration" {
@@ -2123,24 +2274,61 @@ func (sa *SemanticAnalyzer) visitInExpression(node *ast.InExpression) *TypeInfo 
 
 	return &TypeInfo{Name: "boolean"}
 }
-func formType(s string) string {
-	if s == "" {
-		return ""
+func (sa *SemanticAnalyzer) formType(col *sql.ColumnType) *TypeInfo {
+	if col == nil {
+		return nil
 	}
-	result := strings.ReplaceAll(lower(s), "nvarchar2", "string")
-	result = strings.ReplaceAll(result, "nvarchar", "string")
-	result = strings.ReplaceAll(result, "varchar2", "string")
-	result = strings.ReplaceAll(result, "varchar", "string")
-	result = strings.ReplaceAll(result, "ntext", "string")
-	result = strings.ReplaceAll(result, "text", "string")
-	result = strings.ReplaceAll(result, "number", "integer")
-	result = strings.ReplaceAll(result, "decimal", "float")
-	result = strings.ReplaceAll(result, "numeric", "float")
-	tab := strings.Split(result, "(")
-	return tab[0]
+
+	tab := strings.Split(col.DatabaseTypeName(), "(")
+	s := tab[0]
+	s = strings.ReplaceAll(lower(s), "nvarchar2", "string")
+	s = strings.ReplaceAll(s, "nvarchar", "string")
+	s = strings.ReplaceAll(s, "varchar2", "string")
+	s = strings.ReplaceAll(s, "varchar", "string")
+	s = strings.ReplaceAll(s, "ntext", "string")
+	s = strings.ReplaceAll(s, "text", "string")
+	s = strings.ReplaceAll(s, "number", "integer")
+	s = strings.ReplaceAll(s, "decimal", "float")
+	s = strings.ReplaceAll(s, "numeric", "float")
+	s = strings.ReplaceAll(s, "blob", "string")
+
+	result := &TypeInfo{Name: s}
+	if len(tab) == 2 {
+		result.Constraints = &Constraint{Length: -1, Scale: -1, Precision: -1, Range: nil}
+		t := tab[1][0 : len(tab[1])-1]
+		tb := strings.Split(t, ",")
+		if len(tb) == 1 {
+			i, er := strconv.ParseInt(tb[0], 10, 64)
+			if er == nil {
+				switch s {
+				case "integer", "float":
+					result.Constraints.Precision = i
+				case "string":
+					result.Constraints.Length = i
+				default:
+					result.Constraints = nil
+					sa.addError("Invalid constrants '%s'", col.DatabaseTypeName())
+				}
+			}
+			return result
+		}
+		pr, er1 := strconv.ParseInt(tb[0], 10, 64)
+		sc, er2 := strconv.ParseInt(tb[1], 10, 64)
+		if er1 == nil && er2 == nil {
+			switch s {
+			case "float":
+				result.Constraints.Precision = pr
+				result.Constraints.Scale = sc
+			default:
+				result.Constraints = nil
+				sa.addError("Invalid constrants '%s'", col.DatabaseTypeName())
+			}
+		}
+	}
+	return result
 }
 func (sa *SemanticAnalyzer) resolveTypeFromTableName(name string) *TypeInfo {
-	strSQL := "SELECT * FROM " + name
+	strSQL := fmt.Sprintf("SELECT * FROM %s LIMIT 1", name)
 	var (
 		rows *sql.Rows
 		err  error
@@ -2148,13 +2336,13 @@ func (sa *SemanticAnalyzer) resolveTypeFromTableName(name string) *TypeInfo {
 	if sa.ctx == nil {
 		rows, err = sa.db.Query(strSQL)
 	} else {
-		rows, err = sa.db.QueryContext(*sa.ctx, strSQL)
+		rows, err = sa.db.QueryContext(sa.ctx, strSQL)
 	}
 	if err == nil && rows != nil {
 		colTypes, _ := rows.ColumnTypes()
 		structType := &TypeInfo{Name: name, Fields: make(map[string]*TypeInfo)}
 		for _, col := range colTypes {
-			structType.Fields[lower(col.Name())] = &TypeInfo{Name: formType(lower(col.DatabaseTypeName()))}
+			structType.Fields[lower(col.Name())] = sa.formType(col)
 		}
 
 		sa.registerSymbol(structType.Name, StructSymbol, structType, nil)
@@ -2169,6 +2357,50 @@ func (sa *SemanticAnalyzer) resolveTypeFromTableName(name string) *TypeInfo {
 	return nil
 }
 
+func (sa *SemanticAnalyzer) resolveConstraints(tc *ast.TypeConstraints) *Constraint {
+	if tc == nil {
+		return nil
+	}
+	result := &Constraint{Length: -1, Precision: -1, Scale: -1, Range: nil}
+	if tc.MaxLength != nil {
+		result.Length = tc.MaxLength.Value
+	}
+	if tc.MaxDigits != nil {
+		result.Length = tc.MaxDigits.Value
+	}
+	if tc.DecimalPlaces != nil {
+		result.Scale = tc.DecimalPlaces.Value
+	}
+	if tc.IntegerRange != nil {
+		result.Range = &RangeValue{}
+		if tc.IntegerRange.Min != nil {
+			result.Range.Min = getValue(tc.IntegerRange.Min)
+		}
+		if tc.IntegerRange.Max != nil {
+			result.Range.Max = getValue(tc.IntegerRange.Max)
+		}
+	}
+	return result
+}
+func getValue(e ast.Expression) any {
+	if e == nil {
+		return nil
+	}
+	if v, o := e.(*ast.IntegerLiteral); o {
+		return v.Value
+	}
+	if v, o := e.(*ast.FloatLiteral); o {
+		return v.Value
+	}
+	if v, o := e.(*ast.DateTimeLiteral); o {
+		return v.Value
+	}
+	if v, o := e.(*ast.DurationLiteral); o {
+		return v.Value
+	}
+	return e
+}
+
 // Méthodes utilitaires
 func (sa *SemanticAnalyzer) resolveTypeAnnotation(ta *ast.TypeAnnotation) *TypeInfo {
 	if ta.ArrayType != nil {
@@ -2177,9 +2409,10 @@ func (sa *SemanticAnalyzer) resolveTypeAnnotation(ta *ast.TypeAnnotation) *TypeI
 		if ta.ArrayType.ElementType != nil &&
 			ta.ArrayType.ElementType.ArrayType != nil {
 			elementType = sa.resolveTypeAnnotation(&ast.TypeAnnotation{
-				Token:     ta.ArrayType.ElementType.Token,
-				Type:      ta.ArrayType.ElementType.Type,
-				ArrayType: ta.ArrayType.ElementType.ArrayType,
+				Token:       ta.ArrayType.ElementType.Token,
+				Type:        ta.ArrayType.ElementType.Type,
+				ArrayType:   ta.ArrayType.ElementType.ArrayType,
+				Constraints: ta.ArrayType.ElementType.Constraints,
 			})
 			return &TypeInfo{
 				Name:        "array",
@@ -2189,8 +2422,9 @@ func (sa *SemanticAnalyzer) resolveTypeAnnotation(ta *ast.TypeAnnotation) *TypeI
 			}
 		}
 		elementType = sa.resolveTypeAnnotation(&ast.TypeAnnotation{
-			Token: ta.ArrayType.ElementType.Token,
-			Type:  ta.ArrayType.ElementType.Type,
+			Token:       ta.ArrayType.ElementType.Token,
+			Type:        ta.ArrayType.ElementType.Type,
+			Constraints: ta.ArrayType.ElementType.Constraints,
 		})
 		return &TypeInfo{
 			Name:        "array",
@@ -2202,6 +2436,9 @@ func (sa *SemanticAnalyzer) resolveTypeAnnotation(ta *ast.TypeAnnotation) *TypeI
 
 	// Vérifier si c'est un type défini
 	if typeInfo, exists := sa.TypeTable[lower(ta.Type)]; exists {
+		if ta.Constraints != nil {
+			typeInfo.Constraints = sa.resolveConstraints(ta.Constraints)
+		}
 		return typeInfo
 	}
 	if strings.EqualFold(ta.Token.Literal, "object") {

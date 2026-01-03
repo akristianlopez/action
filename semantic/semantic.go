@@ -1404,15 +1404,19 @@ func (sa *SemanticAnalyzer) visitExpression(expr ast.Expression) *TypeInfo {
 	case *ast.Identifier:
 		return sa.visitIdentifier(e)
 	case *ast.IntegerLiteral:
-		return &TypeInfo{Name: "integer"}
+		return &TypeInfo{Name: "integer", Constraints: &Constraint{Length: -1,
+			Precision: int64(len(e.String())), Scale: -1, Range: nil}}
 	case *ast.TypeMember:
 		return sa.visitTypeMember(e, "")
 	case *ast.LikeExpression:
 		return sa.visitLikeExpression(e)
 	case *ast.FloatLiteral:
-		return &TypeInfo{Name: "float"}
+		tab := strings.Split(e.String(), ".")
+		return &TypeInfo{Name: "float", Constraints: &Constraint{Length: -1,
+			Precision: int64(len(tab[0])), Scale: int64(len(tab[1])), Range: nil}}
 	case *ast.StringLiteral:
-		return &TypeInfo{Name: "string"}
+		return &TypeInfo{Name: "string", Constraints: &Constraint{Length: int64(len(e.String())),
+			Precision: -1, Scale: -1, Range: nil}}
 	case *ast.BooleanLiteral:
 		return &TypeInfo{Name: "boolean"}
 	case *ast.DateTimeLiteral:
@@ -2366,7 +2370,7 @@ func (sa *SemanticAnalyzer) resolveConstraints(tc *ast.TypeConstraints) *Constra
 		result.Length = tc.MaxLength.Value
 	}
 	if tc.MaxDigits != nil {
-		result.Length = tc.MaxDigits.Value
+		result.Precision = tc.MaxDigits.Value
 	}
 	if tc.DecimalPlaces != nil {
 		result.Scale = tc.DecimalPlaces.Value
@@ -2462,7 +2466,30 @@ func (sa *SemanticAnalyzer) getArraySize(size *ast.IntegerLiteral) int64 {
 	}
 	return -1 // Taille dynamique
 }
-
+func (sa *SemanticAnalyzer) areTypesConstraintsCompatible(t1, t2 *TypeInfo) bool {
+	var c1, c2 *Constraint
+	if t1.Name != t2.Name {
+		return false
+	}
+	c1 = t1.Constraints
+	c2 = t2.Constraints
+	if c1 == nil && c2 == nil {
+		return true
+	}
+	if c1 == nil && c2 != nil {
+		return true
+	}
+	if c1 != nil && c2 == nil {
+		return false
+	}
+	res := c1.Length >= c2.Length && c1.Precision >= c2.Precision
+	if res && c1.Range == nil && c2.Range == nil {
+		return res
+	}
+	res = res && c1.Range.Max.(float64) >= c2.Range.Max.(float64)
+	res = res && c1.Range.Min.(float64) <= c2.Range.Min.(float64)
+	return res
+}
 func (sa *SemanticAnalyzer) areTypesCompatible(t1, t2 *TypeInfo) bool {
 	if t1.Name == "any" || t2.Name == "any" {
 		return true
@@ -2477,6 +2504,15 @@ func (sa *SemanticAnalyzer) areTypesCompatible(t1, t2 *TypeInfo) bool {
 	}
 
 	// Conversion implicite integer -> float
+	if t1.Name == "integer" && t2.Name == "integer" {
+		return sa.areTypesConstraintsCompatible(t1, t2)
+	}
+	if t1.Name == "float" && t2.Name == "float" {
+		return sa.areTypesConstraintsCompatible(t1, t2)
+	}
+	if t1.Name == "string" && t2.Name == "string" {
+		return sa.areTypesConstraintsCompatible(t1, t2)
+	}
 	if t1.Name == "integer" && t2.Name == "float" {
 		return true
 	}
@@ -2507,8 +2543,7 @@ func (sa *SemanticAnalyzer) areSameType(t1, t2 *TypeInfo) bool {
 	if t1.Name == "float" && t2.Name == "integer" {
 		return true
 	}
-
-	return t1.Name == t2.Name
+	return t1.Name == t2.Name && sa.areTypesConstraintsCompatible(t1, t2)
 }
 
 func (sa *SemanticAnalyzer) lookupSymbol(name string) *Symbol {

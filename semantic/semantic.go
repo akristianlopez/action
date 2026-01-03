@@ -51,6 +51,33 @@ type TypeInfo struct {
 	Constraints *Constraint
 	Fields      map[string]*TypeInfo // Pour les structures
 }
+
+func (ti *TypeInfo) oString() string {
+	out := ti.Name
+	if ti.Constraints != nil {
+		if ti.Constraints.Length > -1 {
+			out = fmt.Sprintf("%s(%d)", out, ti.Constraints.Length)
+		}
+		if ti.Constraints.Precision > 0 {
+			if ti.Constraints.Scale > 0 {
+				out = fmt.Sprintf("%s(%d,%d)", out, ti.Constraints.Precision, ti.Constraints.Scale)
+			} else {
+				out = fmt.Sprintf("%s(%d)", out, ti.Constraints.Precision)
+			}
+		}
+		if ti.Constraints.Range != nil {
+			out = fmt.Sprintf("%s[%v..%v]", out, ti.Constraints.Range.Min, ti.Constraints.Range.Max)
+		}
+	}
+	return out
+}
+func (ti *TypeInfo) String() string {
+	if ti.IsArray {
+		return fmt.Sprintf("Array of %s", ti.ElementType.String())
+	}
+	return ti.oString()
+}
+
 type Constraint struct {
 	Length    int64
 	Precision int64
@@ -60,13 +87,6 @@ type Constraint struct {
 type RangeValue struct {
 	Min any
 	Max any
-}
-
-func (ti *TypeInfo) String() string {
-	if ti.IsArray {
-		return fmt.Sprintf("Array of %s", ti.ElementType.String())
-	}
-	return ti.Name
 }
 
 type SemanticAnalyzer struct {
@@ -1137,7 +1157,7 @@ func (sa *SemanticAnalyzer) visitAssignmentStatement(node *ast.AssignmentStateme
 
 	if !sa.areTypesCompatible(leftType, rightType) {
 		sa.addError("Type mismatch in assignment: expected %s, got %s. line:%d column:%d",
-			leftType.Name, rightType.Name, node.Token.Line, node.Token.Column)
+			leftType.String(), rightType.String(), node.Token.Line, node.Token.Column)
 		return &TypeInfo{Name: "void"}
 	}
 	return leftType

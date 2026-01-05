@@ -181,6 +181,7 @@ const (
 	SWITCH      = "SWITCH"
 	CASE        = "CASE"
 	BREAK       = "BREAK"
+	CONTINUE    = "CONTINUE"
 	FALLTHROUGH = "FALLTHROUGH"
 )
 
@@ -307,6 +308,7 @@ var keywords = map[string]TokenType{
 	"switch":      SWITCH,
 	"case":        CASE,
 	"break":       BREAK,
+	"continue":    CONTINUE,
 	"fallthrough": FALLTHROUGH,
 }
 

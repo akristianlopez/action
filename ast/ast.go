@@ -1426,6 +1426,17 @@ func (bs *BreakStatement) String() string {
 	return "break;"
 }
 
+// BreakStatement - Instruction break
+type ContinueStatement struct {
+	Token token.Token
+}
+
+func (bs *ContinueStatement) statementNode()       {}
+func (bs *ContinueStatement) TokenLiteral() string { return bs.Token.Literal }
+func (bs *ContinueStatement) String() string {
+	return "continue;"
+}
+
 // FallthroughStatement - Instruction fallthrough
 type FallthroughStatement struct {
 	Token token.Token

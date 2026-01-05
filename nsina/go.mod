@@ -3,17 +3,17 @@ module github.com/akristianlopez/action/nsina
 go 1.25.4
 
 require (
-	github.com/akristianlopez/action/ast v0.0.0-20260103183057-6cafbe6e5e65
-	github.com/akristianlopez/action/lexer v0.0.0-20260103183057-6cafbe6e5e65
-	github.com/akristianlopez/action/object v0.0.0-20260103183057-6cafbe6e5e65
-	github.com/akristianlopez/action/optimizer v0.0.0-20260103183057-6cafbe6e5e65
-	github.com/akristianlopez/action/parser v0.0.0-20260103183057-6cafbe6e5e65
-	github.com/akristianlopez/action/semantic v0.0.0-20260103183057-6cafbe6e5e65
+	github.com/akristianlopez/action/ast v0.0.0-20260105212814-1b747731ccc2
+	github.com/akristianlopez/action/lexer v0.0.0-20260105212814-1b747731ccc2
+	github.com/akristianlopez/action/object v0.0.0-20260105220643-8b006e4651c9
+	github.com/akristianlopez/action/optimizer v0.0.0-20260105220643-8b006e4651c9
+	github.com/akristianlopez/action/parser v0.0.0-20260105212814-1b747731ccc2
+	github.com/akristianlopez/action/semantic v0.0.0-20260105220643-8b006e4651c9
 )
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/akristianlopez/action/token v0.0.0-20260103183057-6cafbe6e5e65 // indirect
+	github.com/akristianlopez/action/token v0.0.0-20260105212814-1b747731ccc2 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
 	github.com/google/uuid v1.6.0 // indirect

@@ -1,7 +1,9 @@
 package nsina
 
 import (
+	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -91,7 +93,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.SQLWithStatement:
 		return evalSQLWithStatement(node, env)
 	case *ast.SQLSelectStatement:
-		return evalSQLSelectStatement(node, env)
+		return evalSQLSelectStatement(node, object.NewEnclosedEnvironment(env))
 	case *ast.ArrayLiteral:
 		return evalArrayLiteral(node, env)
 	case *ast.IndexExpression:
@@ -106,6 +108,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalSwitchStatement(node, env)
 	case *ast.BreakStatement:
 		return evalBreakStatement(node, env)
+	case *ast.ContinueStatement:
+		return evalContinueStatement(node, env)
 	case *ast.DurationLiteral:
 		return evalDurationLiteral(node, env)
 	case *ast.FallthroughStatement:
@@ -137,6 +141,9 @@ func evalTypeMember(node *ast.TypeMember, env *object.Environment) object.Object
 	obj, fl := env.Get(node.Left.String())
 	if !fl {
 		return newError("Invalid structure name '%s'", node.Left.String())
+	}
+	if obj.Type() == object.DBOBJECT_OBJ { //DBOBJECT_OBJ
+		return &object.String{Value: node.String()}
 	}
 	key := node.Right
 	for val, ok := key.(*ast.TypeMember); ok; {
@@ -340,6 +347,60 @@ func evalAssignmentStatement(node *ast.AssignmentStatement, env *object.Environm
 		return newError("Cible d'assignation invalide: %T", node.Variable)
 	}
 
+}
+
+func formType(col *sql.ColumnType) *ast.TypeAnnotation {
+	if col == nil {
+		return nil
+	}
+
+	tab := strings.Split(col.DatabaseTypeName(), "(")
+	s := tab[0]
+	s = strings.ReplaceAll(strings.ToLower(s), "nvarchar2", "string")
+	s = strings.ReplaceAll(s, "nvarchar", "string")
+	s = strings.ReplaceAll(s, "varchar2", "string")
+	s = strings.ReplaceAll(s, "varchar", "string")
+	s = strings.ReplaceAll(s, "ntext", "string")
+	s = strings.ReplaceAll(s, "text", "string")
+	s = strings.ReplaceAll(s, "number", "integer")
+	s = strings.ReplaceAll(s, "decimal", "float")
+	s = strings.ReplaceAll(s, "numeric", "float")
+	s = strings.ReplaceAll(s, "blob", "string")
+
+	result := &ast.TypeAnnotation{Type: strings.ToLower(s)}
+	if len(tab) == 2 {
+		result.Constraints = &ast.TypeConstraints{MaxDigits: nil, DecimalPlaces: nil, MaxLength: nil, IntegerRange: nil}
+		t := tab[1][0 : len(tab[1])-1]
+		tb := strings.Split(t, ",")
+		if len(tb) == 1 {
+			i, er := strconv.ParseInt(tb[0], 10, 64)
+			if er == nil {
+				switch s {
+				case "integer", "float":
+					result.Constraints.MaxDigits = &ast.IntegerLiteral{Value: i}
+				case "string":
+					result.Constraints.MaxLength = &ast.IntegerLiteral{Value: i}
+				default:
+					result.Constraints = nil
+					newError("Invalid constrants '%s'", col.DatabaseTypeName())
+				}
+			}
+			return result
+		}
+		pr, er1 := strconv.ParseInt(tb[0], 10, 64)
+		sc, er2 := strconv.ParseInt(tb[1], 10, 64)
+		if er1 == nil && er2 == nil {
+			switch s {
+			case "float":
+				result.Constraints.MaxDigits = &ast.IntegerLiteral{Value: pr}
+				result.Constraints.MaxDigits = &ast.IntegerLiteral{Value: sc}
+			default:
+				result.Constraints = nil
+				newError("Invalid constrants '%s'", col.DatabaseTypeName())
+			}
+		}
+	}
+	return result
 }
 
 func defConstraints(ta *ast.TypeAnnotation, env *object.Environment) *object.Limits {
@@ -594,15 +655,13 @@ func evalDateTimeLiteral(dt *ast.DateTimeLiteral) object.Object {
 }
 
 func toString(selectStmt *ast.SQLSelectStatement, env *object.Environment) object.Object {
-	strSelect := ""
-	for _, ex := range selectStmt.Select {
-		if strSelect == "" {
-			strSelect = ex.String()
-		} else {
-			strSelect = fmt.Sprintf("%s, %s", strSelect, ex.String())
-		}
+
+	from := defineFromObject(selectStmt.From, env)
+	if isError(from) {
+		return from
 	}
-	from := evalFromClause(selectStmt.From, env)
+
+	from = evalFromClause(selectStmt.From, env)
 	strFrom := selectStmt.From.String()
 	if isError(from) {
 		return from
@@ -610,8 +669,67 @@ func toString(selectStmt *ast.SQLSelectStatement, env *object.Environment) objec
 	// Traiter la champ Join avant de passer a la clause where
 	// puis executer la requete SQL et charger les resultats
 	for _, step := range selectStmt.Joins {
+		from = defineFromObject(step.Table, env)
+		if isError(from) {
+			return from
+		}
 		from = evalFromClause(step.Table, env)
+		if isError(from) {
+			return from
+		}
 		strFrom = fmt.Sprintf("%s %s JOIN %s ON %s", strFrom, step.Type, step.Table.String(), step.On.String())
+	}
+
+	strSelect := ""
+	// Traiter la clause SELECT
+	for _, ex := range selectStmt.Select {
+		if e, True := ex.(*ast.SelectArgs); True {
+			if _, ok := e.Expr.(*ast.TypeMember); ok {
+				if len(strSelect) == 0 {
+					strSelect = Eval(e.Expr, env).Inspect()
+					if e.NewName != nil {
+						strSelect = fmt.Sprintf("%s as %s", strSelect, e.NewName.Value)
+					}
+					continue
+				}
+				strSelect = fmt.Sprintf("%s, %s", strSelect, Eval(e.Expr, env).Inspect())
+				if e.NewName != nil {
+					strSelect = fmt.Sprintf("%s as %s", strSelect, e.NewName.Value)
+				}
+				continue
+			}
+			if ident, ok := e.Expr.(*ast.Identifier); ok {
+				if ident.Value == "*" {
+					strSelect = ident.Value
+					break
+				}
+				if len(strSelect) == 0 {
+					strSelect = ident.Value
+					if e.NewName != nil {
+						strSelect = fmt.Sprintf("%s as %s", strSelect, e.NewName.Value)
+					}
+					continue
+				}
+				strSelect = fmt.Sprintf("%s, %s", strSelect, ident.Value)
+				if e.NewName != nil {
+					strSelect = fmt.Sprintf("%s as %s", strSelect, e.NewName.Value)
+				}
+				continue
+			}
+			if len(strSelect) == 0 {
+				strSelect = Eval(e.Expr, env).Inspect()
+				if e.NewName != nil {
+					strSelect = fmt.Sprintf("%s as %s", strSelect, e.NewName.Value)
+				}
+				continue
+			}
+			strSelect = fmt.Sprintf("%s, %s", strSelect, Eval(e.Expr, env).Inspect())
+			if e.NewName != nil {
+				strSelect = fmt.Sprintf("%s as %s", strSelect, e.NewName.Value)
+			}
+			continue
+		}
+		return newError("Invalid argument '%s'", ex.String())
 	}
 
 	strSQL := fmt.Sprintf("SELECT %s\nFROM %s", strSelect, strFrom)
@@ -644,40 +762,78 @@ func toString(selectStmt *ast.SQLSelectStatement, env *object.Environment) objec
 	return &object.String{Value: strSQL}
 }
 
+func defineFromObject(exp ast.Expression, env *object.Environment) object.Object {
+	if exp == nil {
+		return object.NULL
+	}
+	if from, ok := exp.(*ast.FromIdentifier); ok {
+		switch ex := from.Value.(type) {
+		case *ast.Identifier:
+			strSQL := fmt.Sprintf("select * FROM %s LIMIT 1", ex.Value)
+			rows, err := env.Query(strSQL)
+			if err != nil {
+				return newError("Nsina: %s", err.Error())
+			}
+			res, ok := env.Get(ex.Value)
+			if ok {
+				if from.NewName != nil {
+					return env.Set(from.NewName.String(), res)
+				}
+				return env.Set(ex.Value, res)
+			}
+			result := object.DBStruct{Name: strings.ToLower(ex.Value), Fields: make(map[string]object.Object)}
+			colt, err := rows.ColumnTypes()
+			if err != nil {
+				return newError("Nsina: %s", err.Error())
+			}
+
+			for _, col := range colt {
+				ta := formType(col)
+				result.Fields[strings.ToLower(col.Name())] = getDefaultSQLValue(ta.Type)
+				env.Limit(strings.ToLower(col.Name()), defConstraints(ta, env))
+			}
+			env.Set(result.Name, &result)
+			// if from.NewName != nil {
+			// 	env.Set(from.NewName.String(), &result)
+			// }
+			return &result
+		case *ast.SQLSelectStatement:
+			return toString(ex, env)
+		default:
+			return newError("Nsina: Inalid expression '%s'", exp.String())
+		}
+	}
+	return object.NULL
+}
+
 func evalSQLSelectStatement(selectStmt *ast.SQLSelectStatement, env *object.Environment) object.Object {
 	// Implémentation simplifiée pour la démonstration
 	// Dans une vraie implémentation, cela interagirait avec une base de données
 
 	result := &object.SQLResult{
-		Columns: []string{},
-		Rows:    []map[string]object.Object{},
-	}
-
-	// Traiter la clause SELECT
-	for _, ex := range selectStmt.Select {
-
-		if e, True := ex.(*ast.SelectArgs); True {
-			if _, ok := e.Expr.(*ast.TypeMember); ok {
-				result.Columns = append(result.Columns, e.String())
-				continue
-			}
-			if ident, ok := e.Expr.(*ast.Identifier); ok { //expr.(*ast.Identifier)
-				if ident.Value == "*" {
-					// Sélectionner toutes les colonnes
-					// Implémentation simplifiée
-					continue
-				} else {
-					result.Columns = append(result.Columns, ident.Value)
-				}
-			}
-		}
-
+		Columns: make([]string, 0),
+		Rows:    nil,
 	}
 
 	// Traiter la clause FROM
 	// Build SQL String to run in the database
 	// strSelect := toString(selectStmt)
-	toString(selectStmt, env)
+	strSQl := toString(selectStmt, env)
+	if isError(strSQl) {
+		return strSQl
+	}
+	rows, err := env.Query(strSQl.Inspect())
+	if err != nil {
+		return newError("%s", err.Error())
+	}
+	result.Rows = rows
+	cols, err := rows.Columns()
+	if err != nil {
+		return newError("Nsina: %s", err.Error())
+	}
+	for _, k := range cols {
+		result.Columns = append(result.Columns, strings.ToLower(k))
+	}
 	//Executer la requete SQL puis retourner le resultat.
 	return result
 }
@@ -794,8 +950,8 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 		return evalStringInfixExpression(operator, left, right)
 	case left.Type() == object.ARRAY_OBJ && right.Type() == object.ARRAY_OBJ:
 		return evalArrayInfixExpression(operator, left, right)
-	case operator == "==":
-		return &object.Boolean{Value: objectsEqual(left, right)}
+	// case operator == "==":
+	// 	return &object.Boolean{Value: objectsEqual(left, right)}
 	case operator == "!=":
 		return &object.Boolean{Value: !objectsEqual(left, right)}
 	case left.Type() == object.DURATION_OBJ && right.Type() == object.DURATION_OBJ:
@@ -882,15 +1038,17 @@ func evalFloatInfixExpression(operator string, left, right object.Object) object
 }
 
 func evalStringInfixExpression(operator string, left, right object.Object) object.Object {
-	if operator != "+" {
-		return newError("Opérateur inconnu: %s %s %s", left.Type(), operator, right.Type())
+	switch operator {
+	case "==":
+		return &object.Boolean{Value: strings.EqualFold(left.Inspect(), right.Inspect())}
+	case "+":
+		leftVal := left.(*object.String).Value
+		rightVal := right.(*object.String).Value
+		// leftVal := left.Inspect()
+		// rightVal := right.Inspect()
+		return &object.String{Value: leftVal + rightVal}
 	}
-
-	leftVal := left.(*object.String).Value
-	rightVal := right.(*object.String).Value
-	// leftVal := left.Inspect()
-	// rightVal := right.Inspect()
-	return &object.String{Value: leftVal + rightVal}
+	return newError("Opérateur inconnu: %s %s %s", left.Type(), operator, right.Type())
 }
 
 func evalBangOperatorExpression(right object.Object) object.Object {
@@ -1002,13 +1160,25 @@ func evalSQLCreateObject(stmt *ast.SQLCreateObjectStatement, env *object.Environ
 func evalSQLDropObject(stmt *ast.SQLDropObjectStatement, env *object.Environment) object.Object {
 	// Vérifier si l'objet existe
 	if _, ok := env.Get(stmt.ObjectName.Value); !ok {
-		if stmt.IfExists {
+		strSQ := stmt.String()
+		result, err := env.Exec(strSQ)
+		if err != nil {
+			return newError("Nsina: %s", err.Error())
+		}
+		n, err := result.RowsAffected()
+		if err != nil {
+			return newError("Nsina: %s", err.Error())
+		}
+		if n == 0 {
 			return &object.SQLResult{
 				Message:      "Aucun objet à supprimer",
 				RowsAffected: 0,
 			}
 		}
-		return newError("L'objet %s n'existe pas", stmt.ObjectName.Value)
+		return &object.SQLResult{
+			Message:      fmt.Sprintf("%d objet(s) supprime(s)", n),
+			RowsAffected: n,
+		}
 	}
 
 	// Supprimer l'objet de l'environnement
@@ -1072,52 +1242,72 @@ func evalSQLAlterObject(stmt *ast.SQLAlterObjectStatement, env *object.Environme
 
 func evalSQLInsert(stmt *ast.SQLInsertStatement, env *object.Environment) object.Object {
 	// Récupérer l'objet
-	obj, ok := env.Get(stmt.ObjectName.Value)
-	if !ok {
-		return newError("L'objet %s n'existe pas", stmt.ObjectName.Value)
-	}
+	// obj, ok := env.Get(stmt.ObjectName.Value)
+	// if !ok {
+	// 	return newError("L'objet %s n'existe pas", stmt.ObjectName.Value)
+	// }
 
-	table, ok := obj.(*object.SQLTable)
-	if !ok {
-		return newError("%s n'est pas un OBJECT", stmt.ObjectName.Value)
-	}
+	// table, ok := obj.(*object.SQLTable)
+	// if !ok {
+	// 	return newError("%s n'est pas un OBJECT", stmt.ObjectName.Value)
+	// }
 
 	rowsAffected := 0
 
 	if stmt.Select != nil {
 		// INSERT ... SELECT
-		result := Eval(stmt.Select, env).(*object.SQLResult)
+		// result := Eval(stmt.Select, env).(*object.SQLResult)
 		// Implémentation de l'insertion des résultats
-		rowsAffected = len(result.Rows)
-	} else {
-		// INSERT ... VALUES
-		for _, values := range stmt.Values {
-			row := make(map[string]object.Object)
-
-			for i, value := range values.Values {
-				var colName string
-				if i < len(stmt.Columns) {
-					colName = stmt.Columns[i].Value
-				} else {
-					// Utiliser l'ordre des colonnes de la table
-					colIndex := 0
-					for name := range table.Columns {
-						if colIndex == i {
-							colName = name
-							break
-						}
-						colIndex++
-					}
-				}
-
-				evaluatedValue := Eval(value, env)
-				row[colName] = evaluatedValue
-			}
-
-			table.Data = append(table.Data, row)
-			rowsAffected++
+		// rowsAffected = len(result.Rows)
+		return &object.SQLResult{
+			Message:      fmt.Sprintf("%d ligne(s) insérée(s)", rowsAffected),
+			RowsAffected: int64(rowsAffected),
 		}
 	}
+	//traiter de maniere a transmettre la liste des argument assortis de leur type reels
+	//demain
+	strSQL := stmt.String()
+	n, err := env.Exec(strSQL)
+	if err != nil {
+		return newError("%s", err.Error())
+	}
+	res, err := n.RowsAffected()
+	if err != nil {
+		return newError("%s", err.Error())
+	}
+	if res != 0 {
+		return &object.SQLResult{
+			Message:      fmt.Sprintf("%d ligne(s) insérée(s)", rowsAffected),
+			RowsAffected: int64(rowsAffected),
+		}
+	}
+	// // INSERT ... VALUES
+	// for _, values := range stmt.Values {
+	// 	row := make(map[string]object.Object)
+
+	// 	for i, value := range values.Values {
+	// 		var colName string
+	// 		if i < len(stmt.Columns) {
+	// 			colName = stmt.Columns[i].Value
+	// 		} else {
+	// 			// Utiliser l'ordre des colonnes de la table
+	// 			colIndex := 0
+	// 			for name := range table.Columns {
+	// 				if colIndex == i {
+	// 					colName = name
+	// 					break
+	// 				}
+	// 				colIndex++
+	// 			}
+	// 		}
+
+	// 		evaluatedValue := Eval(value, env)
+	// 		row[colName] = evaluatedValue
+	// 	}
+
+	// 	table.Data = append(table.Data, row)
+	// 	rowsAffected++
+	// }
 
 	return &object.SQLResult{
 		Message:      fmt.Sprintf("%d ligne(s) insérée(s)", rowsAffected),
@@ -1289,6 +1479,57 @@ func getDefaultSQLValue(dataType string) object.Object {
 	}
 }
 
+func getDefaultSQLValueAddress(s string) any {
+	tab := strings.Split(s, "(")
+	dataType := strings.ToLower(tab[0])
+	switch dataType {
+	case "integer", "int", "duration":
+		v := int64(0)
+		return &v
+	case "float", "numeric", "decimal":
+		v := float64(0)
+		return &v
+	case "varchar", "char", "text":
+		v := ""
+		return &v
+	case "boolean", "bool":
+		v := false
+		return &v
+	case "date":
+		v := time.Now()
+		return &v
+	case "time", "timestamp", "datetime":
+		v := time.Now()
+		return &v
+	default:
+		return object.NULL
+	}
+}
+func getValueFromRealType(typ string, val any) object.Object {
+	if val == nil {
+		return object.NULL
+	}
+	t := strings.Split(typ, "(")
+	switch strings.ToLower(t[0]) {
+	case "integer", "int":
+		return &object.Integer{Value: *(val.(*int64))}
+	case "float", "numeric", "decimal":
+		return &object.Float{Value: *(val.(*float64))}
+	case "varchar", "char", "text":
+		return &object.String{Value: *(val.(*string))}
+	case "boolean", "bool":
+		return &object.Boolean{Value: *(val.(*bool))}
+	case "date", "timestamp", "datetime":
+		return &object.Date{Value: *(val.(*time.Time))}
+	case "time":
+		return &object.Time{Value: *(val.(*time.Time))}
+	case "duration":
+		return &object.Duration{Nanoseconds: *(val.(*int64))}
+	default:
+		return object.NULL
+	}
+}
+
 func evalSQLWithStatement(stmt *ast.SQLWithStatement, env *object.Environment) object.Object {
 	// Créer un nouvel environnement pour les CTE
 	cteEnv := object.NewEnclosedEnvironment(env)
@@ -1318,7 +1559,7 @@ func evalCommonTableExpression(cte *ast.SQLCommonTableExpression, env *object.En
 		table := &object.SQLTable{
 			Name:    cte.Name.Value,
 			Columns: make(map[string]*object.SQLColumn),
-			Data:    sqlResult.Rows,
+			Data:    nil, // sqlResult.Rows,
 		}
 
 		// Définir les colonnes
@@ -1408,7 +1649,7 @@ func evalRecursiveCTE(cte *ast.SQLRecursiveCTE, env *object.Environment) object.
 
 	return &object.SQLResult{
 		Columns:      getColumnNames(resultTable),
-		Rows:         resultTable.Data,
+		Rows:         nil, //resultTable.Data,
 		RowsAffected: int64(len(resultTable.Data)),
 	}
 }
@@ -1436,7 +1677,7 @@ func evalHierarchicalQuery(selectStmt *ast.SQLSelectStatement, env *object.Envir
 
 	return &object.SQLResult{
 		Columns:      getColumnNames(sourceTable),
-		Rows:         resultRows,
+		Rows:         nil, //resultRows,
 		RowsAffected: int64(len(resultRows)),
 	}
 }
@@ -2159,6 +2400,10 @@ func evalBreakStatement(node *ast.BreakStatement, env *object.Environment) objec
 	return &object.Break{}
 }
 
+func evalContinueStatement(node *ast.ContinueStatement, env *object.Environment) object.Object {
+	return &object.Continue{}
+}
+
 func evalFallthroughStatement(node *ast.FallthroughStatement, env *object.Environment) object.Object {
 	return &object.Fallthrough{Value: true}
 }
@@ -2405,19 +2650,31 @@ func evalForEachStatement(n ast.Node, env *object.Environment) object.Object {
 
 	switch coll := collection.(type) {
 	case *object.SQLResult:
-		for _, el := range coll.Rows {
+		if coll.Rows == nil {
+			return object.NULL
+		}
+		_, err1 := coll.Rows.Columns()
+		cols, err2 := coll.Rows.ColumnTypes()
+		if err1 != nil {
+			return newError("Nsina; %s", err1.Error())
+		}
+		if err2 != nil {
+			return newError("Nsina; %s", err2.Error())
+		}
+
+		args := make([]any, 0)
+		for k := range coll.Columns {
+			args = append(args, getDefaultSQLValueAddress(cols[k].DatabaseTypeName()))
+		}
+		for coll.Rows.Next() {
 			loopEnv := object.NewEnclosedEnvironment(env)
-
-			// Si une variable clé est présente, la définir (index)
-			// if node.Key != nil {
-			// 	loopEnv.Set(node.Key.Value, &object.Integer{Value: int64(i)})
-			// }
-
-			// // Si une variable valeur est présente, la définir
-			// if node.Value != nil {
-			// 	loopEnv.Set(node.Value.Value, el)
-			// }
-			loopEnv.Set(node.Variable.Value, &object.Struct{Name: "", Fields: el})
+			coll.Rows.Scan(args...)
+			row := &object.Struct{Name: "", Fields: make(map[string]object.Object)}
+			for k, val := range args {
+				row.Fields[coll.Columns[k]] = getValueFromRealType(cols[k].DatabaseTypeName(), val)
+			}
+			//Traiter la lecture de l'enregistrement
+			loopEnv.Set(node.Variable.Value, row) //el
 			// Évaluer le corps avec l'environnement local
 			result := evalForBody(node.Body, loopEnv)
 			if result != nil {

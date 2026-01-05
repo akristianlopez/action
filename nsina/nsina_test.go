@@ -308,18 +308,29 @@ func build_args() []testCase {
 		name: "Test 1.8 : Managing SQL Select statement",
 		src: `action "SQL Select statement" (* (liste des parametres) : type valeur de retour *)			
 			start
-				(* Table pour les structures organisationnelles 
+				(*drop object Employee;
+				Table pour les structures organisationnelles 
 				CREATE OBJECT Employee (
 					Id INTEGER PRIMARY KEY,
 					Nom VARCHAR(100) NOT NULL,
+					Prenom VARCHAR(200) ,
 					Age INTEGER,
-					Sexe VARCHAR(8),
-				);*)		
-				Let result=select o.nom, o.age, o.sexe From  employee o
+					Sexe VARCHAR(8)
+				);
+				INSERT INTO EMPLOYEE(id, nom, prenom,age,sexe)VALUES
+				(1,'Golang','Google.com','5','M'),
+				(2,'JavaScript','Eclipse.com','20','M'),
+				(3,'Java','Oracle.com','50','M'), 	
+				(4,'C#','Microsoft.com','30','M')	*)
+				Let result=select o.nom, o.prenom, o.age, o.sexe From  employee o
 				let emp:object employee;
-				let lst:string
+				let lst:string 
 				for let rec of result{
-					lst=lst+rec.nom
+				    if lst==""{
+						lst="[" +rec.nom + ", " + rec.prenom+"]"
+						continue
+					}
+					lst=lst+" ; "+"[" +rec.nom + ", " + rec.prenom+"]"
 				}
 				return lst
  			stop

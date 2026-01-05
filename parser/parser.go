@@ -273,6 +273,8 @@ func (p *Parser) parseStmStartSection() (ast.Statement, *ParserError) {
 		return p.parseSwitchStatement()
 	case token.BREAK:
 		return p.parseBreakStatement()
+	case token.CONTINUE:
+		return p.parseContinueStatement()
 	case token.FALLTHROUGH:
 		return p.parseFallthroughStatement()
 	default:
@@ -1027,6 +1029,16 @@ func (p *Parser) parseDefaultCase() *ast.BlockStatement {
 
 func (p *Parser) parseBreakStatement() (*ast.BreakStatement, *ParserError) {
 	stmt := &ast.BreakStatement{Token: p.curToken}
+
+	if p.peekTokenIs(token.SEMICOLON) {
+		p.nextToken()
+	}
+
+	return stmt, nil
+}
+
+func (p *Parser) parseContinueStatement() (*ast.ContinueStatement, *ParserError) {
+	stmt := &ast.ContinueStatement{Token: p.curToken}
 
 	if p.peekTokenIs(token.SEMICOLON) {
 		p.nextToken()

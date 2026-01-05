@@ -640,7 +640,7 @@ type SQLDropObjectStatement struct {
 func (sd *SQLDropObjectStatement) statementNode()       {}
 func (sd *SQLDropObjectStatement) TokenLiteral() string { return sd.Token.Literal }
 func (sd *SQLDropObjectStatement) String() string {
-	out := "DROP OBJECT "
+	out := "DROP TABLE "
 	if sd.IfExists {
 		out += "IF EXISTS "
 	}

@@ -28,8 +28,10 @@ const (
 	ERROR_OBJ        = "ERROR"
 	FUNCTION_OBJ     = "FUNCTION"
 	STRUCT_OBJ       = "STRUCT"
+	DBOBJECT_OBJ     = "TABLE"
 	SQL_RESULT_OBJ   = "SQL_RESULT"
 	ARRAY_OBJ        = "ARRAY"
+	ROWS_OBJ         = "ROWS"
 	BREAK_OBJ        = "BREAK"
 	FALLTHROUGH_OBJ  = "FALLTHROUGH"
 	CONTINUE_OBJ     = "CONTINUE"
@@ -386,6 +388,16 @@ func (s *Struct) Inspect() string {
 	return fmt.Sprintf("struct %s", s.Name)
 }
 
+type DBStruct struct {
+	Name   string
+	Fields map[string]Object
+}
+
+func (s *DBStruct) Type() ObjectType { return DBOBJECT_OBJ }
+func (s *DBStruct) Inspect() string {
+	return fmt.Sprintf("Table %s", s.Name)
+}
+
 var (
 	NULL  = &Null{}
 	TRUE  = &Boolean{Value: true}
@@ -414,6 +426,9 @@ func (env *Environment) Exec(strSQL string, args ...any) (sql.Result, error) {
 		if env.ctx == nil {
 			return nil, errors.New("Nsina: Context is not defined")
 		}
+		if len(args) == 0 {
+			return env.db.ExecContext(env.ctx, strSQL)
+		}
 		return env.db.ExecContext(env.ctx, strSQL, args...)
 	}
 	if env.db == nil {
@@ -426,6 +441,9 @@ func (env *Environment) Query(strSQL string, args ...any) (*sql.Rows, error) {
 	if env.db != nil && strSQL != "" {
 		if env.ctx == nil {
 			return nil, errors.New("Nsina: Context is not defined")
+		}
+		if len(args) == 0 {
+			return env.db.QueryContext(env.ctx, strSQL)
 		}
 		return env.db.QueryContext(env.ctx, strSQL, args)
 	}
@@ -590,7 +608,7 @@ type SQLResult struct {
 	Message      string
 	RowsAffected int64
 	Columns      []string
-	Rows         []map[string]Object
+	Rows         *sql.Rows //[]map[string]Object
 }
 
 func (sr *SQLResult) Type() ObjectType { return SQL_RESULT_OBJ }

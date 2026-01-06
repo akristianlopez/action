@@ -1566,6 +1566,11 @@ func (sa *SemanticAnalyzer) visitSelectExpression(node *ast.SQLSelectStatement) 
 	sa.visitFromClauseExpression(node)
 	for _, f := range node.Select {
 		if fld, ok := f.(*ast.SelectArgs); ok {
+			if fi, o := fld.Expr.(*ast.Identifier); o {
+				sa.addError("'%s' needs to be prefixed by the name of an object. line:%d column:%d", fi.Value,
+					fi.Line(), fi.Column())
+				continue
+			}
 			fieldType := sa.visitSelectArgs(fld)
 			if fld.NewName != nil {
 				if fieldType != nil && !strings.EqualFold(fieldType.Name, "void") {
@@ -1593,6 +1598,22 @@ func (sa *SemanticAnalyzer) visitSelectExpression(node *ast.SQLSelectStatement) 
 			sa.addError("'%s' needs to be renamed. line:%d column:%d", fld.Expr.String(),
 				fld.Expr.Line(), fld.Expr.Column())
 			sa.CurrentScope = oldScope
+			return &TypeInfo{Name: "void"}
+		}
+	}
+	if node.Where != nil {
+		t := sa.visitExpression(node.Where)
+		if t.Name != "boolean" {
+			sa.addError("Invalid expression '%s'. Line:%d, column:%d", node.Where.String(),
+				node.Where.Line(), node.Where.Column())
+			return &TypeInfo{Name: "void"}
+		}
+	}
+	if node.Having != nil {
+		t := sa.visitExpression(node.Having)
+		if t.Name != "boolean" {
+			sa.addError("Invalid expression '%s'. Line:%d, column:%d", node.Having.String(),
+				node.Having.Line(), node.Having.Column())
 			return &TypeInfo{Name: "void"}
 		}
 	}
@@ -2279,7 +2300,10 @@ func (sa *SemanticAnalyzer) visitIndexExpression(node *ast.IndexExpression) *Typ
 func (sa *SemanticAnalyzer) visitInExpression(node *ast.InExpression) *TypeInfo {
 	leftType := sa.visitExpression(node.Left)
 	rightType := sa.visitExpression(node.Right)
-
+	isSelect := false
+	if _, ok := node.Right.(*ast.SQLSelectStatement); ok {
+		isSelect = true
+	}
 	if rightType.Name == "string" && sa.areTypesCompatible(leftType, rightType) {
 		return &TypeInfo{Name: "boolean"}
 	}
@@ -2289,13 +2313,24 @@ func (sa *SemanticAnalyzer) visitInExpression(node *ast.InExpression) *TypeInfo 
 			node.Right.String(), node.Right.Line(), node.Right.Column())
 		return &TypeInfo{Name: "void"}
 	}
+	if isSelect && len(rightType.ElementType.Fields) == 1 {
+		ok := true
+		for _, v := range rightType.ElementType.Fields {
+			ok = sa.areTypesCompatible(leftType, v)
+		}
+		if !ok {
+			sa.addError("Type '%s' mismatch for IN. line:%d, column:%d",
+				leftType.Name, node.Left.Line(), node.Left.Column())
+			return &TypeInfo{Name: "void"}
 
+		}
+		return &TypeInfo{Name: "boolean"}
+	}
 	if !sa.areTypesCompatible(leftType, rightType.ElementType) {
 		sa.addError("Type '%s' mismatch for IN. line:%d, column:%d",
 			leftType.Name, node.Left.Line(), node.Left.Column())
 		return &TypeInfo{Name: "void"}
 	}
-
 	return &TypeInfo{Name: "boolean"}
 }
 func (sa *SemanticAnalyzer) formType(col *sql.ColumnType) *TypeInfo {

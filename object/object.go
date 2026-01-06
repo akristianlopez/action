@@ -28,6 +28,7 @@ const (
 	ERROR_OBJ        = "ERROR"
 	FUNCTION_OBJ     = "FUNCTION"
 	STRUCT_OBJ       = "STRUCT"
+	DBFIELD_OBJ      = "DB_FIELD"
 	DBOBJECT_OBJ     = "TABLE"
 	SQL_RESULT_OBJ   = "SQL_RESULT"
 	ARRAY_OBJ        = "ARRAY"
@@ -333,6 +334,13 @@ type String struct {
 
 func (s *String) Type() ObjectType { return STRING_OBJ }
 func (s *String) Inspect() string  { return s.Value }
+
+type DBField struct {
+	Value string
+}
+
+func (s *DBField) Type() ObjectType { return DBFIELD_OBJ }
+func (s *DBField) Inspect() string  { return s.Value }
 
 type Time struct {
 	Value time.Time

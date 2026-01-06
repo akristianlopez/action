@@ -228,6 +228,7 @@ func (sa *SemanticAnalyzer) registerBuiltinTypes() {
 	sa.TypeSql["real"] = &TypeInfo{Name: "real"}
 	sa.TypeSql["any"] = &TypeInfo{Name: "any"}
 	sa.TypeSql["boolean"] = &TypeInfo{Name: "boolean"}
+	sa.TypeSql["null"] = &TypeInfo{Name: "null"}
 }
 
 func (sa *SemanticAnalyzer) Analyze(program *ast.Action) []string {
@@ -562,11 +563,28 @@ func (sa *SemanticAnalyzer) visitSQLColumnConstraints(names []string, v *ast.SQL
 		if len(v.References.Columns) < len(v.Columns) {
 			sa.addError("Too few columns. line:%d, column:%d", v.References.Token.Line, v.References.Token.Column)
 		}
+		t := sa.resolveTypeFromTableName(v.References.TableName.Value)
+		// t := sa.lookupSymbol(v.References.TableName.Value)
+		if t == nil {
+			sa.addError("'%s' Invalid reference name. line:%d, column:%d", v.References.TableName.Value, v.References.Token.Line, v.References.Token.Column)
+			return
+		}
+		if t.Fields == nil {
+			sa.addError("'%s' no fields detected. line:%d, column:%d", v.References.TableName.Value, v.References.Token.Line, v.References.Token.Column)
+			return
+		}
+		for _, name := range v.References.Columns {
+			if _, ok := t.Fields[name.Value]; !ok {
+				sa.addError("'%s' Invalid reference name. line:%d, column:%d", v.References.TableName.Value, v.References.Token.Line, v.References.Token.Column)
+			}
+		}
 	}
-	t := sa.visitExpression(v.Check)
-	if _, exists := sa.TypeSql[strings.ToLower(t.Name)]; !exists {
-		sa.addError("'%s' invalid expression. line:%d, column:%d",
-			v.Check.String(), v.Check.Line(), v.Check.Column())
+	if v.Check != nil {
+		t := sa.visitExpression(v.Check)
+		if _, exists := sa.TypeSql[strings.ToLower(t.Name)]; !exists {
+			sa.addError("'%s' invalid expression. line:%d, column:%d",
+				v.Check.String(), v.Check.Line(), v.Check.Column())
+		}
 	}
 }
 func toTypeInfo(d *ast.SQLDataType) *TypeInfo {
@@ -2387,6 +2405,10 @@ func (sa *SemanticAnalyzer) formType(col *sql.ColumnType) *TypeInfo {
 	return result
 }
 func (sa *SemanticAnalyzer) resolveTypeFromTableName(name string) *TypeInfo {
+	sym := sa.lookupSymbol(name)
+	if sym != nil {
+		return sym.DataType
+	}
 	strSQL := fmt.Sprintf("SELECT * FROM %s LIMIT 1", name)
 	var (
 		rows *sql.Rows
@@ -2397,6 +2419,7 @@ func (sa *SemanticAnalyzer) resolveTypeFromTableName(name string) *TypeInfo {
 	} else {
 		rows, err = sa.db.QueryContext(sa.ctx, strSQL)
 	}
+
 	if err == nil && rows != nil {
 		colTypes, _ := rows.ColumnTypes()
 		structType := &TypeInfo{Name: name, Fields: make(map[string]*TypeInfo)}
@@ -2405,12 +2428,13 @@ func (sa *SemanticAnalyzer) resolveTypeFromTableName(name string) *TypeInfo {
 		}
 
 		sa.registerSymbol(structType.Name, StructSymbol, structType, nil)
-		return &TypeInfo{
-			Name:        "sql_object",
-			IsArray:     true,
-			ArraySize:   0,
-			ElementType: structType,
-		}
+		return structType
+		// return &TypeInfo{
+		// 	Name:        "sql_object",
+		// 	IsArray:     true,
+		// 	ArraySize:   0,
+		// 	ElementType: structType,
+		// }
 	}
 	sa.addError("Object '%s' does not exist", name)
 	return nil

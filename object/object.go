@@ -430,19 +430,31 @@ func NewEnvironment(db *sql.DB, ctx context.Context) *Environment {
 }
 
 func (env *Environment) Exec(strSQL string, args ...any) (sql.Result, error) {
-	if env.db != nil && strSQL != "" {
-		if env.ctx == nil {
-			return nil, errors.New("Nsina: Context is not defined")
-		}
-		if len(args) == 0 {
-			return env.db.ExecContext(env.ctx, strSQL)
-		}
-		return env.db.ExecContext(env.ctx, strSQL, args...)
-	}
 	if env.db == nil {
 		return nil, errors.New("Nsina: no defined database")
 	}
-	return nil, errors.New("Nsina: no query to be executed")
+	if strSQL == "" {
+		return nil, errors.New("Nsina: no query to be executed")
+	}
+	if env.ctx == nil {
+		return nil, errors.New("Nsina: Context is not defined")
+	}
+	tx, err := env.db.Begin()
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+			return
+		}
+		err = tx.Commit()
+	}()
+
+	if err != nil {
+		return nil, err
+	}
+	if len(args) == 0 {
+		return env.db.ExecContext(env.ctx, strSQL)
+	}
+	return env.db.ExecContext(env.ctx, strSQL, args...)
 }
 
 func (env *Environment) Query(strSQL string, args ...any) (*sql.Rows, error) {

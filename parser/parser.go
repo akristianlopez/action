@@ -2372,13 +2372,13 @@ func (p *Parser) parseSQLSelectStatement() (*ast.SQLSelectStatement, *ParserErro
 		} else {
 			join.Type = "INNER"
 		}
-		from = ast.FromIdentifier{Token: p.curToken}
-		from.Value = p.parseExpression(LOWEST)
+		frm := &ast.FromIdentifier{Token: p.curToken}
+		frm.Value = p.parseExpression(LOWEST)
 		if p.peekTokenIs(token.IDENT) {
 			p.nextToken()
-			from.NewName = p.parseIdentifier()
+			frm.NewName = p.parseIdentifier()
 		}
-		join.Table = &from
+		join.Table = frm
 		// join.Table = p.parseExpression(LOWEST, true)
 		if !p.expectPeek(token.ON) {
 			return nil, nil

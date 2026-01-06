@@ -1528,39 +1528,75 @@ func (sa *SemanticAnalyzer) visitSelectArgs(node *ast.SelectArgs) *TypeInfo {
 	}
 	return &TypeInfo{Name: "void"}
 }
-func (sa *SemanticAnalyzer) visitFromClauseExpression(node *ast.SQLSelectStatement) {
-	if node == nil {
-		return
-	}
-	fi, o := node.From.(*ast.FromIdentifier)
-	if !o {
-		sa.addError("Invalid expression '%s' does not exist. Line:%d, column:%d.", fi.String(), fi.Line(), fi.Column())
-		return
-	}
-	symp := sa.lookupSymbol(fi.Value.String())
+
+func (sa *SemanticAnalyzer) visitSingleFromClauseExpression(node *ast.FromIdentifier) {
+	symp := sa.lookupSymbol(node.Value.String())
 	var resultType *TypeInfo
 	if symp == nil {
-		resultType = sa.resolveTypeFromTableName(fi.Value.String())
+		resultType = sa.resolveTypeFromTableName(node.Value.String())
 	}
-	if fi.NewName != nil {
-		symp = sa.lookupSymbol(fi.Value.String())
-		id, ok := fi.NewName.(*ast.Identifier)
+	if node.NewName != nil {
+		symp = sa.lookupSymbol(node.Value.String())
+		id, ok := node.NewName.(*ast.Identifier)
 		if !ok {
 			sa.addError("Invalid expression '%s' does not exist. Line:%d, column:%d.", id.String(), id.Line(), id.Column())
 			return
 		}
 		if symp == nil {
 			if resultType == nil {
-				sa.addError("Object '%s' does not exist. Line:%d, column:%d.", fi.Value.String(), fi.Value.Line(), fi.Value.Column())
+				sa.addError("Object '%s' does not exist. Line:%d, column:%d.", node.Value.String(), node.Value.Line(), node.Value.Column())
 				return
 			}
 			return
 		}
 		sa.CurrentScope.Symbols[lower(id.Value)] = symp
-		// sa.registerSymbol(lower(id.Value), symp.Type, symp.DataType, fi)
 	}
-	//Traits the other table contained into the field join
 }
+func (sa *SemanticAnalyzer) visitFromClauseExpression(node *ast.SQLSelectStatement) {
+	if node == nil {
+		return
+	}
+	fi, o := node.From.(*ast.FromIdentifier)
+	if !o {
+		sa.addError("Invalid expression '%s' does not exist. Line:%d, column:%d.", node.From.String(), node.From.Line(), node.From.Column())
+		return
+	}
+	sa.visitSingleFromClauseExpression(fi)
+	// symp := sa.lookupSymbol(fi.Value.String())
+	// var resultType *TypeInfo
+	// if symp == nil {
+	// 	resultType = sa.resolveTypeFromTableName(fi.Value.String())
+	// }
+	// if fi.NewName != nil {
+	// 	symp = sa.lookupSymbol(fi.Value.String())
+	// 	id, ok := fi.NewName.(*ast.Identifier)
+	// 	if !ok {
+	// 		sa.addError("Invalid expression '%s' does not exist. Line:%d, column:%d.", id.String(), id.Line(), id.Column())
+	// 		return
+	// 	}
+	// 	if symp == nil {
+	// 		if resultType == nil {
+	// 			sa.addError("Object '%s' does not exist. Line:%d, column:%d.", fi.Value.String(), fi.Value.Line(), fi.Value.Column())
+	// 			return
+	// 		}
+	// 		return
+	// 	}
+	// 	sa.CurrentScope.Symbols[lower(id.Value)] = symp
+	// 	// sa.registerSymbol(lower(id.Value), symp.Type, symp.DataType, fi)
+	// }
+	//Traits the other table contained into the field join
+	if node.Joins != nil {
+		for _, join := range node.Joins {
+			fi, o := join.Table.(*ast.FromIdentifier)
+			if !o {
+				sa.addError("Invalid expression '%s' does not exist. Line:%d, column:%d.", join.Table.String(), join.Table.Line(), join.Table.Column())
+				return
+			}
+			sa.visitSingleFromClauseExpression(fi)
+		}
+	}
+}
+
 func (sa *SemanticAnalyzer) visitSelectExpression(node *ast.SQLSelectStatement) *TypeInfo {
 	oldScope := sa.CurrentScope
 	scope := &Scope{

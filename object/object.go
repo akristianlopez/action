@@ -393,7 +393,17 @@ type Struct struct {
 
 func (s *Struct) Type() ObjectType { return STRUCT_OBJ }
 func (s *Struct) Inspect() string {
-	return fmt.Sprintf("struct %s", s.Name)
+	out := ""
+	if s.Fields != nil {
+		for k, v := range s.Fields {
+			if out == "" {
+				out = fmt.Sprintf("%s: %s", k, v.Inspect())
+				continue
+			}
+			out = fmt.Sprintf("%s,\n %s: %s", out, k, v.Inspect())
+		}
+	}
+	return fmt.Sprintf("%s{%s}", s.Name, out)
 }
 
 type DBStruct struct {
@@ -430,31 +440,19 @@ func NewEnvironment(db *sql.DB, ctx context.Context) *Environment {
 }
 
 func (env *Environment) Exec(strSQL string, args ...any) (sql.Result, error) {
+	if env.db != nil && strSQL != "" {
+		if env.ctx == nil {
+			return nil, errors.New("Nsina: Context is not defined")
+		}
+		if len(args) == 0 {
+			return env.db.ExecContext(env.ctx, strSQL)
+		}
+		return env.db.ExecContext(env.ctx, strSQL, args...)
+	}
 	if env.db == nil {
 		return nil, errors.New("Nsina: no defined database")
 	}
-	if strSQL == "" {
-		return nil, errors.New("Nsina: no query to be executed")
-	}
-	if env.ctx == nil {
-		return nil, errors.New("Nsina: Context is not defined")
-	}
-	tx, err := env.db.Begin()
-	defer func() {
-		if err != nil {
-			tx.Rollback()
-			return
-		}
-		err = tx.Commit()
-	}()
-
-	if err != nil {
-		return nil, err
-	}
-	if len(args) == 0 {
-		return env.db.ExecContext(env.ctx, strSQL)
-	}
-	return env.db.ExecContext(env.ctx, strSQL, args...)
+	return nil, errors.New("Nsina: no query to be executed")
 }
 
 func (env *Environment) Query(strSQL string, args ...any) (*sql.Rows, error) {

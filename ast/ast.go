@@ -1494,7 +1494,11 @@ type FromIdentifier struct {
 
 func (fi *FromIdentifier) TokenLiteral() string { return fi.Token.Literal }
 func (fi *FromIdentifier) String() string {
-	return strings.TrimSpace(fmt.Sprintf("%s %s", fi.Value.String(), fi.NewName))
+	out := fi.Value.String()
+	if fi.NewName != nil {
+		out = fmt.Sprintf("%s %s", out, fi.NewName.String())
+	}
+	return strings.TrimSpace(out)
 }
 func (fi *FromIdentifier) expressionNode() {}
 func (fi *FromIdentifier) Line() int       { return fi.Token.Line }

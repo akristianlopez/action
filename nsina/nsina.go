@@ -59,7 +59,13 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		if isError(left) {
 			return left
 		}
-		right := Eval(node.Right, env)
+		var right object.Object
+		if val, ok := node.Right.(*ast.SQLSelectStatement); ok {
+			right = toString(val, env)
+		} else {
+			right = Eval(node.Right, env)
+		}
+
 		if isError(right) {
 			return right
 		}
@@ -143,7 +149,7 @@ func evalTypeMember(node *ast.TypeMember, env *object.Environment) object.Object
 		return newError("Invalid structure name '%s'", node.Left.String())
 	}
 	if obj.Type() == object.DBOBJECT_OBJ { //DBOBJECT_OBJ
-		return &object.String{Value: node.String()}
+		return &object.DBField{Value: node.String()}
 	}
 	key := node.Right
 	for val, ok := key.(*ast.TypeMember); ok; {
@@ -487,7 +493,7 @@ func defConstraints(ta *ast.TypeAnnotation, env *object.Environment) *object.Lim
 	}
 }
 func getDefaultValue(typeName string) object.Object {
-	switch typeName {
+	switch strings.ToLower(typeName) {
 	case "integer":
 		return &object.Integer{Value: 0}
 	case "float":
@@ -775,7 +781,7 @@ func defineFromObject(exp ast.Expression, env *object.Environment) object.Object
 				return newError("Nsina: %s", err.Error())
 			}
 			res, ok := env.Get(ex.Value)
-			if ok {
+			if ok && res.Type() != "SQL_TABLE" {
 				if from.NewName != nil {
 					return env.Set(from.NewName.String(), res)
 				}
@@ -871,6 +877,9 @@ func evalStructLiteral(node *ast.StructLiteral, env *object.Environment) object.
 		Name:   "",
 		Fields: make(map[string]object.Object),
 	}
+	if node.Name != nil {
+		structObj.Name = strings.ToLower(node.Name.Value)
+	}
 
 	for _, f := range node.Fields {
 		val := Eval(f.Value, env)
@@ -879,23 +888,41 @@ func evalStructLiteral(node *ast.StructLiteral, env *object.Environment) object.
 		}
 		structObj.Fields[strings.ToLower(f.Name.Value)] = val
 	}
-	objtype := env.IsStructExist(structObj, env)
-	if objtype == "" {
-		struct_id++
-		objtype = fmt.Sprintf("%s_%d", "struct_id", struct_id)
-		defType(objtype, structObj, env)
-	} else { //check if all values are ok
-		for k, v := range structObj.Fields {
-			en := env.GetLimitEnv(k)
-			if en != nil {
-				ok, msg := en.Valid(k, v)
-				if !ok {
-					return newError(msg+". Line:%d, column:%d", node.Line(), node.Column())
-				}
+	if structObj.Name == "" {
+		objtype := env.IsStructExist(structObj, env)
+		if objtype == "" {
+			struct_id++
+			objtype = fmt.Sprintf("%s_%d", "struct_id", struct_id)
+			defType(objtype, structObj, env)
+		}
+		structObj.Name = objtype
+		return structObj
+	}
+	stdobj, ok := env.Get(structObj.Name)
+	if !ok {
+		return newError("Invalid type name '%s'. Line:%d, column:%d", structObj.Name, node.Line(), node.Column())
+	}
+	strStruct, ok := stdobj.(*object.Struct)
+	if !ok {
+		return newError("Invalid type name '%s'. Expected '%v', got '%v'. Line:%d, column:%d",
+			structObj.Name, object.STRUCT_OBJ, stdobj.Type(), node.Line(), node.Column())
+	}
+
+	for k, v := range strStruct.Fields {
+		if _, True := structObj.Fields[k]; !True {
+			structObj.Fields[k] = getDefaultValue(string(v.Type()))
+		}
+	}
+	for k, v := range structObj.Fields {
+		en := env.GetLimitEnv(k)
+		if en != nil {
+			ok, msg := en.Valid(k, v)
+			if !ok {
+				return newError(msg+". Line:%d, column:%d", node.Line(), node.Column())
 			}
 		}
 	}
-	structObj.Name = objtype
+
 	return structObj
 }
 
@@ -940,6 +967,8 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 		return evalFloatInfixExpression(operator, left, right)
 	case left.Type() == object.STRING_OBJ || right.Type() == object.STRING_OBJ:
 		return evalStringInfixExpression(operator, left, right)
+	case left.Type() == object.DBFIELD_OBJ || right.Type() == object.DBFIELD_OBJ:
+		return evalDBFieldInfixExpression(operator, left, right)
 	case operator == "==":
 		return &object.Boolean{Value: left == right}
 	case operator == "!=":
@@ -1041,14 +1070,26 @@ func evalStringInfixExpression(operator string, left, right object.Object) objec
 	switch operator {
 	case "==":
 		return &object.Boolean{Value: strings.EqualFold(left.Inspect(), right.Inspect())}
+	case ">":
+		return &object.Boolean{Value: strings.Compare(left.Inspect(), right.Inspect()) > 0}
+	case ">=":
+		return &object.Boolean{Value: strings.Compare(left.Inspect(), right.Inspect()) >= 0}
+	case "<":
+		return &object.Boolean{Value: strings.Compare(left.Inspect(), right.Inspect()) < 0}
+	case "<=":
+		return &object.Boolean{Value: strings.Compare(left.Inspect(), right.Inspect()) <= 0}
+	case "!=":
+		return &object.Boolean{Value: strings.Compare(left.Inspect(), right.Inspect()) != 0}
 	case "+":
 		leftVal := left.(*object.String).Value
 		rightVal := right.(*object.String).Value
-		// leftVal := left.Inspect()
-		// rightVal := right.Inspect()
 		return &object.String{Value: leftVal + rightVal}
 	}
-	return newError("Opérateur inconnu: %s %s %s", left.Type(), operator, right.Type())
+	return newError("Invalid operator: %s %s %s", left.Type(), operator, right.Type())
+}
+
+func evalDBFieldInfixExpression(operator string, left, right object.Object) object.Object {
+	return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), operator, right.Inspect())}
 }
 
 func evalBangOperatorExpression(right object.Object) object.Object {
@@ -2028,8 +2069,14 @@ func evalInExpression(node *ast.InExpression, env *object.Environment) object.Ob
 	if isError(left) {
 		return left
 	}
+	var right object.Object
 
-	right := Eval(node.Right, env)
+	if val, ok := node.Right.(*ast.SQLSelectStatement); ok {
+		right = &object.DBField{Value: toString(val, env).Inspect()}
+	} else {
+		right = Eval(node.Right, env)
+	}
+
 	if isError(right) {
 		return right
 	}
@@ -2038,7 +2085,18 @@ func evalInExpression(node *ast.InExpression, env *object.Environment) object.Ob
 
 	switch right := right.(type) {
 	case *object.Array:
-		contains = arrayContains(right, left)
+		if left.Type() != object.DBFIELD_OBJ {
+			contains = arrayContains(right, left)
+		}
+		strVal := ""
+		for _, v := range right.Elements {
+			if strVal == "" {
+				strVal = v.Inspect()
+				continue
+			}
+			strVal = fmt.Sprintf("%s, %s", strVal, v.Inspect())
+		}
+		return &object.DBField{Value: fmt.Sprintf("%s IN (%s)", left.Inspect(), strVal)}
 	case *object.String:
 		if left.Type() != object.STRING_OBJ {
 			return newError("L'opérateur IN sur les chaînes nécessite une chaîne à gauche")
@@ -2046,6 +2104,8 @@ func evalInExpression(node *ast.InExpression, env *object.Environment) object.Ob
 		leftStr := left.(*object.String).Value
 		rightStr := right.Value
 		contains = strings.Contains(rightStr, leftStr)
+	case *object.DBField:
+		return &object.DBField{Value: fmt.Sprintf("%s IN (%s)", left.Inspect(), right.Inspect())}
 	default:
 		return newError("L'opérande droit de IN doit être un tableau ou une chaîne, got %s", right.Type())
 	}

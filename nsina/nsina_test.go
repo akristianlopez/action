@@ -306,24 +306,73 @@ func build_args() []testCase {
 	// })
 	res = append(res, testCase{
 		name: "Test 1.8 : Managing SQL Select statement",
-		src: `action "SQL Select statement" (* (liste des parametres) : type valeur de retour *)			
+		src: `action "SQL Select statement" (* (liste des parametres) : type valeur de retour *)
+			type myresult struct{
+				first:string
+				second:string
+			}			
 			start
-				(*drop object Employee;
-				Table pour les structures organisationnelles 
-				CREATE OBJECT Employee (
+				drop object links;
+				drop object Employés;
+				drop object Organisations; 
+				(*Table pour les structures organisationnelles *)
+				CREATE OBJECT Employés (
 					Id INTEGER PRIMARY KEY,
 					Nom VARCHAR(100) NOT NULL,
 					Prenom VARCHAR(200) ,
 					Age INTEGER,
 					Sexe VARCHAR(8)
 				);
-				INSERT INTO EMPLOYEE(id, nom, prenom,age,sexe)VALUES
+				(* Table pour les structures organisationnelles *)
+				CREATE OBJECT Organisations (
+					id INTEGER PRIMARY KEY,
+					nom VARCHAR(100) NOT NULL,
+					parent_id INTEGER,
+					niveau VARCHAR(50),
+					budget NUMERIC(12,2)
+				);
+
+				(* Table pour les liens entre structures et employees *)
+				CREATE OBJECT links (
+					employe INTEGER NOT NULL,
+					structure INTEGER NOT NULL,
+					date_affection date,
+					CONSTRAINT pk_links PRIMARY KEY (employe,structure)
+				);
+
+				(* ALTER TABLE *)
+				ALTER OBJECT links
+				ADD CONSTRAINT fk_employés FOREIGN KEY (employés) REFERENCES employés(id);
+				ALTER OBJECT links
+				ADD CONSTRAINT fk_organisations FOREIGN KEY (structure) REFERENCES Organisations(id);
+
+				INSERT INTO Employés(id, nom, prenom,age,sexe)VALUES
 				(1,'Golang','Google.com','5','M'),
 				(2,'JavaScript','Eclipse.com','20','M'),
 				(3,'Java','Oracle.com','50','M'), 	
-				(4,'C#','Microsoft.com','30','M')	*)
-				Let result=select o.nom, o.prenom, o.age, o.sexe From  employee o
-				let emp:object employee;
+				(4,'C#','Microsoft.com','30','M') ;
+
+				INSERT INTO Organisations (id, nom, parent_id, niveau, budget) VALUES
+				(1, 'Entreprise', NULL, 'Direction', 10000000.00),
+				(2, 'IT', 1, 'Département', 2000000.00),
+				(3, 'RH', 1, 'Département', 800000.00),
+				(4, 'Développement', 2, 'Service', 1200000.00),
+				(5, 'Infrastructure', 2, 'Service', 800000.00),
+				(6, 'Recrutement', 3, 'Service', 400000.00),
+				(7, 'Formation', 3, 'Service', 300000.00),
+				(8, 'Backend', 4, 'Équipe', 600000.00),
+				(9, 'Frontend', 4, 'Équipe', 400000.00),
+				(10, 'Base de données', 5, 'Équipe', 300000.00);
+
+				INSERT INTO LINKS(employe,structure,date_affection)VALUES
+				(1,1,'2010-01-01'),
+				(3,4,'2020-10-23'),
+				(4,10,'2015-10-23');
+
+				Let result=select o.nom, o.prenom, o.age, o.sexe 
+				           From employés o 
+						   Where o.id in (select employés.id from employés where employés.id in [1,4])
+				let emp:object employés;
 				let lst:string 
 				for let rec of result{
 				    if lst==""{
@@ -332,7 +381,19 @@ func build_args() []testCase {
 					}
 					lst=lst+" ; "+"[" +rec.nom + ", " + rec.prenom+"]"
 				}
-				return lst
+				let res: myresult=myresult{first:lst}
+				let result2=select e.nom, e.prenom, o.nom as structure
+			                From employés e inner join links l on (e.id==l.employe)
+							     inner join organisations o on (l.structure==o.id)
+			    
+				for let rec of result2{
+					if res.second==""{
+						res.second="["+rec.nom +" "+rec.prenom+", "+rec.structure+"]"
+						continue
+					}
+					res.second=res.second+"["+rec.nom +" "+rec.prenom+", "+rec.structure+"]"
+				}
+				return res
  			stop
 			 `,
 		status: 0,

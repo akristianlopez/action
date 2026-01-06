@@ -1876,12 +1876,14 @@ func (p *Parser) parseSelectList() []ast.Expression {
 	var expressions []ast.Expression
 
 	if p.curTokenIs(token.ASTERISK) {
-		expressions = append(expressions, &ast.SelectArgs{
-			Expr:    &ast.Identifier{Token: p.curToken, Value: "*"},
-			NewName: nil,
-		})
-		p.nextToken()
-		return expressions
+		p.addError(Create(fmt.Sprintf("'%s' is not expected here.", p.curToken.Literal), p.curToken.Line, p.curToken.Column))
+		return nil
+		// expressions = append(expressions, &ast.SelectArgs{
+		// 	Expr:    &ast.Identifier{Token: p.curToken, Value: "*"},
+		// 	NewName: nil,
+		// })
+		// p.nextToken()
+		// return expressions
 	}
 	arg := &ast.SelectArgs{}
 	arg.Expr = p.parseExpression(LOWEST)

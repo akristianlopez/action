@@ -232,6 +232,12 @@ func (sa *SemanticAnalyzer) registerBuiltinTypes() {
 }
 
 func (sa *SemanticAnalyzer) Analyze(program *ast.Action) []string {
+	for _, stmt := range program.Statements {
+		if _, o := stmt.(*ast.StructStatement); o {
+			sa.visitStatement(stmt, nil)
+			continue
+		}
+	}
 	sa.visitProgram(program)
 	return sa.Errors
 }
@@ -241,14 +247,19 @@ func (sa *SemanticAnalyzer) visitProgram(node *ast.Action) {
 	if node.ActionName == "" {
 		sa.addError("Then action must start by 'action <nom>'")
 	}
-
+	returnType := &TypeInfo{Name: "any"}
+	if node.ReturnType != nil {
+		returnType = sa.resolveTypeAnnotation(node.ReturnType)
+	}
 	// Visiter toutes les déclarations
 	for _, stmt := range node.Statements {
 		select {
 		case <-sa.ctx.Done():
 			return
 		default:
-			sa.visitStatement(stmt, &TypeInfo{Name: "any"})
+			if _, o := stmt.(*ast.StructStatement); !o {
+				sa.visitStatement(stmt, returnType)
+			}
 		}
 	}
 }

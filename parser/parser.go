@@ -266,6 +266,13 @@ func (p *Parser) ParseAction() *ast.Action {
 
 	return program
 }
+func (p *Parser) ParseExpression() ast.Expression {
+	returnEx := p.parseExpression(LOWEST)
+	if !p.expectPeek(token.EOF) {
+		return nil
+	}
+	return returnEx
+}
 func (p *Parser) parseStmStartSection() (ast.Statement, *ParserError) {
 	switch p.curToken.Type {
 	case token.IF:

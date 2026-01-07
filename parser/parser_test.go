@@ -1256,7 +1256,7 @@ func build_args() []testCase {
 	return res
 }
 
-func TestParseProgram(t *testing.T) {
+func TestParseAction(t *testing.T) {
 	has := false
 
 	for _, tc := range build_args() {
@@ -1267,6 +1267,53 @@ func TestParseProgram(t *testing.T) {
 			p := New(l)
 
 			p.ParseAction()
+			if tc.status == 0 && len(p.Errors()) > 0 {
+				fmt.Println("Erreurs de parsing:")
+				hasError = true
+				has = true
+				for _, msg := range p.Errors() {
+					fmt.Printf("\n\t%s line:%d, column:%d\n", msg.Message(), msg.Line(), msg.Column())
+				}
+			} else if tc.status >= 1 && len(p.Errors()) == 0 {
+				hasError = true
+				has = true
+				fmt.Printf("\n\tAucune erreur n'a ete idtentifiee. Bien vouloir verifier les parametres de test")
+			}
+		})
+		if !hasError {
+			fmt.Printf("successful\n\n")
+		}
+	}
+	if has {
+		os.Exit(1)
+	}
+}
+func build_expressions() []testCase {
+	res := make([]testCase, 0)
+	res = append(res, testCase{
+		name:   "Expression parsing 1",
+		src:    `(a+b)*d `,
+		status: 0,
+	})
+
+	res = append(res, testCase{
+		name:   "Expression parsing 2",
+		src:    `employe.id in [2,3]`,
+		status: 0,
+	})
+	return res
+}
+
+func TestParseExpression(t *testing.T) {
+	has := false
+	for _, tc := range build_expressions() {
+		fmt.Printf("\n%s is running...", tc.name)
+		hasError := false
+		t.Run(tc.name, func(t *testing.T) {
+			l := lexer.New(tc.src)
+			p := New(l)
+
+			p.ParseExpression()
 			if tc.status == 0 && len(p.Errors()) > 0 {
 				fmt.Println("Erreurs de parsing:")
 				hasError = true

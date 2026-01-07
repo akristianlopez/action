@@ -442,7 +442,18 @@ func NewEnvironment(ctx context.Context, db *sql.DB, hf func(table string) bool,
 
 	return &Environment{store: s, outer: nil, limits: nil, db: db, ctx: ctx, hasFilter: hf, getFilter: gf}
 }
-
+func (env *Environment) Filter(table, newName string) (string, bool) {
+	if env.getFilter == nil {
+		return "", false
+	}
+	return env.getFilter(table, newName)
+}
+func (env *Environment) IsFiltered(table string) bool {
+	if env.hasFilter == nil {
+		return false
+	}
+	return env.hasFilter(table)
+}
 func (env *Environment) Exec(strSQL string, args ...any) (sql.Result, error) {
 	if env.db != nil && strSQL != "" {
 		if env.ctx == nil {

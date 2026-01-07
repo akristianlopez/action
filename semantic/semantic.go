@@ -243,14 +243,17 @@ func (sa *SemanticAnalyzer) Analyze(program *ast.Action) []string {
 	sa.visitProgram(program)
 	return sa.Errors
 }
-
-func (sa *SemanticAnalyzer) AnalyzeExpression(table string, expr ast.Expression) {
+func (sa *SemanticAnalyzer) AnalyzeExpression(table, newName string, expr ast.Expression) {
 	select {
 	case <-sa.ctx.Done():
 		sa.addError("Cancled by the user")
 		return
 	default:
 		sa.resolveTypeFromTableName(table)
+		symb := sa.lookupSymbol(table)
+		if symb != nil && newName != "" {
+			sa.registerSymbol(newName, symb.Type, symb.DataType, symb.Node)
+		}
 		sa.visitExpression(expr)
 	}
 }

@@ -435,6 +435,7 @@ type Environment struct {
 func (env *Environment) Context() context.Context {
 	return env.ctx
 }
+
 func NewEnvironment(ctx context.Context, db *sql.DB, hf func(table string) bool,
 	gf func(table, newName string) (string, bool)) *Environment {
 	s := make(map[string]Object)
@@ -475,7 +476,7 @@ func (env *Environment) Query(strSQL string, args ...any) (*sql.Rows, error) {
 }
 
 func NewEnclosedEnvironment(outer *Environment) *Environment {
-	env := NewEnvironment(outer.ctx, outer.db, outer.hasFilter, outer.outer.getFilter)
+	env := NewEnvironment(outer.ctx, outer.db, outer.hasFilter, outer.getFilter)
 	env.outer = outer
 	env.limits = nil
 	return env

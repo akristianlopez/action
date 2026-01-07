@@ -423,20 +423,23 @@ var (
 )
 
 type Environment struct {
-	store  map[string]Object
-	outer  *Environment
-	limits *map[string]Limits
-	db     *sql.DB
-	ctx    context.Context
+	store     map[string]Object
+	outer     *Environment
+	limits    *map[string]Limits
+	db        *sql.DB
+	ctx       context.Context
+	hasFilter func(table string) bool
+	getFilter func(table, newName string) (string, bool)
 }
 
 func (env *Environment) Context() context.Context {
 	return env.ctx
 }
-func NewEnvironment(db *sql.DB, ctx context.Context) *Environment {
+func NewEnvironment(ctx context.Context, db *sql.DB, hf func(table string) bool,
+	gf func(table, newName string) (string, bool)) *Environment {
 	s := make(map[string]Object)
 
-	return &Environment{store: s, outer: nil, limits: nil, db: db, ctx: ctx}
+	return &Environment{store: s, outer: nil, limits: nil, db: db, ctx: ctx, hasFilter: hf, getFilter: gf}
 }
 
 func (env *Environment) Exec(strSQL string, args ...any) (sql.Result, error) {
@@ -472,7 +475,7 @@ func (env *Environment) Query(strSQL string, args ...any) (*sql.Rows, error) {
 }
 
 func NewEnclosedEnvironment(outer *Environment) *Environment {
-	env := NewEnvironment(outer.db, outer.ctx)
+	env := NewEnvironment(outer.ctx, outer.db, outer.hasFilter, outer.outer.getFilter)
 	env.outer = outer
 	env.limits = nil
 	return env

@@ -99,11 +99,12 @@ type SemanticAnalyzer struct {
 	inType       int
 	db           *sql.DB
 	ctx          context.Context
+	canHandle    func(table, field, operation string) (bool, string)
 }
 
 // var tokenList []string
 
-func NewSemanticAnalyzer(ctx context.Context, db *sql.DB) *SemanticAnalyzer {
+func NewSemanticAnalyzer(ctx context.Context, db *sql.DB, ch func(table, field, operation string) (bool, string)) *SemanticAnalyzer {
 
 	globalScope := &Scope{
 		Symbols: make(map[string]*Symbol),
@@ -119,6 +120,7 @@ func NewSemanticAnalyzer(ctx context.Context, db *sql.DB) *SemanticAnalyzer {
 		inType:       1,
 		db:           db,
 		ctx:          ctx,
+		canHandle:    ch,
 	}
 
 	// Enregistrement des functions standards
@@ -300,8 +302,17 @@ func (sa *SemanticAnalyzer) visitStatement(stmt ast.Statement, t *TypeInfo) {
 		sa.visitSQLUpdateStatement(s)
 	case *ast.SQLDeleteStatement:
 		sa.visitSQLDeleteStatement(s)
+	case *ast.SQLDropObjectStatement:
+		sa.visitSQLDropObjectStatement(s)
 	case *ast.SQLSelectStatement:
 		sa.visitSQLSelectStatement(s)
+	}
+}
+
+func (sa *SemanticAnalyzer) visitSQLDropObjectStatement(s *ast.SQLDropObjectStatement) {
+	if ok, msg := sa.canHandle(s.ObjectName.Value, "", "ddl_delete"); !ok {
+		sa.addError("%s", msg)
+		return
 	}
 }
 
@@ -326,6 +337,11 @@ func (sa *SemanticAnalyzer) visitSQLAlterObjectStatement(s *ast.SQLAlterObjectSt
 			sa.addError("Unknown action '%s' in ALTER OBJECT statement. line:%d, column:%d", action.Type, s.Token.Line, s.Token.Column)
 			continue
 		}
+		if ok, msg := sa.canHandle(s.ObjectName.Value, action.Type, "ddl_update"); !ok {
+			sa.addError("%s", msg)
+			return
+		}
+
 		if action.Column != nil {
 			switch lower(action.Type) {
 			case "add", "modify":
@@ -390,6 +406,10 @@ func (sa *SemanticAnalyzer) visitSQLDeleteStatement(s *ast.SQLDeleteStatement) {
 			s.Line(), s.Column())
 		return
 	}
+	if ok, msg := sa.canHandle(s.From.Value, "", "delete"); !ok {
+		sa.addError("%s", msg)
+		return
+	}
 	tokenList := make([]string, 0)
 	tokenList = append(tokenList, lower(s.From.Value))
 	oldScope := sa.CurrentScope
@@ -425,6 +445,12 @@ func (sa *SemanticAnalyzer) visitSQLUpdateStatement(s *ast.SQLUpdateStatement) {
 		sa.addError("The condition in the clause <where> is needed. line:%d, column:%d",
 			s.Line(), s.Column())
 		return
+	}
+	for _, stm := range s.Set {
+		if ok, msg := sa.canHandle(s.ObjectName.Value, stm.Column.Value, "update"); !ok {
+			sa.addError("%s", msg)
+			return
+		}
 	}
 	tokenList := make([]string, 0)
 	tokenList = append(tokenList, lower(s.ObjectName.Value))
@@ -467,6 +493,12 @@ func (sa *SemanticAnalyzer) visitSQLInsertStatement(s *ast.SQLInsertStatement) {
 	if s.ObjectName == nil {
 		sa.addError("The name of the object is missing. line:%d, column:%d", s.Line(), s.Column())
 		return
+	}
+	for _, name := range s.Columns {
+		if ok, msg := sa.canHandle(s.ObjectName.Value, name.Value, "insert"); !ok {
+			sa.addError("%s", msg)
+			return
+		}
 	}
 	if s.Select == nil {
 		for _, v := range s.Values {
@@ -641,6 +673,10 @@ func (sa *SemanticAnalyzer) visitSQLCreateObjectStatement(s *ast.SQLCreateObject
 	}
 	if len(s.Columns) == 0 {
 		sa.addError("Define at least one column. line:%d, column:%d", s.Token.Line, s.Token.Column)
+		return
+	}
+	if ok, msg := sa.canHandle(s.ObjectName.Value, "", "ddl_insert"); !ok {
+		sa.addError("%s", msg)
 		return
 	}
 	//Browsing columns
@@ -935,40 +971,37 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 			if !contains(argList, lower(str)) {
 				argList = append(argList, lower(str))
 			}
-		case *ast.InfixExpression:
-			t := field.Expr.(*ast.InfixExpression)
-			if t.Operator != "." { //We should add RARR when we would need to take into account the sub-object
-				sa.addError("'%s' invalid operation in the select clause. line:%d, column:%d",
-					t.Operator, t.Right.Line(), t.Right.Column())
-				continue
-			}
-			switch t.Left.(type) {
+		case *ast.TypeMember:
+			switch s.Left.(type) {
 			case *ast.Identifier:
-				n := t.Left.(*ast.Identifier)
+				n := s.Left.(*ast.Identifier)
 				if !lIsInFrom(n.Value, ss.Joins) {
 					sa.addError("'%s' is not an object. line:%d, column:%d",
 						n.Value, n.Token.Line, n.Token.Column)
 
 				}
-				switch t.Right.(type) {
+				switch r := s.Right.(type) {
 				case *ast.Identifier, *ast.StringLiteral:
+					if ok, msg := sa.canHandle(n.Value, r.String(), "read"); !ok {
+						sa.addError("%s", msg)
+					}
 					continue
 				default:
 					sa.addError("'%s' can not be a new name. line:%d, column:%d",
 						n.Value, n.Token.Line, n.Token.Column)
 				}
 			case *ast.ArrayFunctionCall:
-				n := t.Left.(*ast.ArrayFunctionCall)
+				n := s.Left.(*ast.ArrayFunctionCall)
 				if sa.lookupSymbol(n.Function.Value) != nil {
 					sa.addError("'%s' can not be used in the select clause. line:%d, column:%d",
-						t.Right.String(), t.Right.Line(), t.Right.Column())
+						s.Right.String(), s.Right.Line(), s.Right.Column())
 				}
 				//Check the function argument format but this will be done after
 				if n.Array == nil && len(n.Arguments) == 0 {
 					sa.addError("Function '%s' must have at least one argument. line:%d, column:%d",
 						n.Function.String(), s.Line(), s.Column())
 				}
-				switch e := t.Right.(type) {
+				switch e := s.Right.(type) {
 				case *ast.Identifier, *ast.StringLiteral:
 					if field.NewName != nil {
 						if !contains(argList, strings.ToLower(field.NewName.Value)) {
@@ -981,7 +1014,50 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 					}
 				default:
 					sa.addError("'%s' can not be a new name. line:%d, column:%d",
-						t.Right.String(), t.Right.Line(), t.Right.Column())
+						s.Right.String(), s.Right.Line(), s.Right.Column())
+				}
+			}
+		case *ast.InfixExpression:
+			switch s.Left.(type) {
+			case *ast.Identifier:
+				n := s.Left.(*ast.Identifier)
+				if !lIsInFrom(n.Value, ss.Joins) {
+					sa.addError("'%s' is not an object. line:%d, column:%d",
+						n.Value, n.Token.Line, n.Token.Column)
+
+				}
+				switch s.Right.(type) {
+				case *ast.Identifier, *ast.StringLiteral:
+					continue
+				default:
+					sa.addError("'%s' can not be a new name. line:%d, column:%d",
+						n.Value, n.Token.Line, n.Token.Column)
+				}
+			case *ast.ArrayFunctionCall:
+				n := s.Left.(*ast.ArrayFunctionCall)
+				if sa.lookupSymbol(n.Function.Value) != nil {
+					sa.addError("'%s' can not be used in the select clause. line:%d, column:%d",
+						s.Right.String(), s.Right.Line(), s.Right.Column())
+				}
+				//Check the function argument format but this will be done after
+				if n.Array == nil && len(n.Arguments) == 0 {
+					sa.addError("Function '%s' must have at least one argument. line:%d, column:%d",
+						n.Function.String(), s.Line(), s.Column())
+				}
+				switch e := s.Right.(type) {
+				case *ast.Identifier, *ast.StringLiteral:
+					if field.NewName != nil {
+						if !contains(argList, strings.ToLower(field.NewName.Value)) {
+							argList = append(argList, strings.ToLower(field.NewName.Value))
+						}
+						continue
+					}
+					if !contains(argList, strings.ToLower(e.String())) {
+						argList = append(argList, strings.ToLower(e.String()))
+					}
+				default:
+					sa.addError("'%s' can not be a new name. line:%d, column:%d",
+						s.Right.String(), s.Right.Line(), s.Right.Column())
 				}
 			}
 		case *ast.ArrayFunctionCall:
@@ -1528,6 +1604,10 @@ func (sa *SemanticAnalyzer) visitSelectArgs(node *ast.SelectArgs) *TypeInfo {
 		fi, o := fl.Right.(*ast.Identifier)
 		if !o {
 			sa.addError("Object '%s' does not exist. Line:%d, column:%d.", fl.Right.String(), fl.Right.Line(), fl.Right.Column())
+			return nil
+		}
+		if ok, msg := sa.canHandle(symp.DataType.Name, fi.Value, "read"); !ok {
+			sa.addError("%s", msg)
 			return nil
 		}
 		res, o := symp.DataType.Fields[lower(fi.Value)]
@@ -2452,6 +2532,10 @@ func (sa *SemanticAnalyzer) formType(col *sql.ColumnType) *TypeInfo {
 	return result
 }
 func (sa *SemanticAnalyzer) resolveTypeFromTableName(name string) *TypeInfo {
+	if f, m := sa.canHandle(name, "", "read"); !f {
+		sa.addError("%s", m)
+		return nil
+	}
 	sym := sa.lookupSymbol(name)
 	if sym != nil {
 		return sym.DataType
@@ -2471,6 +2555,9 @@ func (sa *SemanticAnalyzer) resolveTypeFromTableName(name string) *TypeInfo {
 		colTypes, _ := rows.ColumnTypes()
 		structType := &TypeInfo{Name: name, Fields: make(map[string]*TypeInfo)}
 		for _, col := range colTypes {
+			if ok, mesg := sa.canHandle(name, col.Name(), "read"); !ok {
+				sa.addError("%s", mesg)
+			}
 			structType.Fields[lower(col.Name())] = sa.formType(col)
 		}
 

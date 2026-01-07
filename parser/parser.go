@@ -175,7 +175,7 @@ func (p *Parser) ParseAction() *ast.Action {
 		return program
 	}
 
-	p.nextToken()
+	p.nextToken() //move to name
 
 	// Lire le nom de l'action
 	if !p.curTokenIs(token.STRING_LIT) {
@@ -183,7 +183,41 @@ func (p *Parser) ParseAction() *ast.Action {
 		return program
 	}
 	program.ActionName = p.curToken.Literal
+	if !p.expectPeek(token.LPAREN) {
+		return program
+	}
+	p.nextToken() //move to name
 
+	//Parser les arguments de l'action
+	for !p.curTokenIs(token.START, token.EOF, token.RPAREN) {
+		field := &ast.StructField{Token: p.curToken}
+		field.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+		if !p.expectPeek(token.COLON) {
+			return program
+		}
+
+		p.nextToken()
+		field.Type = p.parseTypeAnnotation()
+		program.Paramters = append(program.Paramters, field)
+		if !p.expectPeekEx(token.COMMA, token.RPAREN) {
+			return program
+		}
+		if p.curTokenIs(token.COMMA) {
+			p.nextToken()
+		}
+	}
+	if !p.curTokenIs(token.RPAREN) {
+		return program
+	}
+	if p.peekTokenIs(token.COLON) {
+		p.nextToken() // :
+		//Parser le type de retour de l'action
+		p.nextToken()
+		program.ReturnType = p.parseTypeAnnotation()
+	} else {
+		program.ReturnType = nil
+	}
 	p.nextToken()
 
 	// Parser les déclarations jusqu'à 'start'

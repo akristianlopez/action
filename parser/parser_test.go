@@ -18,7 +18,7 @@ func build_args() []testCase {
 	res := make([]testCase, 0)
 	res = append(res, testCase{
 		name: "Test 1.1 : Let statement let a, b, c",
-		src: `action "Check the let statement"
+		src: `action "Check the let statement"()
 			 start
 			 	let a, b, c
 			 stop
@@ -27,7 +27,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 1.2 : Let statement",
-		src: `action "Check the let statement"
+		src: `action "Check the let statement"()
 			 start
 			 	let a :integer=0,
 				let b=1.0
@@ -38,7 +38,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 1.3 : Let statement",
-		src: `action "Check the let statement"
+		src: `action "Check the let statement"()
 			 let a :integer=0, b=1.0;
 			 let c="my golang", salaire : float(6,2)[0..100000]
 			 start
@@ -49,7 +49,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 2: Check the definition of the structure",
-		src: `action "Check the definition of the user's type statement"
+		src: `action "Check the definition of the user's type statement"()
 			type Employe struct {
 				id : integer(5)[1..99999],
 				nom : string(50),
@@ -79,7 +79,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 3.1: Check function declaration",
-		src: `action "Check a function definition's statement"
+		src: `action "Check a function definition's statement"()
 			type Employe struct {
 				id : integer(5)[1..99999],
 				nom : string(50),
@@ -101,7 +101,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 3.2: Check the definition of the structure",
-		src: `action "Check the definition of the user's type statement"
+		src: `action "Check the definition of the user's type statement"()
 			type Employe struct {
 				id : integer(5)[1..99999],
 				nom : string(50),
@@ -132,7 +132,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 3.3: Check the definition of the structure",
-		src: `action "Check the definition of the user's type statement"
+		src: `action "Check the definition of the user's type statement"()
 			start
 				return {}
 			stop
@@ -141,7 +141,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 3.4: Check the definition of the structure",
-		src: `action "Check the definition of the user's type statement"
+		src: `action "Check the definition of the user's type statement"()
 			start
 				return {id:0,  nature:"toto",montant:10.00}
 			stop
@@ -150,7 +150,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 3.5: Check function declaration",
-		src: `action "Check a function definition's statement"
+		src: `action "Check a function definition's statement"()
 			(* Déclaration des fonctions *)
 			function calculerBonus(salaire: float, performance: integer) : float {
 				let bonus = salaire * (performance / 100.0);
@@ -175,7 +175,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 3.6: Check function declaration",
-		src: `action "Check a function definition's statement"
+		src: `action "Check a function definition's statement"()
 			(* Déclaration des fonctions *)
 			function calculerBonus(salaire: float, performance: integer) : float {
 				let bonus = salaire * (performance / 100.0);
@@ -200,7 +200,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 3.7 : Let statement",
-		src: `action "Check the let statement"
+		src: `action "Check the let statement"()
 			 start
 				(* Déclaration de tableaux *)
 				let nombres: array[10] of integer = [1, 2, 3, 4, 5];
@@ -215,7 +215,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 3.8 : Let statement",
-		src: `action "Check the let statement"
+		src: `action "Check the let statement"()
 			 start
 				(* Déclaration de tableaux *)
 				let nombres: array[10] of integer = [1, 2, 3, 4, 5];
@@ -231,7 +231,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.1 : Test des Structures de controle",
-		src: `action "Check If statement"
+		src: `action "Check If statement"()
 			 start
 			 	let a=0, b=1, c:integer=0
 				if (b>a){
@@ -244,7 +244,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.2 : Test des Structures de controle",
-		src: `action "Check If statement"
+		src: `action "Check If statement"()
 			 start
 			 	let a=0, b=1, c:integer=0
 				if b>a {
@@ -257,7 +257,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.3 : Test des Structures de controle",
-		src: `action "Check If...Else statement"
+		src: `action "Check If...Else statement"()
 			 start
 			 	let a=0, b=1, c:integer=0
 				if ((b>a) and (c==0)){
@@ -272,7 +272,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.4 : Test des Structures de controle",
-		src: `action "Check If...Else If statement"
+		src: `action "Check If...Else If statement"()
 			 start
 			 	let a=0, b=1, c:integer=0
 				if ((b>a) and (c==0)){
@@ -287,7 +287,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.5 : Test des Structures de controle",
-		src: `action "Check the For statement"
+		src: `action "Check the For statement"()
 			 start
 				(* Parcours de tableau *)
 				for let i = 0; i < length(nombres); i = 1 + i {
@@ -300,7 +300,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.6 : Test des Structures de controle",
-		src: `action "Check the For statement"
+		src: `action "Check the For statement"()
 			 start
 				(* Parcours de tableau *)
 				for (let i = 0; i < length(nombres); i = 1 + i {
@@ -313,7 +313,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.7 : Test des Structures de controle",
-		src: `action "Check the For statement"
+		src: `action "Check the For statement"()
 			 start
 				(* Parcours de tableau *)
 				for (let i = 0; i < length(nombres); i = 1 + i {
@@ -326,7 +326,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.8 : Test des Structures de controle",
-		src: `action "Check the For statement"
+		src: `action "Check the For statement"()
 			 start
 				(* Parcours de tableau *)
 				for (let i = 0; i < length(nombres) and i<10); i = 1 + i) {
@@ -339,7 +339,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.9 : Test des Structures de controle",
-		src: `action "Check the For statement"
+		src: `action "Check the For statement"()
 			 start
 				(* Parcours de tableau *)
 				for (let i = 0; i < length(nombres) and i<10); i = 1 + i) {
@@ -352,7 +352,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.10 : Test des Structures de controle",
-		src: `action "Check the statement For ;...;... "
+		src: `action "Check the statement For ;...;... "()
 			 start
 				(* Parcours de tableau *)
 				for ; i < length(nombres) and i<10; i = 1 + i {
@@ -365,7 +365,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.11 : Test des Structures de controle",
-		src: `action "Check the statement For ;...; "
+		src: `action "Check the statement For ;...; "()
 			 start
 				(* Parcours de tableau *)
 				for ; i < length(nombres) and i<10; {
@@ -378,7 +378,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.12 : Test des Structures de controle : For (;...;)",
-		src: `action "Check the statement For (;...;) "
+		src: `action "Check the statement For (;...;) "()
 			 start
 				(* Parcours de tableau *)
 				for  (;i < length(nombres) and i<10;) {
@@ -391,7 +391,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.13 : Test des Structures de controle : action 'Check the statement while'",
-		src: `action "Check the statement while  "
+		src: `action "Check the statement while  "()
 			 start
 				(* Parcours de tableau *)
 				for (i < length(nombres)) {
@@ -408,7 +408,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.14 : Test des Structures de controle : action 'Check the statement while'",
-		src: `action "Check the statement while  "
+		src: `action "Check the statement while  "()
 			 start
 				(* Parcours de tableau *)
 				for (i < length(nombres)) {
@@ -421,7 +421,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.14 : Test des tableaux : instruction d'affectation (access to one element)",
-		src: `action "Check expression with arrays  "
+		src: `action "Check expression with arrays  "()
 			 start
 			 	let res=nombres[i]
 			 	return res
@@ -431,7 +431,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.15 : Test des tableaux : instruction d'affectation (get a slice [x:y])",
-		src: `action "Check expression with arrays  "
+		src: `action "Check expression with arrays  "()
 			 start
 				let points: array of Point = [
 					{x: 1, y: 2},
@@ -446,7 +446,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.16 : Test des tableaux : instruction d'affectation (get a slice [x:])",
-		src: `action "Check expression with arrays  "
+		src: `action "Check expression with arrays  "()
 			 start
 				let fin = nombres[2:];
 			 stop
@@ -455,7 +455,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.17 : Test des tableaux : instruction d'affectation (get a slice [:x])",
-		src: `action "Check expression with arrays  "
+		src: `action "Check expression with arrays  "()
 			 start
 				let debut = nombres[:3];
 			 stop
@@ -464,7 +464,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.17 : Test des tableaux : instruction d'affectation (get a slice [:])",
-		src: `action "Check expression with arrays  "
+		src: `action "Check expression with arrays  "()
 			 start
 				let copie = nombres[:];
 			 stop
@@ -473,7 +473,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.18 : Test des tableaux : instruction d'affectation (concat & including)",
-		src: `action "Check expression with arrays  "
+		src: `action "Check expression with arrays  "()
 			 start
 				(* Concaténation
 				let tous = nombres || [6, 7, 8, 9, 10];
@@ -487,7 +487,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.19 : Test des tableaux : instruction d'affectation (IN)",
-		src: `action "Check expression with arrays  "
+		src: `action "Check expression with arrays  "()
 			 start
 				(* Vérification d'appartenance *)
 				let existe = 5 in nombres;
@@ -497,7 +497,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.20 : Test des tableaux : instruction d'affectation (NOT IN)",
-		src: `action "Check expression with arrays  "
+		src: `action "Check expression with arrays  "()
 			 start
 				(* Vérification d'appartenance *)
 				let pas_existe = 20 not in nombres;
@@ -507,7 +507,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.21 : Test strutures de controle : SWITCH (x)",
-		src: `action "Check the statement switch  "
+		src: `action "Check the statement switch  "()
 			 start
 				(* Switch avec constantes *)
 				switch (b) {
@@ -524,7 +524,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.22 : Test strutures de controle : SWITCH (x) dans une function",
-		src: `action "Check the statement switch(x)  "
+		src: `action "Check the statement switch(x)  "()
 				(* Switch simple avec valeurs *)
 				function getJourSemaine(numero: integer): string {
 					switch (numero) {
@@ -554,7 +554,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.23 : Test strutures de controle : SWITCH (x) with case with multiple value",
-		src: `action "Check the statement switch(x)  "
+		src: `action "Check the statement switch(x)  "()
 			(* Switch avec multiples valeurs par case *)
 			function getTypeJour(numero: integer): string {
 				switch (numero) {
@@ -574,7 +574,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.24 : Test strutures de controle : SWITCH (true) with bool expression",
-		src: `action "Check the statement switch(x)  "
+		src: `action "Check the statement switch(x)  "()
 			(* Switch avec expressions *)
 			function evalueNote(score: integer): string {
 				switch (true) {
@@ -598,7 +598,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.25 : Test strutures de controle : SWITCH (fn(b)) with string value",
-		src: `action "Check the statement switch(x)  "
+		src: `action "Check the statement switch(x)  "()
 			(* Switch avec différents types *)
 			function describeValue(valeur: any): string {
 				switch (typeOf(valeur)) {
@@ -628,7 +628,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.26 : Test strutures de controle : SWITCH multiple switch",
-		src: `action "Check the statement switch(x)  "
+		src: `action "Check the statement switch(x)  "()
 			start
 				(* Gestion des commandes *)
 				let statut_commande = "expédiée";
@@ -789,7 +789,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.27 : Test strutures de controle : DateTime litteral with a function",
-		src: `action "Check the DateTime litteral"
+		src: `action "Check the DateTime litteral"()
 			(* Switch avec différents types *)
 			start
 				return #2024-01-15#.dayOfWeek();  (* Lundi *)
@@ -799,7 +799,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.28 : Test strutures de controle : For (let .. of ...)",
-		src: `action "Check the DateTime litteral"
+		src: `action "Check the DateTime litteral"()
 			(* Switch avec différents types *)
 			start
 				For (let a of [1,2,3, 4]) {
@@ -811,7 +811,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 4.29 : Test strutures de controle : For let ... of ..",
-		src: `action "Check the DateTime litteral"
+		src: `action "Check the DateTime litteral"()
 			(* Switch avec différents types *)
 			start
 				For let a of [1,2,3, 4] {
@@ -823,7 +823,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 5.1 : Test of the SQL Statements : SELECT simple sans where",
-		src: `action "Check the DateTime litteral"
+		src: `action "Check the DateTime litteral"()
 			(* Switch avec différents types *)
 			start
 				SELECT salaire FROM Employés
@@ -833,7 +833,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 5.2 : Test of the SQL Statements : SELECT simple avec where",
-		src: `action "Check the DateTime litteral"
+		src: `action "Check the DateTime litteral"()
 			start
 				SELECT id FROM Employés WHERE actif == true;
 			stop
@@ -842,7 +842,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 5.3 : Test of the SQL Statements : SELECT simple avec where",
-		src: `action "Check the DateTime litteral"
+		src: `action "Check the DateTime litteral"()
 			start
 				(* Requêtes SELECT avancées *)
 				SELECT e.nom, e.salaire, d.nom as département
@@ -856,7 +856,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 5.4 : Test of the SQL Statements : SELECT simple avec where",
-		src: `action "Check the DateTime litteral"
+		src: `action "Check the DateTime litteral"()
 			start
 				(* Requêtes SELECT avancées *)
 				SELECT e.nom, e.salaire, d.nom as département
@@ -874,7 +874,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 5.5 : Test of the SQL Statements : Advanced SELECT with a function in the clause select",
-		src: `action "Check the DateTime litteral"
+		src: `action "Check the DateTime litteral"()
 			start
 				(* Requêtes SELECT avancées *)
 				SELECT département, AVG(salaire) as salaire_moyen, COUNT(*) as nb_employes
@@ -888,7 +888,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 5.6 : Test of the SQL Statements : Advanced SELECT with a function in the clause select",
-		src: `action "Requêtes SELECT avancées"
+		src: `action "Requêtes SELECT avancées"()
 			start
 				(* Requêtes SELECT avancées *)
 				SELECT
@@ -907,7 +907,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 5.7 : Test of the SQL Statements : assign advanced select to the variable",
-		src: `action "Requêtes SELECT avancées"
+		src: `action "Requêtes SELECT avancées"()
 			start
 				(* Requêtes SELECT avancées *)
 				let employes_actifs = SELECT e.nom, e.salaire, d.nom as département
@@ -921,7 +921,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 5.8 : Test of the SQL Statements : Advanced SELECT Recursive select",
-		src: `action "Requête récursive pour l'arbre complet de l'organisation"
+		src: `action "Requête récursive pour l'arbre complet de l'organisation"()
 			start
 				(* Requête récursive pour l'arbre complet de l'organisation *)
 				WITH RECURSIVE ArbreOrganisation AS (
@@ -963,7 +963,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 5.9 : Test of the SQL Statements : assign advanced select to the variable",
-		src: `action "Requêtes SELECT avancées"
+		src: `action "Requêtes SELECT avancées"()
 			start
 				(* Détection des cycles avec requête récursive *)
 				WITH RECURSIVE DetectionCycle AS (
@@ -996,7 +996,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 5.10 : Test of the SQL Statements : INSERT ",
-		src: `action "Requêtes INSERT INTO"
+		src: `action "Requêtes INSERT INTO"()
 			start
 				(* Insertion de données *)
 				INSERT INTO Départements (id, nom, budget)
@@ -1024,7 +1024,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 5.10 : Test of the SQL Statements : UPDATE ",
-		src: `action "Requêtes UPDATE"
+		src: `action "Requêtes UPDATE"()
 			start
 				(* Mise à jour *)
 				UPDATE Employés
@@ -1036,7 +1036,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 5.11 : Test of the SQL Statements : DELETE ",
-		src: `action "Requêtes DELETE"
+		src: `action "Requêtes DELETE"()
 			start
 				(* Suppression *)
 				DELETE FROM Employés
@@ -1047,7 +1047,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 5.12 : Test of the SQL Statements : CREATE OBJECT ",
-		src: `action "Requêtes CREATE OBJECT"
+		src: `action "Requêtes CREATE OBJECT"()
 			start
 				(* Création des objets *)
 				CREATE OBJECT IF NOT EXISTS Employés (
@@ -1069,7 +1069,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 5.13 : Test of the SQL Statements : CREATE AN INDEX ",
-		src: `action "Requêtes CREATE AN INDEX"
+		src: `action "Requêtes CREATE AN INDEX"()
 			start
 				(* Création d'index *)
 				 CREATE INDEX idx_employes_departement ON Employés(département);
@@ -1080,7 +1080,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 5.14 : Test of the SQL Statements : ALTER ",
-		src: `action "Requêtes SQl ALTER"
+		src: `action "Requêtes SQl ALTER"()
 			start
 				(* ALTER TABLE *)
 				ALTER OBJECT Employés
@@ -1092,7 +1092,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 5.15 : Test of the duration literal ",
-		src: `action "Gestion des Durées"
+		src: `action "Gestion des Durées"()
 				(* Fonctions avec durées *)
 				function ajouterJours(date1: date, jours: integer): date {
 					return date1 + #1d# * jours;
@@ -1228,7 +1228,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 5.16 : Test of the duration literal ",
-		src: `action "Gestion des Durées"
+		src: `action "Gestion des Durées"()
 			start
 				(* Durées avec contraintes *)
 				let duree_max: duration(#100d#) = #50d#;  (* Durée maximale de 100 jours *)
@@ -1244,7 +1244,7 @@ func build_args() []testCase {
 	})
 	res = append(res, testCase{
 		name: "Test 5.17 : Test of the advanced select : SELECT with Select in the clause from ",
-		src: `action "Requêtes SQl ALTER"
+		src: `action "Requêtes SQl ALTER"()
 			start
 				(* SELECT with SELECT in the clause From *)
 				Select t.a, t.b, oo.g, oo.kal

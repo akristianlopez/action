@@ -429,7 +429,7 @@ type Environment struct {
 	db        *sql.DB
 	ctx       context.Context
 	hasFilter func(table string) bool
-	getFilter func(table, newName string) (string, bool)
+	getFilter func(table, newName string) (ast.Expression, bool)
 }
 
 func (env *Environment) Context() context.Context {
@@ -437,14 +437,14 @@ func (env *Environment) Context() context.Context {
 }
 
 func NewEnvironment(ctx context.Context, db *sql.DB, hf func(table string) bool,
-	gf func(table, newName string) (string, bool)) *Environment {
+	gf func(table, newName string) (ast.Expression, bool)) *Environment {
 	s := make(map[string]Object)
 
 	return &Environment{store: s, outer: nil, limits: nil, db: db, ctx: ctx, hasFilter: hf, getFilter: gf}
 }
-func (env *Environment) Filter(table, newName string) (string, bool) {
+func (env *Environment) Filter(table, newName string) (ast.Expression, bool) {
 	if env.getFilter == nil {
-		return "", false
+		return nil, false
 	}
 	return env.getFilter(table, newName)
 }

@@ -243,6 +243,7 @@ func (sa *SemanticAnalyzer) Analyze(program *ast.Action) []string {
 	sa.visitProgram(program)
 	return sa.Errors
 }
+
 func (sa *SemanticAnalyzer) AnalyzeExpression(table string, expr ast.Expression) {
 	select {
 	case <-sa.ctx.Done():

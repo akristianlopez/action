@@ -243,6 +243,16 @@ func (sa *SemanticAnalyzer) Analyze(program *ast.Action) []string {
 	sa.visitProgram(program)
 	return sa.Errors
 }
+func (sa *SemanticAnalyzer) AnalyzeExpression(table string, expr ast.Expression) {
+	select {
+	case <-sa.ctx.Done():
+		sa.addError("Cancled by the user")
+		return
+	default:
+		sa.resolveTypeFromTableName(table)
+		sa.visitExpression(expr)
+	}
+}
 
 func (sa *SemanticAnalyzer) visitProgram(node *ast.Action) {
 	// Vérifier la structure du programme
@@ -257,6 +267,7 @@ func (sa *SemanticAnalyzer) visitProgram(node *ast.Action) {
 	for _, stmt := range node.Statements {
 		select {
 		case <-sa.ctx.Done():
+			sa.addError("Cancled by the user")
 			return
 		default:
 			if _, o := stmt.(*ast.StructStatement); !o {

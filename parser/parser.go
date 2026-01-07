@@ -219,7 +219,6 @@ func (p *Parser) ParseAction() *ast.Action {
 		program.ReturnType = nil
 	}
 	p.nextToken()
-
 	// Parser les déclarations jusqu'à 'start'
 	for !p.curTokenIs(token.START) && !p.curTokenIs(token.EOF) {
 		stmt, pe := p.parseStatement(false)
@@ -237,6 +236,11 @@ func (p *Parser) ParseAction() *ast.Action {
 
 		}
 		p.nextToken()
+	}
+	for _, arg := range program.Paramters {
+		// t:=&ast.LetStatement{Token: arg.Token,Name:arg.Name,Type: arg.Type}
+		program.Statements = append(program.Statements,
+			&ast.LetStatement{Token: arg.Token, Name: arg.Name, Type: arg.Type})
 	}
 
 	// Parser les instructions après 'start'

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/akristianlopez/action/ast"
@@ -306,7 +307,7 @@ func build_args() []testCase {
 	// })
 	res = append(res, testCase{
 		name: "Test 1.8 : Managing SQL Select statement",
-		src: `action "SQL Select statement" (* (liste des parametres) : type valeur de retour *)
+		src: `action "SQL Select statement"(sName:string)  : myresult 
 			type myresult struct{
 				first:string
 				second:string
@@ -402,7 +403,53 @@ func build_args() []testCase {
 }
 
 // var db_driver string = "sqllite"
+func canHandle_test(table, field, operation string) (bool, string) {
+	if operation == "" || table == "" {
+		return false, "Nsina: Invalid argument(s)"
+	}
+	return true, ""
+}
+func hasFilter_test(table string) bool {
+	return strings.EqualFold(table, "Employés")
+}
 
+func getFilter_test(table, newName string) (ast.Expression, bool) {
+	db, err := sql.Open("sqlite", "./nsina2026.db")
+	if err != nil {
+		log.Fatalf("Erreur ouverture base : %v", err)
+	}
+	defer db.Close()
+
+	if strings.EqualFold(table, "Employés") {
+		strFilter := fmt.Sprintf("(%s.id !=3)", table)
+		if newName != "" {
+			strFilter = fmt.Sprintf("(%s.id !=3)", newName)
+		}
+		l := lexer.New(strFilter)
+		p := parser.New(l)
+		action := p.ParseExpression()
+		if p.Errors() != nil && len(p.Errors()) != 0 {
+			fmt.Println("Erreurs de parsing:")
+			for _, msg := range p.Errors() {
+				fmt.Printf("\t%s\tline:%d, column:%d\n", msg.Message(), msg.Line(), msg.Column())
+			}
+			os.Exit(1)
+		}
+		fmt.Printf("✓ action (%s) parsée\n", "filter")
+
+		// Étape 3: Analyse Sémantique
+		analyzer := semantic.NewSemanticAnalyzer(context.Background(), db, canHandle_test)
+		analyzer.AnalyzeExpression("Employés", newName, action)
+		if len(analyzer.Errors) > 0 {
+			for _, msg := range analyzer.Errors {
+				fmt.Printf("\t%s\n", msg)
+			}
+			os.Exit(1)
+		}
+		return action, true
+	}
+	return nil, table != ""
+}
 func TestAnalyze(t *testing.T) {
 	//	// Chaîne de connexion : utilisateur:motdepasse@tcp(hôte:port)/base
 	//mariadb dsn := "root:password@tcp(127.0.0.1:3306)/testdb?charset=utf8mb4&parseTime=True&loc=Local"
@@ -442,7 +489,7 @@ func TestAnalyze(t *testing.T) {
 			fmt.Printf("✓ action (%s) parsée\n", action.ActionName)
 
 			// Étape 3: Analyse Sémantique
-			analyzer := semantic.NewSemanticAnalyzer(ctx, db)
+			analyzer := semantic.NewSemanticAnalyzer(ctx, db, canHandle_test)
 			errors := analyzer.Analyze(action)
 
 			if len(errors) > 0 {
@@ -487,7 +534,7 @@ func TestAnalyze(t *testing.T) {
 			fmt.Printf("---> Remining statements size: %d\n", len(optimizedProgram.Statements))
 
 			// Étape 5: Évaluation
-			env := object.NewEnvironment(db, ctx)
+			env := object.NewEnvironment(ctx, db, hasFilter_test, getFilter_test)
 			result := Eval(optimizedProgram, env)
 
 			if result != nil {

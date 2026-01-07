@@ -672,6 +672,22 @@ func toString(selectStmt *ast.SQLSelectStatement, env *object.Environment) objec
 	if isError(from) {
 		return from
 	}
+	v, _ := selectStmt.From.(*ast.FromIdentifier)
+	var filter string
+	filter = ""
+	if n, True := v.Value.(*ast.Identifier); True {
+		var expr ast.Expression
+
+		if v.NewName != nil {
+			expr, True = env.Filter(n.Value, v.NewName.String())
+		} else {
+			expr, True = env.Filter(n.Value, "")
+		}
+		if expr != nil {
+			filter = Eval(expr, env).Inspect()
+		}
+	}
+
 	// Traiter la champ Join avant de passer a la clause where
 	// puis executer la requete SQL et charger les resultats
 	for _, step := range selectStmt.Joins {
@@ -684,8 +700,27 @@ func toString(selectStmt *ast.SQLSelectStatement, env *object.Environment) objec
 			return from
 		}
 		strFrom = fmt.Sprintf("%s %s JOIN %s ON %s", strFrom, step.Type, step.Table.String(), step.On.String())
-	}
+		v, _ := selectStmt.From.(*ast.FromIdentifier)
+		if n, True := v.Value.(*ast.Identifier); True {
+			var (
+				w ast.Expression
+				x bool
+			)
+			if v.NewName != nil {
+				w, x = env.Filter(n.Value, v.NewName.String())
+			} else {
+				w, x = env.Filter(n.Value, "")
+			}
 
+			if x && w != nil {
+				if filter == "" {
+					filter = fmt.Sprintf("(%s)", Eval(w, env).Inspect())
+				} else {
+					filter = fmt.Sprintf("%s And (%s)", filter, Eval(w, env).Inspect())
+				}
+			}
+		}
+	}
 	strSelect := ""
 	// Traiter la clause SELECT
 	for _, ex := range selectStmt.Select {
@@ -742,11 +777,20 @@ func toString(selectStmt *ast.SQLSelectStatement, env *object.Environment) objec
 	// Traiter la clause WHERE
 	if selectStmt.Where != nil {
 		whereResult := Eval(selectStmt.Where, env)
-		strSQL = fmt.Sprintf("%s\nWHERE (%s)", strSQL, whereResult.Inspect())
+		if filter != "" {
+			strSQL = fmt.Sprintf("%s\nWHERE ((%s) And (%s))", strSQL, whereResult.Inspect(), filter)
+		} else {
+			strSQL = fmt.Sprintf("%s\nWHERE (%s)", strSQL, whereResult.Inspect())
+		}
 		if isError(whereResult) {
 			return whereResult
 		}
+	} else {
+		if filter != "" {
+			strSQL = fmt.Sprintf("%s\nWHERE (%s)", strSQL, filter)
+		}
 	}
+
 	if selectStmt.GroupBy != nil {
 		strGroup := ""
 		for k, v := range selectStmt.GroupBy {
@@ -1378,6 +1422,15 @@ func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object
 
 		// Évaluer la condition WHERE
 		shouldUpdate := true
+		// var (
+		// 	filter string
+		// 	ok     bool
+		// )
+		// ok = false
+		// filter = ""
+		// if env.IsFiltered(stmt.ObjectName.Value) {
+		// 	filter, ok = env.Filter(stmt.ObjectName.Value, "")
+		// }
 		if stmt.Where != nil {
 			condition := Eval(stmt.Where, rowEnv)
 			if isError(condition) {
@@ -1397,6 +1450,7 @@ func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object
 			}
 			rowsAffected++
 		}
+		//add filter to the condition lately
 	}
 
 	return &object.SQLResult{
@@ -1406,49 +1460,58 @@ func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object
 }
 
 func evalSQLDelete(stmt *ast.SQLDeleteStatement, env *object.Environment) object.Object {
-	obj, ok := env.Get(stmt.From.Value)
-	if !ok {
-		return newError("L'objet %s n'existe pas", stmt.From.Value)
-	}
-
-	table, ok := obj.(*object.SQLTable)
-	if !ok {
-		return newError("%s n'est pas un OBJECT", stmt.From.Value)
-	}
-
-	rowsAffected := 0
-	var newData []map[string]object.Object
-
-	for _, row := range table.Data {
-		// Créer un environnement local pour la ligne
-		rowEnv := object.NewEnclosedEnvironment(env)
-		for colName, value := range row {
-			rowEnv.Set(colName, value)
+	var filter object.Object
+	expr, True := env.Filter(stmt.From.Value, "")
+	if True {
+		filter = Eval(expr, env)
+		if isError(filter) {
+			return filter
 		}
-
-		// Évaluer la condition WHERE
-		shouldDelete := true
-		if stmt.Where != nil {
-			condition := Eval(stmt.Where, rowEnv)
-			if isError(condition) {
-				return condition
+	}
+	strSQL := ""
+	if stmt.Where != nil {
+		condition := Eval(stmt.Where, env)
+		if isError(condition) {
+			return condition
+		}
+		if !isTruthy(condition) {
+			return newError("Invalid expression '%s'", stmt.Where.String())
+		}
+		strSQL = fmt.Sprintf("DELETE FROM %s WHERE (%s)", stmt.From.Value, condition.Inspect())
+		if filter != nil {
+			if !isTruthy(filter) {
+				return newError("Invalid expression '%s'", expr.String())
 			}
-			shouldDelete = isTruthy(condition)
+			strSQL = fmt.Sprintf("DELETE FROM %s WHERE ((%s) And (%s))", stmt.From.Value, condition.Inspect(), filter.Inspect())
 		}
-
-		if shouldDelete {
-			rowsAffected++
-		} else {
-			newData = append(newData, row)
+		result, err := env.Exec(strSQL)
+		if err == nil {
+			rowsAffected, _ := result.RowsAffected()
+			return &object.SQLResult{
+				Message:      fmt.Sprintf("%d row(s) deleted", rowsAffected),
+				RowsAffected: int64(rowsAffected),
+			}
+		}
+		return newError("Nsina: %s", err.Error())
+	}
+	if filter != nil {
+		if !isTruthy(filter) {
+			return newError("Invalid expression '%s'", expr.String())
+		}
+		strSQL = fmt.Sprintf("DELETE FROM %s WHERE (%s)", stmt.From.Value, filter.Inspect())
+	}
+	if strSQL == "" {
+		return newError("Nsina: %s", "Invalid Where clause.")
+	}
+	result, err := env.Exec(strSQL)
+	if err == nil {
+		rowsAffected, _ := result.RowsAffected()
+		return &object.SQLResult{
+			Message:      fmt.Sprintf("%d row(s) deleted", rowsAffected),
+			RowsAffected: int64(rowsAffected),
 		}
 	}
-
-	table.Data = newData
-
-	return &object.SQLResult{
-		Message:      fmt.Sprintf("%d ligne(s) supprimée(s)", rowsAffected),
-		RowsAffected: int64(rowsAffected),
-	}
+	return newError("Nsina: %s", err.Error())
 }
 
 func evalSQLTruncate(stmt *ast.SQLTruncateStatement, env *object.Environment) object.Object {

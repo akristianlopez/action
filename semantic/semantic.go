@@ -2010,7 +2010,7 @@ func (sa *SemanticAnalyzer) visitArrayLiteral(node *ast.ArrayLiteral) *TypeInfo 
 	firstType := sa.visitExpression(node.Elements[0])
 	for i, elem := range node.Elements {
 		elemType := sa.visitExpression(elem)
-		if !sa.areTypesCompatible(firstType, elemType) {
+		if !sa.areTypesCompatibleEx(firstType, elemType) {
 			sa.addError("Type incompatible dans le tableau à la position %d", i)
 		}
 	}
@@ -2384,7 +2384,7 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 		}
 
 		// Opérations de comparaison
-		if !sa.areTypesCompatible(leftType, rightType) {
+		if !sa.areTypesCompatibleEx(leftType, rightType) {
 			sa.addError("Non authorize comparision between %s and %s",
 				leftType.String(), rightType.String())
 			return &TypeInfo{Name: "void"}
@@ -2708,11 +2708,21 @@ func (sa *SemanticAnalyzer) areTypesConstraintsCompatible(t1, t2 *TypeInfo) bool
 		return false
 	}
 	res := c1.Length >= c2.Length && c1.Precision >= c2.Precision
-	if res && c1.Range == nil && c2.Range == nil {
+	if res {
+		if c2.Range == nil {
+			return res
+		}
+	}
+	if !res && c1.Range == nil {
+		return !res
+	}
+	if _, ok := c1.Range.Max.(float64); ok {
+		res = res && c1.Range.Max.(float64) >= c2.Range.Max.(float64)
+		res = res && c1.Range.Min.(float64) <= c2.Range.Min.(float64)
 		return res
 	}
-	res = res && c1.Range.Max.(float64) >= c2.Range.Max.(float64)
-	res = res && c1.Range.Min.(float64) <= c2.Range.Min.(float64)
+	res = res && c1.Range.Max.(int64) >= c2.Range.Max.(int64)
+	res = res && c1.Range.Min.(int64) <= c2.Range.Min.(int64)
 	return res
 }
 func (sa *SemanticAnalyzer) areTypesCompatible(t1, t2 *TypeInfo) bool {
@@ -2737,6 +2747,46 @@ func (sa *SemanticAnalyzer) areTypesCompatible(t1, t2 *TypeInfo) bool {
 	}
 	if t1.Name == "string" && t2.Name == "string" {
 		return sa.areTypesConstraintsCompatible(t1, t2)
+	}
+	if t1.Name == "integer" && t2.Name == "float" {
+		return true
+	}
+	if t1.Name == "float" && t2.Name == "integer" {
+		return true
+	}
+	if t1.Name == "date" && t2.Name == "datetime" {
+		return true
+	}
+	if t1.Name == "datetime" && t2.Name == "date" {
+		return true
+	}
+	if t1.IsArray && t2.IsArray {
+		return t1.ElementType.Name == t2.ElementType.Name
+	}
+	return t1.Name == t2.Name
+}
+func (sa *SemanticAnalyzer) areTypesCompatibleEx(t1, t2 *TypeInfo) bool {
+	if t1.Name == "any" || t2.Name == "any" {
+		return true
+	}
+
+	if t1.Name == "null" || t2.Name == "null" {
+		return true
+	}
+
+	if t1.IsArray && t2.IsArray {
+		return sa.areTypesCompatibleEx(t1.ElementType, t2.ElementType)
+	}
+
+	// Conversion implicite integer -> float
+	if t1.Name == "integer" && t2.Name == "integer" {
+		return true
+	}
+	if t1.Name == "float" && t2.Name == "float" {
+		return true
+	}
+	if t1.Name == "string" && t2.Name == "string" {
+		return true
 	}
 	if t1.Name == "integer" && t2.Name == "float" {
 		return true

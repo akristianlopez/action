@@ -661,7 +661,7 @@ type SQLAlterObjectStatement struct {
 func (sa *SQLAlterObjectStatement) statementNode()       {}
 func (sa *SQLAlterObjectStatement) TokenLiteral() string { return sa.Token.Literal }
 func (sa *SQLAlterObjectStatement) String() string {
-	out := "ALTER OBJECT " + sa.ObjectName.String()
+	out := "ALTER TABLE " + sa.ObjectName.String()
 	for i, action := range sa.Actions {
 		if i > 0 {
 			out += ", "

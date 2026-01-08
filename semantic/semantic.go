@@ -863,6 +863,7 @@ func (sa *SemanticAnalyzer) visitObjectInFromClause(se ast.Expression) (*string,
 			selectType := sa.visitSQLSelectStatement(v)
 			if val, ok := s.NewName.(*ast.Identifier); ok {
 				sa.registerSymbol(val.Value, ArraySymbol, selectType, v)
+				sa.registerSymbol(v.String(), ArraySymbol, selectType, v)
 			}
 			res := s.NewName.String()
 			return nil, &res
@@ -1675,28 +1676,6 @@ func (sa *SemanticAnalyzer) visitFromClauseExpression(node *ast.SQLSelectStateme
 		return
 	}
 	sa.visitSingleFromClauseExpression(fi)
-	// symp := sa.lookupSymbol(fi.Value.String())
-	// var resultType *TypeInfo
-	// if symp == nil {
-	// 	resultType = sa.resolveTypeFromTableName(fi.Value.String())
-	// }
-	// if fi.NewName != nil {
-	// 	symp = sa.lookupSymbol(fi.Value.String())
-	// 	id, ok := fi.NewName.(*ast.Identifier)
-	// 	if !ok {
-	// 		sa.addError("Invalid expression '%s' does not exist. Line:%d, column:%d.", id.String(), id.Line(), id.Column())
-	// 		return
-	// 	}
-	// 	if symp == nil {
-	// 		if resultType == nil {
-	// 			sa.addError("Object '%s' does not exist. Line:%d, column:%d.", fi.Value.String(), fi.Value.Line(), fi.Value.Column())
-	// 			return
-	// 		}
-	// 		return
-	// 	}
-	// 	sa.CurrentScope.Symbols[lower(id.Value)] = symp
-	// 	// sa.registerSymbol(lower(id.Value), symp.Type, symp.DataType, fi)
-	// }
 	//Traits the other table contained into the field join
 	if node.Joins != nil {
 		for _, join := range node.Joins {
@@ -1704,6 +1683,17 @@ func (sa *SemanticAnalyzer) visitFromClauseExpression(node *ast.SQLSelectStateme
 			if !o {
 				sa.addError("Invalid expression '%s' does not exist. Line:%d, column:%d.", join.Table.String(), join.Table.Line(), join.Table.Column())
 				return
+			}
+			if sq, ok := fi.Value.(*ast.SQLSelectStatement); ok {
+				ty := sa.visitExpression(sq)
+				if ty.IsArray {
+					ty = ty.ElementType
+				}
+				sa.registerSymbol(fi.Value.String(), StructSymbol, ty, sq)
+				if fi.NewName != nil {
+					sa.registerSymbol(fi.NewName.String(), StructSymbol, ty, sq)
+				}
+				continue
 			}
 			sa.visitSingleFromClauseExpression(fi)
 		}

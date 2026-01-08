@@ -2386,7 +2386,7 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 		// Opérations de comparaison
 		if !sa.areTypesCompatible(leftType, rightType) {
 			sa.addError("Non authorize comparision between %s and %s",
-				leftType.Name, rightType.Name)
+				leftType.String(), rightType.String())
 			return &TypeInfo{Name: "void"}
 		}
 		return &TypeInfo{Name: "boolean"}

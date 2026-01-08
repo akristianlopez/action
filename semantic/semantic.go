@@ -860,14 +860,12 @@ func (sa *SemanticAnalyzer) visitObjectInFromClause(se ast.Expression) (*string,
 				sa.addError("New name expected. line:%d, column:%d", s.Value.Line(), s.Value.Column())
 				break
 			}
-			switch nn := s.NewName.(type) {
-			case *ast.Identifier:
-				res = strings.ToLower(nn.Value)
-			default:
-				sa.addError("'%s' invalid expression. New name expected. line:%d, column:%d",
-					nn.String(), nn.Line(), nn.Column())
-				return nil, nil
+			selectType := sa.visitSQLSelectStatement(v)
+			if val, ok := s.NewName.(*ast.Identifier); ok {
+				sa.registerSymbol(val.Value, ArraySymbol, selectType, v)
 			}
+			res := s.NewName.String()
+			return nil, &res
 		default:
 			sa.addError("'%s' invalid statement here. line:%d, column:%d", s.Value.String(), s.Value.Line(), s.Value.Column())
 			return nil, nil

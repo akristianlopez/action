@@ -848,6 +848,39 @@ func defineFromObject(exp ast.Expression, env *object.Environment) object.Object
 			// }
 			return &result
 		case *ast.SQLSelectStatement:
+			res := defineFromObject(ex.From, env)
+			if isError(res) {
+				return res
+			}
+			result := object.DBStruct{Name: strings.ToLower(ex.From.String()), Fields: make(map[string]object.Object)}
+			if from.NewName != nil {
+				result.Name = strings.ToLower(from.NewName.String())
+			}
+			for _, arg := range ex.Select {
+				sarg := arg.(*ast.SelectArgs)
+				switch sg := sarg.Expr.(type) {
+				case *ast.TypeMember:
+					base := sg.Left.(*ast.Identifier).Value
+					member := sg.Right.(*ast.Identifier).Value
+					ob, ok := env.Get(base)
+					if !ok {
+						return newError("Nsina: Inalid expression '%s'", arg.String())
+					}
+					ta := ob.(*object.DBStruct).Fields[member]
+					if sarg.NewName != nil {
+						result.Fields[strings.ToLower(sarg.NewName.Value)] = getDefaultSQLValue(string(ta.Type()))
+					} else {
+						result.Fields[strings.ToLower(member)] = getDefaultSQLValue(string(ta.Type()))
+					}
+				default:
+					if sarg.NewName != nil {
+						result.Fields[strings.ToLower(sarg.NewName.Value)] = getDefaultSQLValue("any")
+					} else {
+						result.Fields[strings.ToLower(sarg.Expr.String())] = getDefaultSQLValue("any")
+					}
+				}
+			}
+			env.Set(ex.String(), &result)
 			return toString(ex, env)
 		default:
 			return newError("Nsina: Inalid expression '%s'", exp.String())
@@ -1196,40 +1229,6 @@ func isError(obj object.Object) bool {
 }
 
 func evalSQLCreateObject(stmt *ast.SQLCreateObjectStatement, env *object.Environment) object.Object {
-	// Créer une nouvelle table/objet dans l'environnement
-	table := &object.SQLTable{
-		Name:    stmt.ObjectName.Value,
-		Columns: make(map[string]*object.SQLColumn),
-		Data:    []map[string]object.Object{},
-		Indexes: make(map[string]*object.SQLIndex),
-	}
-
-	// Traiter les définitions de colonnes
-	for _, colDef := range stmt.Columns {
-		column := &object.SQLColumn{
-			Name: colDef.Name.Value,
-			Type: colDef.DataType.Name,
-		}
-
-		// Appliquer les contraintes
-		for _, constraint := range colDef.Constraints {
-			switch constraint.Type {
-			case "PRIMARY KEY":
-				column.PrimaryKey = true
-			case "NOT NULL":
-				column.NotNull = true
-			case "UNIQUE":
-				column.Unique = true
-			case "DEFAULT":
-				column.DefaultValue = Eval(constraint.Expression, env)
-			}
-		}
-
-		table.Columns[colDef.Name.Value] = column
-	}
-
-	// Stocker la table dans l'environnement
-	env.Set(stmt.ObjectName.Value, table)
 	strSQL := stmt.String()
 	res, err := env.Exec(strSQL)
 	if err == nil {
@@ -1276,83 +1275,88 @@ func evalSQLDropObject(stmt *ast.SQLDropObjectStatement, env *object.Environment
 }
 
 func evalSQLAlterObject(stmt *ast.SQLAlterObjectStatement, env *object.Environment) object.Object {
-	// Récupérer l'objet existant
-	obj, ok := env.Get(stmt.ObjectName.Value)
-	if !ok {
-		return newError("L'objet %s n'existe pas", stmt.ObjectName.Value)
+	if env.DBName() == "sqllite" {
+		return object.NULL
 	}
-
-	table, ok := obj.(*object.SQLTable)
-	if !ok {
-		return newError("%s n'est pas un OBJECT", stmt.ObjectName.Value)
+	strAlter := stmt.String()
+	res, err := env.Exec(strAlter)
+	if err != nil {
+		return newError("Nsina: %s", err.Error())
 	}
-
-	// Appliquer les actions ALTER
-	for _, action := range stmt.Actions {
-		switch action.Type {
-		case "ADD":
-			if action.Column != nil {
-				// Ajouter une nouvelle colonne
-				column := &object.SQLColumn{
-					Name: action.Column.Name.Value,
-					Type: action.Column.DataType.Name,
-				}
-				table.Columns[action.Column.Name.Value] = column
-
-				// Mettre à jour les données existantes avec la valeur par défaut
-				defaultValue := getDefaultSQLValue(action.Column.DataType.Name)
-				for i := range table.Data {
-					table.Data[i][action.Column.Name.Value] = defaultValue
-				}
-			}
-		case "MODIFY":
-			// Modifier une colonne existante
-			// Implémentation simplifiée
-		case "DROP":
-			if action.ColumnName != nil {
-				// Supprimer une colonne
-				delete(table.Columns, action.ColumnName.Value)
-				for i := range table.Data {
-					delete(table.Data[i], action.ColumnName.Value)
-				}
-			}
-		}
+	/*
+	   ALTER TABLE child ADD CONSTRAINT fk_child_parent
+	     FOREIGN KEY (parent_id)
+	     REFERENCES parent(id);
+	*/
+	i, err := res.RowsAffected()
+	if err != nil {
+		return newError("Nsina: %s", err.Error())
 	}
-
 	return &object.SQLResult{
-		Message:      fmt.Sprintf("OBJECT %s modifié avec succès", stmt.ObjectName.Value),
-		RowsAffected: 0,
+		Message:      fmt.Sprintf("OBJECT %s updated", stmt.ObjectName.Value),
+		RowsAffected: i,
 	}
 }
 
 func evalSQLInsert(stmt *ast.SQLInsertStatement, env *object.Environment) object.Object {
-	// Récupérer l'objet
-	// obj, ok := env.Get(stmt.ObjectName.Value)
-	// if !ok {
-	// 	return newError("L'objet %s n'existe pas", stmt.ObjectName.Value)
-	// }
+	rowsAffected := int64(0)
+	if stmt.Select == nil {
+		strHeader := ""
+		strParams := ""
 
-	// table, ok := obj.(*object.SQLTable)
-	// if !ok {
-	// 	return newError("%s n'est pas un OBJECT", stmt.ObjectName.Value)
-	// }
+		for _, set := range stmt.Columns {
+			if strHeader == "" {
+				strHeader = fmt.Sprintf("%s", set.Value)
+				strParams = fmt.Sprintf("%s", "?")
+				continue
+			}
+			strHeader = fmt.Sprintf("%s, %s", strHeader, set.Value)
+			strParams = fmt.Sprintf("%s, %s", strParams, "?")
+		}
 
-	rowsAffected := 0
-
-	if stmt.Select != nil {
-		// INSERT ... SELECT
-		// result := Eval(stmt.Select, env).(*object.SQLResult)
-		// Implémentation de l'insertion des résultats
-		// rowsAffected = len(result.Rows)
+		for _, set := range stmt.Values {
+			strValue := make([]any, 0)
+			for _, val := range set.Values {
+				v := Eval(val, env)
+				if isError(v) {
+					return v
+				}
+				strValue = append(strValue, getObjectValue(v))
+			}
+			res, err := env.Exec(fmt.Sprintf("INSERT INTO %s (%s) VALUES(%s)", stmt.ObjectName.Value,
+				strHeader, strParams), strValue...)
+			if err != nil {
+				return newError("Nsina: %s", err.Error())
+			}
+			i, er := res.RowsAffected()
+			if er != nil {
+				return newError("Nsina: %s", er.Error())
+			}
+			rowsAffected = rowsAffected + i
+		}
 		return &object.SQLResult{
-			Message:      fmt.Sprintf("%d ligne(s) insérée(s)", rowsAffected),
+			Message:      fmt.Sprintf("%d rows added", rowsAffected),
 			RowsAffected: int64(rowsAffected),
 		}
 	}
-	//traiter de maniere a transmettre la liste des argument assortis de leur type reels
-	//demain
-	strSQL := stmt.String()
-	n, err := env.Exec(strSQL)
+	strHeader := ""
+
+	for _, set := range stmt.Columns {
+		if strHeader == "" {
+			strHeader = fmt.Sprintf("%s", set.Value)
+			continue
+		}
+		strHeader = fmt.Sprintf("%s, %s", strHeader, set.Value)
+	}
+	strSQL := toString(stmt.Select, env)
+	if isError(strSQL) {
+		return strSQL
+	}
+	if strSQL.Inspect() == "" || strSQL.Inspect() == "null" {
+		return newError("Nsina: Invalid select statement '%s'", stmt.Select.String())
+	}
+	n, err := env.Exec(fmt.Sprintf("INSERT INTO %s(%s) %s", stmt.ObjectName.Value,
+		strHeader, strSQL.Inspect()))
 	if err != nil {
 		return newError("%s", err.Error())
 	}
@@ -1362,101 +1366,74 @@ func evalSQLInsert(stmt *ast.SQLInsertStatement, env *object.Environment) object
 	}
 	if res != 0 {
 		return &object.SQLResult{
-			Message:      fmt.Sprintf("%d ligne(s) insérée(s)", rowsAffected),
-			RowsAffected: int64(rowsAffected),
+			Message:      fmt.Sprintf("%d row(s) added", res),
+			RowsAffected: res,
 		}
 	}
-	// // INSERT ... VALUES
-	// for _, values := range stmt.Values {
-	// 	row := make(map[string]object.Object)
-
-	// 	for i, value := range values.Values {
-	// 		var colName string
-	// 		if i < len(stmt.Columns) {
-	// 			colName = stmt.Columns[i].Value
-	// 		} else {
-	// 			// Utiliser l'ordre des colonnes de la table
-	// 			colIndex := 0
-	// 			for name := range table.Columns {
-	// 				if colIndex == i {
-	// 					colName = name
-	// 					break
-	// 				}
-	// 				colIndex++
-	// 			}
-	// 		}
-
-	// 		evaluatedValue := Eval(value, env)
-	// 		row[colName] = evaluatedValue
-	// 	}
-
-	// 	table.Data = append(table.Data, row)
-	// 	rowsAffected++
-	// }
 
 	return &object.SQLResult{
-		Message:      fmt.Sprintf("%d ligne(s) insérée(s)", rowsAffected),
-		RowsAffected: int64(rowsAffected),
+		Message:      fmt.Sprintf("%d row added", 0),
+		RowsAffected: 0,
 	}
 }
 
 func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object.Object {
-	obj, ok := env.Get(stmt.ObjectName.Value)
-	if !ok {
-		return newError("L'objet %s n'existe pas", stmt.ObjectName.Value)
-	}
-
-	table, ok := obj.(*object.SQLTable)
-	if !ok {
-		return newError("%s n'est pas un OBJECT", stmt.ObjectName.Value)
-	}
-
-	rowsAffected := 0
-
-	for _, row := range table.Data {
-		// Créer un environnement local pour la ligne
-		rowEnv := object.NewEnclosedEnvironment(env)
-		for colName, value := range row {
-			rowEnv.Set(colName, value)
+	expr, ok := env.Filter(stmt.ObjectName.Value, "")
+	var filter object.Object
+	filter = nil
+	if ok {
+		filter = Eval(expr, env)
+		if isError(filter) {
+			return filter
 		}
-
-		// Évaluer la condition WHERE
-		shouldUpdate := true
-		// var (
-		// 	filter string
-		// 	ok     bool
-		// )
-		// ok = false
-		// filter = ""
-		// if env.IsFiltered(stmt.ObjectName.Value) {
-		// 	filter, ok = env.Filter(stmt.ObjectName.Value, "")
-		// }
-		if stmt.Where != nil {
-			condition := Eval(stmt.Where, rowEnv)
-			if isError(condition) {
-				return condition
-			}
-			shouldUpdate = isTruthy(condition)
+		if !isTruthy(filter) {
+			return newError("Nsina: Invalid express '%s'", filter.Inspect())
 		}
-
-		if shouldUpdate {
-			// Appliquer les modifications SET
-			for _, setClause := range stmt.Set {
-				newValue := Eval(setClause.Value, rowEnv)
-				if isError(newValue) {
-					return newValue
-				}
-				row[setClause.Column.Value] = newValue
-			}
-			rowsAffected++
-		}
-		//add filter to the condition lately
 	}
 
-	return &object.SQLResult{
-		Message:      fmt.Sprintf("%d ligne(s) modifiée(s)", rowsAffected),
-		RowsAffected: int64(rowsAffected),
+	strHeader := ""
+	strValue := make([]any, 0)
+
+	for _, set := range stmt.Set {
+		val := Eval(set.Value, env)
+		if isError(val) {
+			return val
+		}
+		if strHeader == "" {
+			strHeader = fmt.Sprintf("%s= ?", set.Column.Value)
+			strValue = append(strValue, getObjectValue(val))
+			continue
+		}
+		strHeader = fmt.Sprintf("%s, %s= ?", strHeader, set.Column.Value)
+		strValue = append(strValue, getObjectValue(val))
 	}
+	strCond := ""
+	if filter != nil {
+		strCond = fmt.Sprintf("(%s)", filter.Inspect())
+	}
+	if stmt.Where != nil {
+		condition := Eval(stmt.Where, env)
+		if isError(condition) {
+			return condition
+		}
+		if strCond == "" {
+			strCond = fmt.Sprintf("(%s)", condition.Inspect())
+		} else {
+			strCond = fmt.Sprintf("((%s) And (%s))", strCond, condition.Inspect())
+		}
+	}
+	if strCond != "" {
+		result, err := env.Exec(fmt.Sprintf("UPDATE %s SET %s WHERE %s", stmt.ObjectName.Value, strHeader, strCond), strValue...)
+		if err != nil {
+			return newError("Nsina: %s", err.Error())
+		}
+		rowsAffected, _ := result.RowsAffected()
+		return &object.SQLResult{
+			Message:      fmt.Sprintf("%d ligne(s) modifiée(s)", rowsAffected),
+			RowsAffected: int64(rowsAffected),
+		}
+	}
+	return newError("Nsina: Where clause is needed.")
 }
 
 func evalSQLDelete(stmt *ast.SQLDeleteStatement, env *object.Environment) object.Object {
@@ -1515,18 +1492,18 @@ func evalSQLDelete(stmt *ast.SQLDeleteStatement, env *object.Environment) object
 }
 
 func evalSQLTruncate(stmt *ast.SQLTruncateStatement, env *object.Environment) object.Object {
-	obj, ok := env.Get(stmt.ObjectName.Value)
-	if !ok {
-		return newError("L'objet %s n'existe pas", stmt.ObjectName.Value)
+	_, ok := env.Filter(stmt.ObjectName.Value, "")
+	if ok {
+		return newError("Can not empty '%s' because of an existing filter on it", stmt.ObjectName.Value)
 	}
-
-	table, ok := obj.(*object.SQLTable)
-	if !ok {
-		return newError("%s n'est pas un OBJECT", stmt.ObjectName.Value)
+	res, err := env.Exec(fmt.Sprintf("TRUNCATE %s", stmt.ObjectName.Value))
+	if err != nil {
+		return newError("Nsina: %s", err.Error())
 	}
-
-	rowsAffected := len(table.Data)
-	table.Data = []map[string]object.Object{}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return newError("Nsina: %s", err.Error())
+	}
 
 	return &object.SQLResult{
 		Message:      fmt.Sprintf("OBJECT %s vidé (%d ligne(s) supprimée(s))", stmt.ObjectName.Value, rowsAffected),
@@ -1535,37 +1512,50 @@ func evalSQLTruncate(stmt *ast.SQLTruncateStatement, env *object.Environment) ob
 }
 
 func evalSQLCreateIndex(stmt *ast.SQLCreateIndexStatement, env *object.Environment) object.Object {
-	obj, ok := env.Get(stmt.ObjectName.Value)
-	if !ok {
-		return newError("L'objet %s n'existe pas", stmt.ObjectName.Value)
+	strSQL := ""
+	for _, fld := range stmt.Columns {
+		if strSQL == "" {
+			strSQL = fmt.Sprintf("%s", fld.Value)
+			continue
+		}
+		strSQL = fmt.Sprintf("%s, %s", strSQL, fld.Value)
 	}
-
-	table, ok := obj.(*object.SQLTable)
-	if !ok {
-		return newError("%s n'est pas un OBJECT", stmt.ObjectName.Value)
+	if strSQL == "" {
+		return newError("Nsina: Invalid statement create index")
 	}
-
-	// Créer l'index
-	index := &object.SQLIndex{
-		Name:    stmt.IndexName.Value,
-		Columns: make([]string, len(stmt.Columns)),
-		Unique:  stmt.Unique,
+	if !stmt.Unique {
+		res, err := env.Exec(fmt.Sprintf("CREATE INDEX %s ON %s(%s)", stmt.IndexName.Value,
+			stmt.ObjectName.Value, strSQL))
+		if err != nil {
+			return newError("Nsina: %s", err.Error())
+		}
+		i, err := res.RowsAffected()
+		if err != nil {
+			return newError("Nsina: %s", err.Error())
+		}
+		return &object.SQLResult{
+			Message:      fmt.Sprintf("INDEX %s créé avec succès", stmt.IndexName.Value),
+			RowsAffected: i,
+		}
 	}
-
-	for i, col := range stmt.Columns {
-		index.Columns[i] = col.Value
+	res, err := env.Exec(fmt.Sprintf("CREATE UNIQUE %s ON %s(%s)", stmt.IndexName.Value,
+		stmt.ObjectName.Value, strSQL))
+	if err != nil {
+		return newError("Nsina: %s", err.Error())
 	}
-
-	table.Indexes[stmt.IndexName.Value] = index
+	i, err := res.RowsAffected()
+	if err != nil {
+		return newError("Nsina: %s", err.Error())
+	}
 
 	return &object.SQLResult{
 		Message:      fmt.Sprintf("INDEX %s créé avec succès", stmt.IndexName.Value),
-		RowsAffected: 0,
+		RowsAffected: i,
 	}
 }
 
 func getDefaultSQLValue(dataType string) object.Object {
-	switch dataType {
+	switch strings.ToLower(dataType) {
 	case "integer", "int":
 		return &object.Integer{Value: 0}
 	case "float", "numeric", "decimal":
@@ -1578,11 +1568,36 @@ func getDefaultSQLValue(dataType string) object.Object {
 		return &object.Date{Value: time.Now()}
 	case "time", "timestamp", "datetime":
 		return &object.Time{Value: time.Now()}
+	case "duration", "interval":
+		return &object.Duration{Nanoseconds: 0, Original: ""}
 	default:
 		return object.NULL
 	}
 }
 
+func getObjectValue(val object.Object) any {
+	if val == nil {
+		return object.NULL.Inspect()
+	}
+	switch val.Type() {
+	case object.INTEGER_OBJ:
+		return val.(*object.Integer).Value
+	case object.FLOAT_OBJ:
+		return val.(*object.Float).Value
+	case object.STRING_OBJ:
+		return val.(*object.String).Value
+	case object.BOOLEAN_OBJ:
+		return val.(*object.Boolean).Value
+	case object.DATE_OBJ:
+		return val.(*object.Date).Value
+	case object.TIME_OBJ:
+		return val.(*object.Time).Value
+	case object.DURATION_OBJ:
+		return val.(*object.Duration).Nanoseconds
+	default:
+		return object.NULL.Inspect()
+	}
+}
 func getDefaultSQLValueAddress(s string) any {
 	tab := strings.Split(s, "(")
 	dataType := strings.ToLower(tab[0])

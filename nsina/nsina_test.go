@@ -311,6 +311,7 @@ func build_args() []testCase {
 			type myresult struct{
 				first:string
 				second:string
+				third:string
 			}			
 			start
 				drop object links;
@@ -338,14 +339,18 @@ func build_args() []testCase {
 					employe INTEGER NOT NULL,
 					structure INTEGER NOT NULL,
 					date_affection date,
-					CONSTRAINT pk_links PRIMARY KEY (employe,structure)
+					CONSTRAINT pk_links PRIMARY KEY (employe,structure),
+					CONSTRAINT fk_employés FOREIGN KEY (employe) REFERENCES employés(id)
+					CONSTRAINT fk_organisations FOREIGN KEY (structure) REFERENCES Organisations(id)
 				);
 
 				(* ALTER TABLE *)
+				(* Cette instruction n'est pas prise encompte dans sqllite *)
 				ALTER OBJECT links
-				ADD CONSTRAINT fk_employés FOREIGN KEY (employés) REFERENCES employés(id);
+				ADD CONSTRAINT fk_employés FOREIGN KEY (employe) REFERENCES employés(id);
 				ALTER OBJECT links
 				ADD CONSTRAINT fk_organisations FOREIGN KEY (structure) REFERENCES Organisations(id);
+				
 
 				INSERT INTO Employés(id, nom, prenom,age,sexe)VALUES
 				(1,'Golang','Google.com','5','M'),
@@ -392,8 +397,19 @@ func build_args() []testCase {
 						res.second="["+rec.nom +" "+rec.prenom+", "+rec.structure+"]"
 						continue
 					}
-					res.second=res.second+"["+rec.nom +" "+rec.prenom+", "+rec.structure+"]"
+					res.second=res.second+"; "+"["+rec.nom +" "+rec.prenom+", "+rec.structure+"]"
 				}
+				let result3=select e.nom, e.prenom, o.nom as structure
+			                From employés e inner join (select links.employe,links.structure from links) l on (e.id==l.employe)
+							     inner join organisations o on (l.structure==o.id) 	
+				for let rec of result3{
+					if res.third==""{
+						res.third="["+rec.structure+"]"
+						continue
+					}
+					res.third=res.third+"; "+"["+rec.structure+"]"
+				}
+
 				return res
  			stop
 			 `,
@@ -468,8 +484,13 @@ func TestAnalyze(t *testing.T) {
 	if err != nil {
 		log.Fatalf("Erreur ouverture base : %v", err)
 	}
+	// Source - https://stackoverflow.com/q/4254371
+	// Posted by patentfox, modified by community. See post 'Timeline' for change history
+	// Retrieved 2026-01-08, License - CC BY-SA 3.0
+
 	defer db.Close()
 	ctx := context.Background()
+
 	// defer ctx.cancel()
 	for _, tc := range build_args() {
 		t.Run(tc.name, func(t *testing.T) {
@@ -534,7 +555,7 @@ func TestAnalyze(t *testing.T) {
 			fmt.Printf("---> Remining statements size: %d\n", len(optimizedProgram.Statements))
 
 			// Étape 5: Évaluation
-			env := object.NewEnvironment(ctx, db, hasFilter_test, getFilter_test)
+			env := object.NewEnvironment(ctx, db, hasFilter_test, getFilter_test, "sqllite")
 			result := Eval(optimizedProgram, env)
 
 			if result != nil {

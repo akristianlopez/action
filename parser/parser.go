@@ -68,6 +68,12 @@ func (pe *ParserError) Message() string {
 }
 func (pe *ParserError) Line() int   { return pe.line }
 func (pe *ParserError) Column() int { return pe.column }
+func (pe *ParserError) String() string {
+	if pe.msg != "" {
+		return fmt.Sprintf("%s. Line:%d, column:%d", pe.msg, pe.line, pe.column)
+	}
+	return ""
+}
 func Create(message string, line, column int) *ParserError {
 	return &ParserError{msg: message, line: line, column: column}
 }

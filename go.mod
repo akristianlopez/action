@@ -1,0 +1,17 @@
+module gigithub.com/akristianlopez/action
+
+go 1.25.5
+
+require (
+	github.com/akristianlopez/action/ast v0.0.0-20260108145342-204e82350624
+	github.com/akristianlopez/action/optimizer v0.0.0-20260108145342-204e82350624
+	github.com/akristianlopez/action/parser v0.0.0-20260108145342-204e82350624
+	github.com/akristianlopez/action/semantic v0.0.0-20260108145342-204e82350624
+)
+
+require (
+	github.com/akristianlopez/action/lexer v0.0.0-20260108145342-204e82350624
+	github.com/akristianlopez/action/nsina v0.0.0-20260108145342-204e82350624
+	github.com/akristianlopez/action/object v0.0.0-20260108145342-204e82350624
+	github.com/akristianlopez/action/token v0.0.0-20260108145342-204e82350624 // indirect
+)

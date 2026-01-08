@@ -1495,6 +1495,9 @@ type FromIdentifier struct {
 func (fi *FromIdentifier) TokenLiteral() string { return fi.Token.Literal }
 func (fi *FromIdentifier) String() string {
 	out := fi.Value.String()
+	if _, o := fi.Value.(*SQLSelectStatement); o {
+		out = fmt.Sprintf("(%s)", out)
+	}
 	if fi.NewName != nil {
 		out = fmt.Sprintf("%s %s", out, fi.NewName.String())
 	}

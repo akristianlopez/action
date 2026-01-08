@@ -319,8 +319,17 @@ func (sa *SemanticAnalyzer) visitStatement(stmt ast.Statement, t *TypeInfo) {
 		sa.visitSQLDeleteStatement(s)
 	case *ast.SQLDropObjectStatement:
 		sa.visitSQLDropObjectStatement(s)
+	case *ast.SQLTruncateStatement:
+		sa.visitSQLTruncateStatement(s)
 	case *ast.SQLSelectStatement:
 		sa.visitSQLSelectStatement(s)
+	}
+}
+
+func (sa *SemanticAnalyzer) visitSQLTruncateStatement(s *ast.SQLTruncateStatement) {
+	if ok, msg := sa.canHandle(s.ObjectName.Value, "", "delete"); !ok {
+		sa.addError("%s", msg)
+		return
 	}
 }
 

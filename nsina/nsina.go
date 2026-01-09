@@ -211,6 +211,9 @@ func evalLetStatement(let *ast.LetStatement, env *object.Environment) object.Obj
 		// Valeur par défaut selon le type
 		if let.Type != nil {
 			value = getDefaultValue(let.Type.Type)
+			if env.IsParams(let.Name.Value) {
+				value = env.Params(let.Name.Value)
+			}
 		} else {
 			value = object.NULL
 		}

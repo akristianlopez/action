@@ -431,6 +431,7 @@ type Environment struct {
 	hasFilter func(table string) bool
 	getFilter func(table, newName string) (ast.Expression, bool)
 	dbname    string
+	params    *map[string]Object
 }
 
 func (env *Environment) Context() context.Context {
@@ -440,10 +441,27 @@ func (env *Environment) DBName() string {
 	return env.dbname
 }
 func NewEnvironment(ctx context.Context, db *sql.DB, hf func(table string) bool,
-	gf func(table, newName string) (ast.Expression, bool), dbname string) *Environment {
+	gf func(table, newName string) (ast.Expression, bool), dbname string, params map[string]Object) *Environment {
 	s := make(map[string]Object)
 
-	return &Environment{store: s, outer: nil, limits: nil, db: db, ctx: ctx, hasFilter: hf, getFilter: gf, dbname: dbname}
+	return &Environment{store: s, outer: nil, limits: nil, db: db, ctx: ctx, hasFilter: hf, getFilter: gf, dbname: dbname, params: &params}
+}
+func (env *Environment) IsParams(name string) bool {
+	if env.params == nil {
+		return false
+	}
+	_, ok := (*env.params)[strings.ToLower(name)]
+	return ok
+}
+func (env *Environment) Params(name string) Object {
+	if env.params == nil {
+		return NULL
+	}
+	val, ok := (*env.params)[strings.ToLower(name)]
+	if !ok {
+		return NULL
+	}
+	return val
 }
 func (env *Environment) Filter(table, newName string) (ast.Expression, bool) {
 	if env.getFilter == nil {
@@ -490,7 +508,7 @@ func (env *Environment) Query(strSQL string, args ...any) (*sql.Rows, error) {
 }
 
 func NewEnclosedEnvironment(outer *Environment) *Environment {
-	env := NewEnvironment(outer.ctx, outer.db, outer.hasFilter, outer.getFilter, outer.dbname)
+	env := NewEnvironment(outer.ctx, outer.db, outer.hasFilter, outer.getFilter, outer.dbname, nil)
 	env.outer = outer
 	env.limits = nil
 	return env

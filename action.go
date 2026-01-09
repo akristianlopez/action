@@ -25,7 +25,8 @@ func NewAction(ctx context.Context, db *sql.DB, dbname string) *Action {
 	return &Action{ctx: ctx, db: db, dbname: dbname, error: make([]string, 0)}
 }
 func (action *Action) Interprete(src string, canHandle func(table, field, operation string) (bool, string),
-	hasFilter func(table string) bool, getFilter func(table, newName string) (ast.Expression, bool)) (object.Object, []string) {
+	hasFilter func(table string) bool, getFilter func(table, newName string) (ast.Expression, bool),
+	params map[string]object.Object) (object.Object, []string) {
 	lex := lexer.New(src)
 	p := parser.New(lex)
 	act := p.ParseAction()
@@ -50,7 +51,7 @@ func (action *Action) Interprete(src string, canHandle func(table, field, operat
 	if len(opt.Warnings) > 0 {
 		action.Warnings = append(action.Warnings, opt.Warnings...)
 	}
-	env := object.NewEnvironment(action.ctx, action.db, hasFilter, getFilter, action.dbname)
+	env := object.NewEnvironment(action.ctx, action.db, hasFilter, getFilter, action.dbname, params)
 	result := nsina.Eval(optimizedProgram, env)
 	return result, action.error
 }

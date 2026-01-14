@@ -423,15 +423,17 @@ var (
 )
 
 type Environment struct {
-	store     map[string]Object
-	outer     *Environment
-	limits    *map[string]Limits
-	db        *sql.DB
-	ctx       context.Context
-	hasFilter func(table string) bool
-	getFilter func(table, newName string) (ast.Expression, bool)
-	dbname    string
-	params    *map[string]Object
+	store         map[string]Object
+	outer         *Environment
+	limits        *map[string]Limits
+	db            *sql.DB
+	ctx           context.Context
+	hasFilter     func(table string) bool
+	getFilter     func(table, newName string) (ast.Expression, bool)
+	dbname        string
+	params        *map[string]Object
+	disableUpdate bool
+	disabledDDL   bool
 }
 
 func (env *Environment) Context() context.Context {
@@ -441,7 +443,8 @@ func (env *Environment) DBName() string {
 	return env.dbname
 }
 func NewEnvironment(ctx context.Context, db *sql.DB, hf func(table string) bool,
-	gf func(table, newName string) (ast.Expression, bool), dbname string, params map[string]Object) *Environment {
+	gf func(table, newName string) (ast.Expression, bool), dbname string, params map[string]Object,
+	disableUpdate, disabledDDL bool) *Environment {
 	s := make(map[string]Object)
 
 	return &Environment{store: s, outer: nil, limits: nil, db: db, ctx: ctx, hasFilter: hf, getFilter: gf, dbname: dbname, params: &params}
@@ -508,10 +511,17 @@ func (env *Environment) Query(strSQL string, args ...any) (*sql.Rows, error) {
 }
 
 func NewEnclosedEnvironment(outer *Environment) *Environment {
-	env := NewEnvironment(outer.ctx, outer.db, outer.hasFilter, outer.getFilter, outer.dbname, nil)
+	env := NewEnvironment(outer.ctx, outer.db, outer.hasFilter, outer.getFilter, outer.dbname, nil,
+		outer.disableUpdate, outer.disabledDDL)
 	env.outer = outer
 	env.limits = nil
 	return env
+}
+func (e *Environment) IsUpdateAllowed() bool {
+	return !e.disableUpdate
+}
+func (e *Environment) IsDDLAllowed() bool {
+	return !e.disabledDDL
 }
 
 func (e *Environment) Get(name string) (Object, bool) {

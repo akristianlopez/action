@@ -121,6 +121,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.FallthroughStatement:
 		return evalFallthroughStatement(node, env)
 	case *ast.SQLCreateObjectStatement:
+
 		return evalSQLCreateObject(node, env)
 	case *ast.SQLDropObjectStatement:
 		return evalSQLDropObject(node, env)
@@ -1232,6 +1233,9 @@ func isError(obj object.Object) bool {
 }
 
 func evalSQLCreateObject(stmt *ast.SQLCreateObjectStatement, env *object.Environment) object.Object {
+	if !env.IsDDLAllowed() {
+		return object.NULL
+	}
 	strSQL := stmt.String()
 	res, err := env.Exec(strSQL)
 	if err == nil {
@@ -1246,6 +1250,9 @@ func evalSQLCreateObject(stmt *ast.SQLCreateObjectStatement, env *object.Environ
 
 func evalSQLDropObject(stmt *ast.SQLDropObjectStatement, env *object.Environment) object.Object {
 	// Vérifier si l'objet existe
+	if !env.IsDDLAllowed() {
+		return object.NULL
+	}
 	if _, ok := env.Get(stmt.ObjectName.Value); !ok {
 		strSQ := stmt.String()
 		result, err := env.Exec(strSQ)
@@ -1278,6 +1285,9 @@ func evalSQLDropObject(stmt *ast.SQLDropObjectStatement, env *object.Environment
 }
 
 func evalSQLAlterObject(stmt *ast.SQLAlterObjectStatement, env *object.Environment) object.Object {
+	if !env.IsDDLAllowed() {
+		return object.NULL
+	}
 	if env.DBName() == "sqllite" {
 		return object.NULL
 	}
@@ -1302,6 +1312,9 @@ func evalSQLAlterObject(stmt *ast.SQLAlterObjectStatement, env *object.Environme
 }
 
 func evalSQLInsert(stmt *ast.SQLInsertStatement, env *object.Environment) object.Object {
+	if !env.IsUpdateAllowed() {
+		return object.NULL
+	}
 	rowsAffected := int64(0)
 	if stmt.Select == nil {
 		strHeader := ""
@@ -1381,6 +1394,9 @@ func evalSQLInsert(stmt *ast.SQLInsertStatement, env *object.Environment) object
 }
 
 func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object.Object {
+	if !env.IsUpdateAllowed() {
+		return object.NULL
+	}
 	expr, ok := env.Filter(stmt.ObjectName.Value, "")
 	var filter object.Object
 	filter = nil
@@ -1440,6 +1456,9 @@ func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object
 }
 
 func evalSQLDelete(stmt *ast.SQLDeleteStatement, env *object.Environment) object.Object {
+	if !env.IsUpdateAllowed() {
+		return object.NULL
+	}
 	var filter object.Object
 	expr, True := env.Filter(stmt.From.Value, "")
 	if True {
@@ -1495,6 +1514,9 @@ func evalSQLDelete(stmt *ast.SQLDeleteStatement, env *object.Environment) object
 }
 
 func evalSQLTruncate(stmt *ast.SQLTruncateStatement, env *object.Environment) object.Object {
+	if !env.IsUpdateAllowed() {
+		return object.NULL
+	}
 	_, ok := env.Filter(stmt.ObjectName.Value, "")
 	if ok {
 		return newError("Can not empty '%s' because of an existing filter on it", stmt.ObjectName.Value)
@@ -1515,6 +1537,9 @@ func evalSQLTruncate(stmt *ast.SQLTruncateStatement, env *object.Environment) ob
 }
 
 func evalSQLCreateIndex(stmt *ast.SQLCreateIndexStatement, env *object.Environment) object.Object {
+	if !env.IsDDLAllowed() {
+		return object.NULL
+	}
 	strSQL := ""
 	for _, fld := range stmt.Columns {
 		if strSQL == "" {

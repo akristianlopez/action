@@ -3,9 +3,9 @@ module github.com/akristianlopez/action/nsina
 go 1.25.4
 
 require (
-	github.com/akristianlopez/action/ast v0.0.0-20260108164652-5220dbaee5a2
+	github.com/akristianlopez/action/ast v0.0.0-20260114165322-0bd4c5c7ba95
 	// github.com/akristianlopez/action/lexer v0.0.0-20260107202731-1a21c474b7d1
-	github.com/akristianlopez/action/object v0.0.0-20260108164652-5220dbaee5a2
+	github.com/akristianlopez/action/object v0.0.0-20260114165322-0bd4c5c7ba95
 // github.com/akristianlopez/action/optimizer v0.0.0-20260107202731-1a21c474b7d1
 // github.com/akristianlopez/action/parser v0.0.0-20260107202731-1a21c474b7d1
 // github.com/akristianlopez/action/semantic v0.0.0-20260107202731-1a21c474b7d1
@@ -13,7 +13,7 @@ require (
 
 require (
 	// filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/akristianlopez/action/token v0.0.0-20260108124938-6069f0eaa130 // indirect
+	github.com/akristianlopez/action/token v0.0.0-20260114165322-0bd4c5c7ba95 // indirect
 // github.com/dustin/go-humanize v1.0.1 // indirect
 // github.com/go-sql-driver/mysql v1.9.3 // indirect
 // github.com/google/uuid v1.6.0 // indirect

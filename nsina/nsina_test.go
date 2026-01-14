@@ -333,7 +333,6 @@ package nsina
 // 					niveau VARCHAR(50),
 // 					budget NUMERIC(12,2)
 // 				);
-
 // 				(* Table pour les liens entre structures et employees *)
 // 				CREATE OBJECT links (
 // 					employe INTEGER NOT NULL,
@@ -343,20 +342,17 @@ package nsina
 // 					CONSTRAINT fk_employés FOREIGN KEY (employe) REFERENCES employés(id)
 // 					CONSTRAINT fk_organisations FOREIGN KEY (structure) REFERENCES Organisations(id)
 // 				);
-
 // 				(* ALTER TABLE *)
 // 				(* Cette instruction n'est pas prise encompte dans sqllite *)
 // 				ALTER OBJECT links
 // 				ADD CONSTRAINT fk_employés FOREIGN KEY (employe) REFERENCES employés(id);
 // 				ALTER OBJECT links
 // 				ADD CONSTRAINT fk_organisations FOREIGN KEY (structure) REFERENCES Organisations(id);
-
 // 				INSERT INTO Employés(id, nom, prenom,age,sexe)VALUES
 // 				(1,'Golang','Google.com','5','M'),
 // 				(2,'JavaScript','Eclipse.com','20','M'),
 // 				(3,'Java','Oracle.com','50','M'),
 // 				(4,'C#','Microsoft.com','30','M') ;
-
 // 				INSERT INTO Organisations (id, nom, parent_id, niveau, budget) VALUES
 // 				(1, 'Entreprise', NULL, 'Direction', 10000000.00),
 // 				(2, 'IT', 1, 'Département', 2000000.00),
@@ -368,12 +364,10 @@ package nsina
 // 				(8, 'Backend', 4, 'Équipe', 600000.00),
 // 				(9, 'Frontend', 4, 'Équipe', 400000.00),
 // 				(10, 'Base de données', 5, 'Équipe', 300000.00);
-
 // 				INSERT INTO LINKS(employe,structure,date_affection)VALUES
 // 				(1,1,'2010-01-01'),
 // 				(3,4,'2020-10-23'),
 // 				(4,10,'2015-10-23');
-
 // 				Let result=select o.nom, o.prenom, o.age, o.sexe
 // 				           From employés o
 // 						   Where o.id in (select employés.id from employés where employés.id in [1,4])
@@ -416,7 +410,6 @@ package nsina
 // 	})
 // 	return res
 // }
-
 // // var db_driver string = "sqllite"
 // func canHandle_test(table, field, operation string) (bool, string) {
 // 	if operation == "" || table == "" {
@@ -427,7 +420,6 @@ package nsina
 // func hasFilter_test(table string) bool {
 // 	return strings.EqualFold(table, "Employés")
 // }
-
 // func getFilter_test(table, newName string) (ast.Expression, bool) {
 // 	db, err := sql.Open("sqlite", "./nsina2026.db")
 // 	if err != nil {

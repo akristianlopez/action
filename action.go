@@ -3,6 +3,7 @@ package action
 import (
 	"context"
 	"database/sql"
+	"strings"
 
 	"github.com/akristianlopez/action/ast"
 	"github.com/akristianlopez/action/lexer"
@@ -76,4 +77,50 @@ func (action *Action) Expression(src, table, newName string, canHandle func(tabl
 		return nil, action.error
 	}
 	return act, action.error
+}
+func (action *Action) Check(src, id, table, newName string, canHandle func(table, field, operation string) (bool, string)) (bool, []string) {
+	lex := lexer.New(src)
+	p := parser.New(lex)
+	switch strings.ToLower(id) {
+	case "action":
+		act := p.ParseAction()
+		if p.Errors() != nil && len(p.Errors()) != 0 {
+			for _, msg := range p.Errors() {
+				action.error = append(action.error, msg.String())
+			}
+			return false, action.error
+		}
+		analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle)
+		analyzer.Analyze(act)
+		if len(analyzer.Warnings) > 0 {
+			action.Warnings = append(action.Warnings, analyzer.Warnings...)
+		}
+		if len(analyzer.Errors) > 0 {
+			action.error = append(action.error, analyzer.Errors...)
+			return false, action.error
+		}
+		return true, nil
+	case "expression":
+		act := p.ParseExpression()
+		if p.Errors() != nil && len(p.Errors()) != 0 {
+			for _, msg := range p.Errors() {
+				action.error = append(action.error, msg.String())
+			}
+			return false, action.error
+		}
+		analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle)
+		analyzer.AnalyzeExpression(table, newName, act)
+		if len(analyzer.Warnings) > 0 {
+			action.Warnings = append(action.Warnings, analyzer.Warnings...)
+		}
+		if len(analyzer.Errors) > 0 {
+			action.error = append(action.error, analyzer.Errors...)
+			return false, action.error
+		}
+		return true, nil
+	default:
+		res := make([]string, 0)
+		res = append(res, "Invalid id")
+		return false, nil
+	}
 }

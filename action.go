@@ -25,7 +25,7 @@ type Action struct {
 func NewAction(ctx context.Context, db *sql.DB, dbname string) *Action {
 	return &Action{ctx: ctx, db: db, dbname: dbname, error: make([]string, 0)}
 }
-func (action *Action) Interprete(src string, canHandle func(table, field, operation string) (bool, string),
+func (action *Action) Interpret(src string, canHandle func(table, field, operation string) (bool, string),
 	hasFilter func(table string) bool, getFilter func(table, newName string) (ast.Expression, bool),
 	params map[string]object.Object, disableUpdate, disabledDDL bool,
 	serviceExists func(serviceName string) bool,
@@ -81,7 +81,8 @@ func (action *Action) Expression(src, table, newName string, canHandle func(tabl
 	}
 	return act, action.error
 }
-func (action *Action) Check(src, id, table, newName string, canHandle func(table, field, operation string) (bool, string)) (bool, []string) {
+func (action *Action) Check(src, id, table, newName string, canHandle func(table, field, operation string) (bool, string), serviceExists func(serviceName string) bool,
+	signature func(serviceName, methodName string) ([]*semantic.TypeInfo, *semantic.TypeInfo, error)) (bool, []string) {
 	lex := lexer.New(src)
 	p := parser.New(lex)
 	switch strings.ToLower(id) {

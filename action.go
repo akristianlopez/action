@@ -94,7 +94,7 @@ func (action *Action) Check(src, id, table, newName string, canHandle func(table
 			}
 			return false, action.error
 		}
-		analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, nil, nil)
+		analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, serviceExists, signature)
 		analyzer.Analyze(act)
 		if len(analyzer.Warnings) > 0 {
 			action.Warnings = append(action.Warnings, analyzer.Warnings...)

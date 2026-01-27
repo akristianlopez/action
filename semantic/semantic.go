@@ -98,14 +98,14 @@ type SemanticAnalyzer struct {
 	ctx           context.Context
 	canHandle     func(table, field, operation string) (bool, string)
 	serviceExists func(serviceName string) bool
-	signature     func(serviceName, methodName string) ([]*TypeInfo, *TypeInfo, error)
+	signature     func(serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error)
 }
 
 // var tokenList []string
 
 func NewSemanticAnalyzer(ctx context.Context, db *sql.DB, ch func(table, field, operation string) (bool, string),
 	srvExists func(serviceName string) bool,
-	srvSignature func(serviceName, methodName string) ([]*TypeInfo, *TypeInfo, error)) *SemanticAnalyzer {
+	srvSignature func(serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error)) *SemanticAnalyzer {
 
 	globalScope := &Scope{
 		Symbols: make(map[string]*Symbol),
@@ -1613,7 +1613,13 @@ func (sa *SemanticAnalyzer) visitExpression(expr ast.Expression) *TypeInfo {
 		return &TypeInfo{Name: "void"}
 	}
 }
-
+func (sa *SemanticAnalyzer) visitStructField(node *ast.StructField) *TypeInfo {
+	if node == nil {
+		return nil
+	}
+	fieldType := sa.resolveTypeAnnotation(node.Type)
+	return fieldType
+}
 func (sa *SemanticAnalyzer) visitSelectArgs(node *ast.SelectArgs) *TypeInfo {
 	if node == nil {
 		return nil
@@ -2034,7 +2040,7 @@ func (sa *SemanticAnalyzer) visitTypeExternalCall(node *ast.TypeExternalCall) *T
 	}
 	for k, arg := range node.Action.Arguments {
 		currentType := sa.visitExpression(arg)
-		expectedType := ts[k]
+		expectedType := sa.visitStructField(ts[k])
 		if !sa.areSameType(expectedType, currentType) {
 			sa.addError("Type mismatch for argument '%s' in action '%s' from microservice '%s': expected %s, got %s.",
 				arg.String(), node.Action.Function.Value, node.Name.Value,
@@ -2046,7 +2052,7 @@ func (sa *SemanticAnalyzer) visitTypeExternalCall(node *ast.TypeExternalCall) *T
 	if rt == nil {
 		return &TypeInfo{Name: "void"}
 	}
-	return rt
+	return sa.resolveTypeAnnotation(rt)
 }
 func (sa *SemanticAnalyzer) visitArrayLiteral(node *ast.ArrayLiteral) *TypeInfo {
 	if len(node.Elements) == 0 {

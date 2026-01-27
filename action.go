@@ -29,7 +29,7 @@ func (action *Action) Interpret(src string, canHandle func(table, field, operati
 	hasFilter func(table string) bool, getFilter func(table, newName string) (ast.Expression, bool),
 	params map[string]object.Object, disableUpdate, disabledDDL bool,
 	serviceExists func(serviceName string) bool,
-	signature func(serviceName, methodName string) ([]*semantic.TypeInfo, *semantic.TypeInfo, error),
+	signature func(serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error),
 	external func(srv, name string) (object.Object, bool)) (object.Object, []string) {
 	lex := lexer.New(src)
 	p := parser.New(lex)
@@ -82,7 +82,7 @@ func (action *Action) Expression(src, table, newName string, canHandle func(tabl
 	return act, action.error
 }
 func (action *Action) Check(src, id, table, newName string, canHandle func(table, field, operation string) (bool, string), serviceExists func(serviceName string) bool,
-	signature func(serviceName, methodName string) ([]*semantic.TypeInfo, *semantic.TypeInfo, error)) (bool, []string) {
+	signature func(serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error)) (bool, []string) {
 	lex := lexer.New(src)
 	p := parser.New(lex)
 	switch strings.ToLower(id) {

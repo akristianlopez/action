@@ -272,6 +272,59 @@ func (p *Parser) ParseAction() *ast.Action {
 
 	return program
 }
+func (p *Parser) ParseSignature() ([]*ast.StructField, *ast.TypeAnnotation) {
+	program := make([]*ast.StructField, 0)
+	var ReturnType *ast.TypeAnnotation
+
+	// Vérifier que le programme commence par 'action'
+	if !p.curTokenIs(token.ACTION) {
+		p.errors = append(p.errors, *Create("The action must start with the word 'action'", p.curToken.Line, p.curToken.Column))
+		return nil, nil
+	}
+	p.nextToken() //move to name
+
+	// Lire le nom de l'action
+	if !p.curTokenIs(token.STRING_LIT) {
+		p.errors = append(p.errors, *Create("Attendu un nom d'action après 'action'", p.curToken.Line, p.curToken.Column))
+		return nil, nil
+	}
+	// program.ActionName = p.curToken.Literal
+	if !p.expectPeek(token.LPAREN) {
+		return nil, nil
+	}
+	p.nextToken() //move to name
+	for !p.curTokenIs(token.START, token.EOF, token.RPAREN) {
+		field := &ast.StructField{Token: p.curToken}
+		field.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+
+		if !p.expectPeek(token.COLON) {
+			return nil, nil
+		}
+
+		p.nextToken()
+		field.Type = p.parseTypeAnnotation()
+		program = append(program, field)
+		if !p.expectPeekEx(token.COMMA, token.RPAREN) {
+			return nil, nil
+		}
+		if p.curTokenIs(token.COMMA) {
+			p.nextToken()
+		}
+	}
+	if !p.curTokenIs(token.RPAREN) {
+		return nil, nil
+	}
+	if p.peekTokenIs(token.COLON) {
+		p.nextToken() // :
+		//Parser le type de retour de l'action
+		p.nextToken()
+		ReturnType = p.parseTypeAnnotation()
+	} else {
+		ReturnType = nil
+	}
+	p.nextToken()
+	return program, ReturnType
+}
 func (p *Parser) ParseExpression() ast.Expression {
 	returnEx := p.parseExpression(LOWEST)
 	if !p.expectPeek(token.EOF) {

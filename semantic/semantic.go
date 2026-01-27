@@ -10,9 +10,6 @@ import (
 	// "go/ast"
 
 	"github.com/akristianlopez/action/ast"
-	// "github.com/akristianlopez/action/object"
-	// "github.com/akristianlopez/action/token"
-	// "strings"
 )
 
 type SymbolType string
@@ -90,37 +87,43 @@ type RangeValue struct {
 }
 
 type SemanticAnalyzer struct {
-	CurrentScope *Scope
-	GlobalScope  *Scope
-	Errors       []string
-	Warnings     []string
-	TypeTable    map[string]*TypeInfo
-	TypeSql      map[string]*TypeInfo
-	inType       int
-	db           *sql.DB
-	ctx          context.Context
-	canHandle    func(table, field, operation string) (bool, string)
+	CurrentScope  *Scope
+	GlobalScope   *Scope
+	Errors        []string
+	Warnings      []string
+	TypeTable     map[string]*TypeInfo
+	TypeSql       map[string]*TypeInfo
+	inType        int
+	db            *sql.DB
+	ctx           context.Context
+	canHandle     func(table, field, operation string) (bool, string)
+	serviceExists func(serviceName string) bool
+	signature     func(serviceName, methodName string) ([]*TypeInfo, *TypeInfo, error)
 }
 
 // var tokenList []string
 
-func NewSemanticAnalyzer(ctx context.Context, db *sql.DB, ch func(table, field, operation string) (bool, string)) *SemanticAnalyzer {
+func NewSemanticAnalyzer(ctx context.Context, db *sql.DB, ch func(table, field, operation string) (bool, string),
+	srvExists func(serviceName string) bool,
+	srvSignature func(serviceName, methodName string) ([]*TypeInfo, *TypeInfo, error)) *SemanticAnalyzer {
 
 	globalScope := &Scope{
 		Symbols: make(map[string]*Symbol),
 	}
 
 	analyzer := &SemanticAnalyzer{
-		CurrentScope: globalScope,
-		GlobalScope:  globalScope,
-		Errors:       []string{},
-		Warnings:     []string{},
-		TypeTable:    make(map[string]*TypeInfo),
-		TypeSql:      make(map[string]*TypeInfo),
-		inType:       1,
-		db:           db,
-		ctx:          ctx,
-		canHandle:    ch,
+		CurrentScope:  globalScope,
+		GlobalScope:   globalScope,
+		Errors:        []string{},
+		Warnings:      []string{},
+		TypeTable:     make(map[string]*TypeInfo),
+		TypeSql:       make(map[string]*TypeInfo),
+		inType:        1,
+		db:            db,
+		ctx:           ctx,
+		canHandle:     ch,
+		serviceExists: srvExists,
+		signature:     srvSignature,
 	}
 
 	// Enregistrement des functions standards
@@ -757,6 +760,8 @@ func (sa *SemanticAnalyzer) canReceivedValue(s ast.Expression) *TypeInfo {
 		return sa.visitIndexExpression(exp)
 	case *ast.TypeMember:
 		return sa.visitTypeMember(exp, "")
+	case *ast.TypeExternalCall:
+		return sa.visitTypeExternalCall(exp)
 	case *ast.SQLSelectStatement:
 		return sa.visitSQLSelectStatement(exp)
 	}
@@ -1996,7 +2001,53 @@ func (sa *SemanticAnalyzer) visitTypeMember(node *ast.TypeMember, path string) *
 	}
 	return &TypeInfo{Name: "void"}
 }
-
+func (sa *SemanticAnalyzer) visitTypeExternalCall(node *ast.TypeExternalCall) *TypeInfo {
+	if node == nil {
+		return &TypeInfo{Name: "void"}
+	}
+	// check if the name is valid
+	if node.Name == nil {
+		sa.addError("Invlid microservice name.")
+		return &TypeInfo{Name: "void"}
+	}
+	// check if the action is valid
+	if node.Action == nil || node.Action.Function == nil {
+		sa.addError("Invlid action name.")
+		return &TypeInfo{Name: "void"}
+	}
+	// check if the microservice exists
+	if !sa.serviceExists(node.Name.Value) {
+		sa.addError("Microservice '%s' does not exist.", node.Name.Value)
+		return &TypeInfo{Name: "void"}
+	}
+	// call the Microservice to get the signature of the action
+	ts, rt, err := sa.signature(node.Name.Value, node.Action.Function.Value)
+	if err != nil {
+		sa.addError("Cannot get signature of action '%s' from microservice '%s': %s",
+			node.Action.Function.Value, node.Name.Value, err.Error())
+		return &TypeInfo{Name: "void"}
+	}
+	if len(ts) != len(node.Action.Arguments) {
+		sa.addError("The action '%s' from microservice '%s' expects %d argument(s), but got %d.",
+			node.Action.Function.Value, node.Name.Value, len(ts), len(node.Action.Arguments))
+		return &TypeInfo{Name: "void"}
+	}
+	for k, arg := range node.Action.Arguments {
+		currentType := sa.visitExpression(arg)
+		expectedType := ts[k]
+		if !sa.areSameType(expectedType, currentType) {
+			sa.addError("Type mismatch for argument '%s' in action '%s' from microservice '%s': expected %s, got %s.",
+				arg.String(), node.Action.Function.Value, node.Name.Value,
+				expectedType.Name, currentType.Name)
+		}
+	}
+	// return the type of the action
+	// if the type is not defined, we consider it as void
+	if rt == nil {
+		return &TypeInfo{Name: "void"}
+	}
+	return rt
+}
 func (sa *SemanticAnalyzer) visitArrayLiteral(node *ast.ArrayLiteral) *TypeInfo {
 	if len(node.Elements) == 0 {
 		return &TypeInfo{

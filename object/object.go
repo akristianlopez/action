@@ -434,6 +434,7 @@ type Environment struct {
 	params        *map[string]Object
 	disableUpdate bool
 	disabledDDL   bool
+	external      func(srv, name string) (Object, bool)
 }
 
 func (env *Environment) Context() context.Context {
@@ -444,10 +445,12 @@ func (env *Environment) DBName() string {
 }
 func NewEnvironment(ctx context.Context, db *sql.DB, hf func(table string) bool,
 	gf func(table, newName string) (ast.Expression, bool), dbname string, params map[string]Object,
-	disableUpdate, disabledDDL bool) *Environment {
+	disableUpdate, disabledDDL bool, external func(srv, name string) (Object, bool)) *Environment {
 	s := make(map[string]Object)
 
-	return &Environment{store: s, outer: nil, limits: nil, db: db, ctx: ctx, hasFilter: hf, getFilter: gf, dbname: dbname, params: &params}
+	return &Environment{store: s, outer: nil, limits: nil, db: db, ctx: ctx,
+		hasFilter: hf, getFilter: gf, dbname: dbname, params: &params,
+		disableUpdate: disableUpdate, disabledDDL: disabledDDL, external: external}
 }
 func (env *Environment) IsParams(name string) bool {
 	if env.params == nil {
@@ -493,7 +496,12 @@ func (env *Environment) Exec(strSQL string, args ...any) (sql.Result, error) {
 	}
 	return nil, errors.New("Nsina: no query to be executed")
 }
-
+func (env *Environment) External(srv, name string) (Object, bool) {
+	if env.external == nil {
+		return nil, false
+	}
+	return env.external(srv, name)
+}
 func (env *Environment) Query(strSQL string, args ...any) (*sql.Rows, error) {
 	if env.db != nil && strSQL != "" {
 		if env.ctx == nil {
@@ -512,7 +520,7 @@ func (env *Environment) Query(strSQL string, args ...any) (*sql.Rows, error) {
 
 func NewEnclosedEnvironment(outer *Environment) *Environment {
 	env := NewEnvironment(outer.ctx, outer.db, outer.hasFilter, outer.getFilter, outer.dbname, nil,
-		outer.disableUpdate, outer.disabledDDL)
+		outer.disableUpdate, outer.disabledDDL, outer.external)
 	env.outer = outer
 	env.limits = nil
 	return env

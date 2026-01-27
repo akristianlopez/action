@@ -1349,6 +1349,26 @@ func (ie *InExpression) expressionNode() {}
 func (ie *InExpression) Line() int       { return ie.Token.Line }
 func (ie *InExpression) Column() int     { return ie.Token.Column }
 
+type TypeExternalCall struct {
+	Token  token.Token
+	Name   *Identifier
+	Action *ArrayFunctionCall
+}
+
+func (te *TypeExternalCall) TokenLiteral() string { return te.Token.Literal }
+func (te *TypeExternalCall) String() string {
+	if te.Name == nil {
+		return ""
+	}
+	if te.Action == nil {
+		return fmt.Sprintf("%s.()", te.Name.Value)
+	}
+	return fmt.Sprintf("%s.%s", te.Name.Value, te.Action.String())
+}
+func (te *TypeExternalCall) expressionNode() {}
+func (te *TypeExternalCall) Line() int       { return te.Token.Line }
+func (te *TypeExternalCall) Column() int     { return te.Token.Column }
+
 // Mettre à jour TypeAnnotation pour supporter les tableaux
 type TypeAnnotation struct {
 	Token       token.Token

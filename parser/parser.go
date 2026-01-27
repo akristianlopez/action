@@ -1292,6 +1292,11 @@ func (p *Parser) parsePropertyAccess(left ast.Expression) ast.Expression {
 		p.nextToken()
 		pa.Right = p.parsePropertyAccess(pa.Right) // p.parseExpression(LOWEST)
 	}
+	if n, ok := pa.Left.(*ast.Identifier); ok {
+		if f, ko := pa.Right.(*ast.ArrayFunctionCall); ko {
+			return &ast.TypeExternalCall{Token: pa.Token, Name: n, Action: f}
+		}
+	}
 	return pa
 }
 

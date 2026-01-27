@@ -549,6 +549,8 @@ func isVariableUsedInExpression(expr ast.Expression, name string) bool {
 			return strings.EqualFold(t.Value, name)
 		}
 		return false
+	case *ast.TypeExternalCall:
+		return isVariableUsedInExpression(e.Name, name) || isVariableUsedInExpression(e.Action, name)
 	case *ast.InfixExpression:
 		return isVariableUsedInExpression(e.Left, name) || isVariableUsedInExpression(e.Right, name)
 	case *ast.IndexExpression:

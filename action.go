@@ -27,7 +27,10 @@ func NewAction(ctx context.Context, db *sql.DB, dbname string) *Action {
 }
 func (action *Action) Interprete(src string, canHandle func(table, field, operation string) (bool, string),
 	hasFilter func(table string) bool, getFilter func(table, newName string) (ast.Expression, bool),
-	params map[string]object.Object, disableUpdate, disabledDDL bool) (object.Object, []string) {
+	params map[string]object.Object, disableUpdate, disabledDDL bool,
+	serviceExists func(serviceName string) bool,
+	signature func(serviceName, methodName string) ([]*semantic.TypeInfo, *semantic.TypeInfo, error),
+	external func(srv, name string) (object.Object, bool)) (object.Object, []string) {
 	lex := lexer.New(src)
 	p := parser.New(lex)
 	act := p.ParseAction()
@@ -37,7 +40,7 @@ func (action *Action) Interprete(src string, canHandle func(table, field, operat
 		}
 		return object.NULL, action.error
 	}
-	analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle)
+	analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, serviceExists, signature)
 	errors := analyzer.Analyze(act)
 	if len(analyzer.Warnings) > 0 {
 		action.Warnings = append(action.Warnings, analyzer.Warnings...)
@@ -53,7 +56,7 @@ func (action *Action) Interprete(src string, canHandle func(table, field, operat
 		action.Warnings = append(action.Warnings, opt.Warnings...)
 	}
 	env := object.NewEnvironment(action.ctx, action.db, hasFilter, getFilter, action.dbname, params,
-		disableUpdate, disabledDDL)
+		disableUpdate, disabledDDL, external)
 	result := nsina.Eval(optimizedProgram, env)
 	return result, action.error
 }
@@ -67,7 +70,7 @@ func (action *Action) Expression(src, table, newName string, canHandle func(tabl
 		}
 		return nil, action.error
 	}
-	analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle)
+	analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, nil, nil)
 	analyzer.AnalyzeExpression(table, newName, act)
 	if len(analyzer.Warnings) > 0 {
 		action.Warnings = append(action.Warnings, analyzer.Warnings...)
@@ -90,7 +93,7 @@ func (action *Action) Check(src, id, table, newName string, canHandle func(table
 			}
 			return false, action.error
 		}
-		analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle)
+		analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, nil, nil)
 		analyzer.Analyze(act)
 		if len(analyzer.Warnings) > 0 {
 			action.Warnings = append(action.Warnings, analyzer.Warnings...)
@@ -108,7 +111,7 @@ func (action *Action) Check(src, id, table, newName string, canHandle func(table
 			}
 			return false, action.error
 		}
-		analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle)
+		analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, nil, nil)
 		analyzer.AnalyzeExpression(table, newName, act)
 		if len(analyzer.Warnings) > 0 {
 			action.Warnings = append(action.Warnings, analyzer.Warnings...)

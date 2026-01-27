@@ -77,16 +77,15 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.WhileStatement:
 		return evalWhileStatement(node, env)
 	case *ast.TypeMember:
-		//TODO: A definir
 		return evalTypeMember(node, env)
-	case *ast.BetweenExpression:
+	case *ast.TypeExternalCall:
 		//TODO: A definir
+		return evalContract(node, env)
+	case *ast.BetweenExpression:
 		return evalBetweenExpression(node, env)
 	case *ast.StructLiteral:
-		//TODO: A definir
 		return evalStructLiteral(node, env)
 	case *ast.IfStatement:
-		//TODO: A definir
 		return evalIfStatement(node, env)
 	case *ast.ForStatement:
 		return evalForStatement(node, env)
@@ -142,6 +141,16 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	}
 
 	// return nil
+}
+
+func evalContract(node *ast.TypeExternalCall, env *object.Environment) object.Object {
+	// Eval the action and return the result
+	res, ok := env.External(node.Name.Value, node.Action.Function.Value)
+	if !ok {
+		return newError("Nsina: The function '%s.%s' has encountered some worries while trying to perform it. '%s'",
+			node.Name.Value, node.Action.Function.Value, res.Inspect())
+	}
+	return res
 }
 
 func evalTypeMember(node *ast.TypeMember, env *object.Environment) object.Object {

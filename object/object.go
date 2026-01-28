@@ -436,7 +436,7 @@ type Environment struct {
 	disableUpdate bool
 	disabledDDL   bool
 	external      func(ctx *gin.Context, srv, name string, args map[string]Object) (Object, bool)
-	signature     func(serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error)
+	signature     func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error)
 }
 
 func (env *Environment) Context() context.Context {
@@ -447,7 +447,7 @@ func (env *Environment) DBName() string {
 }
 func NewEnvironment(ctx *gin.Context, db *sql.DB, hf func(table string) bool,
 	gf func(table, newName string) (ast.Expression, bool), dbname string, params map[string]Object,
-	disableUpdate, disabledDDL bool, sign func(serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error),
+	disableUpdate, disabledDDL bool, sign func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error),
 	external func(ctx *gin.Context, srv, name string, args map[string]Object) (Object, bool)) *Environment {
 	s := make(map[string]Object)
 
@@ -506,7 +506,7 @@ func (env *Environment) External(srv, name string, args map[string]Object) (Obje
 	return env.external(env.ctx, srv, name, args)
 }
 func (env *Environment) Signature(srv, name string) ([]*ast.StructField, *ast.TypeAnnotation, error) {
-	return env.signature(srv, name)
+	return env.signature(env.ctx, srv, name)
 }
 func (env *Environment) Query(strSQL string, args ...any) (*sql.Rows, error) {
 	if env.db != nil && strSQL != "" {

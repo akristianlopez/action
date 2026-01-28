@@ -1,7 +1,6 @@
 package semantic
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"strconv"
@@ -10,6 +9,7 @@ import (
 	// "go/ast"
 
 	"github.com/akristianlopez/action/ast"
+	"github.com/gin-gonic/gin"
 )
 
 type SymbolType string
@@ -95,17 +95,17 @@ type SemanticAnalyzer struct {
 	TypeSql       map[string]*TypeInfo
 	inType        int
 	db            *sql.DB
-	ctx           context.Context
+	ctx           *gin.Context
 	canHandle     func(table, field, operation string) (bool, string)
 	serviceExists func(serviceName string) bool
-	signature     func(serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error)
+	signature     func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error)
 }
 
 // var tokenList []string
 
-func NewSemanticAnalyzer(ctx context.Context, db *sql.DB, ch func(table, field, operation string) (bool, string),
+func NewSemanticAnalyzer(ctx *gin.Context, db *sql.DB, ch func(table, field, operation string) (bool, string),
 	srvExists func(serviceName string) bool,
-	srvSignature func(serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error)) *SemanticAnalyzer {
+	srvSignature func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error)) *SemanticAnalyzer {
 
 	globalScope := &Scope{
 		Symbols: make(map[string]*Symbol),
@@ -2027,7 +2027,7 @@ func (sa *SemanticAnalyzer) visitTypeExternalCall(node *ast.TypeExternalCall) *T
 		return &TypeInfo{Name: "void"}
 	}
 	// call the Microservice to get the signature of the action
-	ts, rt, err := sa.signature(node.Name.Value, node.Action.Function.Value)
+	ts, rt, err := sa.signature(sa.ctx, node.Name.Value, node.Action.Function.Value)
 	if err != nil {
 		sa.addError("Cannot get signature of action '%s' from microservice '%s': %s",
 			node.Action.Function.Value, node.Name.Value, err.Error())

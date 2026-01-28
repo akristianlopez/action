@@ -2033,14 +2033,22 @@ func (sa *SemanticAnalyzer) visitTypeExternalCall(node *ast.TypeExternalCall) *T
 			node.Action.Function.Value, node.Name.Value, err.Error())
 		return &TypeInfo{Name: "void"}
 	}
-	if len(ts) != len(node.Action.Arguments) {
+	if len(ts) != len(node.Action.Arguments)+1 {
 		sa.addError("The action '%s' from microservice '%s' expects %d argument(s), but got %d.",
 			node.Action.Function.Value, node.Name.Value, len(ts), len(node.Action.Arguments))
 		return &TypeInfo{Name: "void"}
 	}
+	currentType := sa.visitExpression(node.Action.Array)
+	expectedType := sa.visitStructField(ts[0])
+	if !sa.areSameType(expectedType, currentType) {
+		sa.addError("Type mismatch for array argument in action '%s' from microservice '%s': expected %s, got %s.",
+			node.Action.Function.Value, node.Name.Value,
+			expectedType.Name, currentType.Name)
+		return &TypeInfo{Name: "void"}
+	}
 	for k, arg := range node.Action.Arguments {
 		currentType := sa.visitExpression(arg)
-		expectedType := sa.visitStructField(ts[k])
+		expectedType := sa.visitStructField(ts[k+1])
 		if !sa.areSameType(expectedType, currentType) {
 			sa.addError("Type mismatch for argument '%s' in action '%s' from microservice '%s': expected %s, got %s.",
 				arg.String(), node.Action.Function.Value, node.Name.Value,

@@ -43,7 +43,7 @@ func (action *Action) Interpret(src string, canHandle func(table, field, operati
 	analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, serviceExists, signature)
 	errors := analyzer.Analyze(act)
 	if len(analyzer.Warnings) > 0 {
-		action.SetWarnings(append(action.Warnings(), analyzer.Warnings...))
+		action.setWarnings(append(action.Warnings(), analyzer.Warnings...))
 	}
 	if len(errors) > 0 {
 		action.error = append(action.error, errors...)
@@ -53,7 +53,7 @@ func (action *Action) Interpret(src string, canHandle func(table, field, operati
 	optimizedProgram := opt.Optimize(act)
 	// opt.Optimize(action)
 	if len(opt.Warnings) > 0 {
-		action.SetWarnings(append(action.Warnings(), opt.Warnings...))
+		action.setWarnings(append(action.Warnings(), opt.Warnings...))
 	}
 	env := object.NewEnvironment(action.ctx, action.db, hasFilter, getFilter, action.dbname, params,
 		disableUpdate, disabledDDL, external)
@@ -73,7 +73,7 @@ func (action *Action) Expression(src, table, newName string, canHandle func(tabl
 	analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, nil, nil)
 	analyzer.AnalyzeExpression(table, newName, act)
 	if len(analyzer.Warnings) > 0 {
-		action.SetWarnings(append(action.Warnings(), analyzer.Warnings...))
+		action.setWarnings(append(action.Warnings(), analyzer.Warnings...))
 	}
 	if len(analyzer.Errors) > 0 {
 		action.error = append(action.error, analyzer.Errors...)
@@ -97,7 +97,7 @@ func (action *Action) Check(src, id, table, newName string, canHandle func(table
 		analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, serviceExists, signature)
 		analyzer.Analyze(act)
 		if len(analyzer.Warnings) > 0 {
-			action.SetWarnings(append(action.Warnings(), analyzer.Warnings...))
+			action.setWarnings(append(action.Warnings(), analyzer.Warnings...))
 		}
 		if len(analyzer.Errors) > 0 {
 			action.error = append(action.error, analyzer.Errors...)
@@ -115,7 +115,7 @@ func (action *Action) Check(src, id, table, newName string, canHandle func(table
 		analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, nil, nil)
 		analyzer.AnalyzeExpression(table, newName, act)
 		if len(analyzer.Warnings) > 0 {
-			action.SetWarnings(append(action.Warnings(), analyzer.Warnings...))
+			action.setWarnings(append(action.Warnings(), analyzer.Warnings...))
 		}
 		if len(analyzer.Errors) > 0 {
 			action.error = append(action.error, analyzer.Errors...)
@@ -146,11 +146,8 @@ func (action *Action) HasErrors() bool {
 func (action *Action) HasWarnings() bool {
 	return len(action.warnings) > 0
 }
-func (action *Action) SetWarnings(warnings []string) {
+func (action *Action) setWarnings(warnings []string) {
 	action.warnings = warnings
-}
-func (action *Action) SetErrors(errors []string) {
-	action.error = errors
 }
 
 func (action *Action) ClearMessages() {
@@ -163,7 +160,7 @@ func (action *Action) ClearErrors() {
 func (action *Action) ClearWarnings() {
 	action.warnings = make([]string, 0)
 }
-func (action *Action) Signature(src string) ([]*ast.StructField, *ast.TypeAnnotation) {
+func (action *Action) Signature(src string) ([]*ast.StructField, *ast.TypeAnnotation, []string) {
 	lex := lexer.New(src)
 	p := parser.New(lex)
 	args, retType := p.ParseSignature()
@@ -171,7 +168,7 @@ func (action *Action) Signature(src string) ([]*ast.StructField, *ast.TypeAnnota
 		for _, msg := range p.Errors() {
 			action.error = append(action.error, msg.String())
 		}
-		return nil, nil
+		return nil, nil, action.error
 	}
-	return args, retType
+	return args, retType, nil
 }

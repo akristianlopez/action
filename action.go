@@ -30,7 +30,7 @@ func (action *Action) Interpret(src string, canHandle func(table, field, operati
 	params map[string]object.Object, disableUpdate, disabledDDL bool,
 	serviceExists func(serviceName string) bool,
 	signature func(serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error),
-	external func(srv, name string, args map[string]object.Object) (object.Object, bool)) (object.Object, []string) {
+	external func(ctx context.Context, srv, name string, args map[string]object.Object) (object.Object, bool)) (object.Object, []string) {
 	lex := lexer.New(src)
 	p := parser.New(lex)
 	act := p.ParseAction()

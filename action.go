@@ -1,7 +1,6 @@
 package action
 
 import (
-	"context"
 	"database/sql"
 	"strings"
 
@@ -12,17 +11,18 @@ import (
 	"github.com/akristianlopez/action/optimizer"
 	"github.com/akristianlopez/action/parser"
 	"github.com/akristianlopez/action/semantic"
+	"github.com/gin-gonic/gin"
 )
 
 type Action struct {
-	ctx      context.Context
+	ctx      *gin.Context
 	db       *sql.DB
 	dbname   string
 	error    []string
 	warnings []string
 }
 
-func NewAction(ctx context.Context, db *sql.DB, dbname string) *Action {
+func NewAction(ctx *gin.Context, db *sql.DB, dbname string) *Action {
 	return &Action{ctx: ctx, db: db, dbname: dbname, error: make([]string, 0)}
 }
 func (action *Action) Interpret(src string, canHandle func(table, field, operation string) (bool, string),
@@ -30,7 +30,7 @@ func (action *Action) Interpret(src string, canHandle func(table, field, operati
 	params map[string]object.Object, disableUpdate, disabledDDL bool,
 	serviceExists func(serviceName string) bool,
 	signature func(serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error),
-	external func(ctx context.Context, srv, name string, args map[string]object.Object) (object.Object, bool)) (object.Object, []string) {
+	external func(ctx *gin.Context, srv, name string, args map[string]object.Object) (object.Object, bool)) (object.Object, []string) {
 	lex := lexer.New(src)
 	p := parser.New(lex)
 	act := p.ParseAction()

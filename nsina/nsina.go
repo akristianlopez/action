@@ -145,9 +145,27 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 
 func evalContract(node *ast.TypeExternalCall, env *object.Environment) object.Object {
 	// Eval the action and return the result
-	res, ok := env.External(node.Name.Value, node.Action.Function.Value)
+	args := make(map[string]object.Object)
+	ts, _, err := env.Signature(node.Name.Value, node.Action.Function.Value)
+	if err != nil {
+		return newError("Nsina: Impossible to get the contract signature due to an error %v", err)
+	}
+	if len(ts) > 0 {
+		args[strings.ToLower(ts[0].Name.Value)] = Eval(node.Action.Array, env)
+		for k, arg := range node.Action.Arguments {
+			val := Eval(arg, env)
+			args[strings.ToLower(ts[k+1].Name.Value)] = val
+		}
+		res, ok := env.External(node.Name.Value, node.Action.Function.Value, args)
+		if !ok {
+			return newError("Nsina: The contract '%s.%s' has encountered some worries while trying to perform it. '%s'",
+				node.Name.Value, node.Action.Function.Value, res.Inspect())
+		}
+		return res
+	}
+	res, ok := env.External(node.Name.Value, node.Action.Function.Value, nil)
 	if !ok {
-		return newError("Nsina: The function '%s.%s' has encountered some worries while trying to perform it. '%s'",
+		return newError("Nsina: The contract '%s.%s' has encountered some worries while trying to perform it. '%s'",
 			node.Name.Value, node.Action.Function.Value, res.Inspect())
 	}
 	return res

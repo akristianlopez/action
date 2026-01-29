@@ -60,6 +60,35 @@ func (action *Action) Interpret(src string, canHandle func(table, field, operati
 	result := nsina.Eval(optimizedProgram, env)
 	return result, action.AllMessages()
 }
+func (action *Action) Generate(src string, canHandle func(table, field, operation string) (bool, string), serviceExists func(serviceName string) bool,
+	signature func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error)) (*ast.Action, []string) {
+	lex := lexer.New(src)
+	p := parser.New(lex)
+	act := p.ParseAction()
+	if p.Errors() != nil && len(p.Errors()) != 0 {
+		for _, msg := range p.Errors() {
+			action.error = append(action.error, msg.String())
+		}
+		return nil, action.error
+	}
+	analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, serviceExists, signature)
+	errors := analyzer.Analyze(act)
+	if len(analyzer.Warnings) > 0 {
+		action.setWarnings(append(action.Warnings(), analyzer.Warnings...))
+		action.error = append(action.error, errors...)
+		return nil, action.Warnings()
+	}
+	if len(errors) > 0 {
+		action.error = append(action.error, errors...)
+		return nil, action.error
+	}
+	opt := optimizer.NewOptimizer()
+	optimizedProgram := opt.Optimize(act)
+	if len(opt.Warnings) > 0 {
+		action.setWarnings(append(action.Warnings(), opt.Warnings...))
+	}
+	return optimizedProgram, nil
+}
 func (action *Action) Expression(src, table, newName string, canHandle func(table, field, operation string) (bool, string)) (ast.Expression, []string) {
 	lex := lexer.New(src)
 	p := parser.New(lex)

@@ -60,6 +60,15 @@ func (action *Action) Interpret(src string, canHandle func(table, field, operati
 	result := nsina.Eval(optimizedProgram, env)
 	return result, action.AllMessages()
 }
+func (action *Action) Execute(prog *ast.Action, hasFilter func(table string) bool, getFilter func(table, newName string) (ast.Expression, bool),
+	params map[string]object.Object, disableUpdate, disabledDDL bool, serviceExists func(serviceName string) bool,
+	signature func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error),
+	external func(ctx *gin.Context, srv, name string, args map[string]object.Object) (object.Object, bool)) object.Object {
+	env := object.NewEnvironment(action.ctx, action.db, hasFilter, getFilter, action.dbname, params,
+		disableUpdate, disabledDDL, signature, external)
+	result := nsina.Eval(prog, env)
+	return result
+}
 func (action *Action) Generate(src string, canHandle func(table, field, operation string) (bool, string), serviceExists func(serviceName string) bool,
 	signature func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error)) (*ast.Action, []string) {
 	lex := lexer.New(src)

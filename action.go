@@ -25,8 +25,8 @@ type Action struct {
 func NewAction(ctx *gin.Context, db *sql.DB, dbname string) *Action {
 	return &Action{ctx: ctx, db: db, dbname: dbname, error: make([]string, 0)}
 }
-func (action *Action) Interpret(src string, canHandle func(table, field, operation string) (bool, string),
-	hasFilter func(table string) bool, getFilter func(table, newName string) (ast.Expression, bool),
+func (action *Action) Interpret(src string, canHandle func(ctx *gin.Context, table, field, operation string) (bool, string),
+	hasFilter func(ctx *gin.Context, table string) bool, getFilter func(ctx *gin.Context, table, newName string) (ast.Expression, bool),
 	params map[string]object.Object, disableUpdate, disabledDDL bool,
 	serviceExists func(serviceName string) bool,
 	signature func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error),
@@ -60,7 +60,7 @@ func (action *Action) Interpret(src string, canHandle func(table, field, operati
 	result := nsina.Eval(optimizedProgram, env)
 	return result, action.AllMessages()
 }
-func (action *Action) Execute(prog *ast.Action, hasFilter func(table string) bool, getFilter func(table, newName string) (ast.Expression, bool),
+func (action *Action) Execute(prog *ast.Action, hasFilter func(ctx *gin.Context, table string) bool, getFilter func(ctx *gin.Context, table, newName string) (ast.Expression, bool),
 	params map[string]object.Object, disableUpdate, disabledDDL bool, serviceExists func(serviceName string) bool,
 	signature func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error),
 	external func(ctx *gin.Context, srv, name string, args map[string]object.Object) (object.Object, bool)) object.Object {
@@ -69,7 +69,7 @@ func (action *Action) Execute(prog *ast.Action, hasFilter func(table string) boo
 	result := nsina.Eval(prog, env)
 	return result
 }
-func (action *Action) Generate(src string, canHandle func(table, field, operation string) (bool, string), serviceExists func(serviceName string) bool,
+func (action *Action) Generate(src string, canHandle func(ctx *gin.Context, table, field, operation string) (bool, string), serviceExists func(serviceName string) bool,
 	signature func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error)) (*ast.Action, []string) {
 	lex := lexer.New(src)
 	p := parser.New(lex)
@@ -98,7 +98,7 @@ func (action *Action) Generate(src string, canHandle func(table, field, operatio
 	}
 	return optimizedProgram, nil
 }
-func (action *Action) Expression(src, table, newName string, canHandle func(table, field, operation string) (bool, string)) (ast.Expression, []string) {
+func (action *Action) Expression(src, table, newName string, canHandle func(ctx *gin.Context, table, field, operation string) (bool, string)) (ast.Expression, []string) {
 	lex := lexer.New(src)
 	p := parser.New(lex)
 	act := p.ParseExpression()
@@ -119,7 +119,7 @@ func (action *Action) Expression(src, table, newName string, canHandle func(tabl
 	}
 	return act, action.error
 }
-func (action *Action) Check(src, id, table, newName string, canHandle func(table, field, operation string) (bool, string), serviceExists func(serviceName string) bool,
+func (action *Action) Check(src, id, table, newName string, canHandle func(ctx *gin.Context, table, field, operation string) (bool, string), serviceExists func(serviceName string) bool,
 	signature func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error)) (bool, []string) {
 	lex := lexer.New(src)
 	p := parser.New(lex)

@@ -429,8 +429,8 @@ type Environment struct {
 	limits        *map[string]Limits
 	db            *sql.DB
 	ctx           *gin.Context
-	hasFilter     func(table string) bool
-	getFilter     func(table, newName string) (ast.Expression, bool)
+	hasFilter     func(ctx *gin.Context, table string) bool
+	getFilter     func(ctx *gin.Context, table, newName string) (ast.Expression, bool)
 	dbname        string
 	params        *map[string]Object
 	disableUpdate bool
@@ -445,8 +445,8 @@ func (env *Environment) Context() context.Context {
 func (env *Environment) DBName() string {
 	return env.dbname
 }
-func NewEnvironment(ctx *gin.Context, db *sql.DB, hf func(table string) bool,
-	gf func(table, newName string) (ast.Expression, bool), dbname string, params map[string]Object,
+func NewEnvironment(ctx *gin.Context, db *sql.DB, hf func(ctx *gin.Context, table string) bool,
+	gf func(ctx *gin.Context, table, newName string) (ast.Expression, bool), dbname string, params map[string]Object,
 	disableUpdate, disabledDDL bool, sign func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error),
 	external func(ctx *gin.Context, srv, name string, args map[string]Object) (Object, bool)) *Environment {
 	s := make(map[string]Object)
@@ -476,13 +476,13 @@ func (env *Environment) Filter(table, newName string) (ast.Expression, bool) {
 	if env.getFilter == nil {
 		return nil, false
 	}
-	return env.getFilter(table, newName)
+	return env.getFilter(env.ctx, table, newName)
 }
 func (env *Environment) IsFiltered(table string) bool {
 	if env.hasFilter == nil {
 		return false
 	}
-	return env.hasFilter(table)
+	return env.hasFilter(env.ctx, table)
 }
 func (env *Environment) Exec(strSQL string, args ...any) (sql.Result, error) {
 	if env.db != nil && strSQL != "" {

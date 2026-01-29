@@ -210,3 +210,6 @@ func (action *Action) Signature(src string) ([]*ast.StructField, *ast.TypeAnnota
 	}
 	return args, retType, nil
 }
+func (action *Action) GetDefaultSQLValueAddress(s string) any {
+	return nsina.GetDefaultSQLValueAddress(s)
+}

@@ -1679,6 +1679,9 @@ func getDefaultSQLValueAddress(s string) any {
 		return object.NULL
 	}
 }
+func GetDefaultSQLValueAddress(s string) any {
+	return getDefaultSQLValueAddress(s)
+}
 func getValueFromRealType(typ string, val any) object.Object {
 	if val == nil {
 		return object.NULL

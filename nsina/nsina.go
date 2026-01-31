@@ -2332,6 +2332,21 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 			return val
 		}
 		return &object.String{Value: val.Inspect()}
+	case "emit":
+		if len(node.Arguments) != 1 {
+			return newError("emit requires only two arguments")
+		}
+		sub := Eval(node.Array, env)
+		if isError(sub) {
+			return sub
+		}
+
+		data := Eval(node.Arguments[0], env)
+		if isError(data) {
+			return data
+		}
+		b := env.Emit(sub.(*object.String).Value, data)
+		return &object.Boolean{Value: b}
 	}
 	array := Eval(node.Array, env)
 	if isError(array) {
@@ -2349,7 +2364,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 	}
 
 	arr := array.(*object.Array)
-
+	// arr.Size=int64(len(arr.Elements))
 	switch strings.ToLower(node.Function.Value) {
 	case "length":
 		return &object.Integer{Value: int64(len(arr.Elements))}
@@ -2364,7 +2379,6 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 			return element
 		}
 		return arrayAppend(arr, element)
-
 	case "prepend":
 		if len(node.Arguments) != 1 {
 			return newError("La fonction prepend attend exactement 1 argument")

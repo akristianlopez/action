@@ -201,6 +201,49 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.CurrentScope = oldScope
 	sa.registerSymbol("length", FunctionSymbol, &TypeInfo{Name: "integer"}, &ast.Identifier{Value: "val"}, 5)
 
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("arr", ParameterSymbol, &TypeInfo{Name: "array", IsArray: true, ElementType: &TypeInfo{Name: "any"}}, &ast.Identifier{Value: "arr"}, -1, 0)
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 1)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("prepend", FunctionSymbol, &TypeInfo{Name: "array", IsArray: true, ElementType: &TypeInfo{Name: "any"}}, &ast.Identifier{Value: "prepend"}, 6)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("arr", ParameterSymbol, &TypeInfo{Name: "array", IsArray: true, ElementType: &TypeInfo{Name: "any"}}, &ast.Identifier{Value: "arr"}, -1, 0)
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "integer"}, &ast.Identifier{Value: "element"}, -1, 1)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("remove", FunctionSymbol, &TypeInfo{Name: "array", IsArray: true, ElementType: &TypeInfo{Name: "any"}}, &ast.Identifier{Value: "remove"}, 7)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("arr", ParameterSymbol, &TypeInfo{Name: "array", IsArray: true, ElementType: &TypeInfo{Name: "any"}}, &ast.Identifier{Value: "arr"}, -1, 0)
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 1)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("contains", FunctionSymbol, &TypeInfo{Name: "array", IsArray: true, ElementType: &TypeInfo{Name: "any"}}, &ast.Identifier{Value: "contains"}, 8)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("subject", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "subject"}, -1, 0)
+	sa.registerSymbol("data", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "data"}, -1, 1)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("emit", FunctionSymbol, &TypeInfo{Name: "boolean"}, &ast.Identifier{Value: "emit"}, 9)
 }
 
 func (sa *SemanticAnalyzer) registerBuiltinTypes() {

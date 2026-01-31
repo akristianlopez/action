@@ -437,6 +437,7 @@ type Environment struct {
 	disabledDDL   bool
 	external      func(ctx *gin.Context, srv, name string, args map[string]Object) (Object, bool)
 	signature     func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error)
+	emit          func(ctx *gin.Context, subject string, message any) bool
 }
 
 func (env *Environment) Context() context.Context {
@@ -448,11 +449,12 @@ func (env *Environment) DBName() string {
 func NewEnvironment(ctx *gin.Context, db *sql.DB, hf func(ctx *gin.Context, table string) bool,
 	gf func(ctx *gin.Context, table, newName string) (ast.Expression, bool), dbname string, params map[string]Object,
 	disableUpdate, disabledDDL bool, sign func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error),
-	external func(ctx *gin.Context, srv, name string, args map[string]Object) (Object, bool)) *Environment {
+	external func(ctx *gin.Context, srv, name string, args map[string]Object) (Object, bool),
+	emit func(ctx *gin.Context, subject string, message any) bool) *Environment {
 	s := make(map[string]Object)
 
 	return &Environment{store: s, outer: nil, limits: nil, db: db, ctx: ctx,
-		hasFilter: hf, getFilter: gf, dbname: dbname, params: &params,
+		hasFilter: hf, getFilter: gf, dbname: dbname, params: &params, emit: emit,
 		disableUpdate: disableUpdate, disabledDDL: disabledDDL, external: external, signature: sign}
 }
 func (env *Environment) IsParams(name string) bool {
@@ -471,6 +473,12 @@ func (env *Environment) Params(name string) Object {
 		return NULL
 	}
 	return val
+}
+func (env *Environment) Emit(event string, val Object) bool {
+	if env.emit == nil {
+		return false
+	}
+	return env.emit(env.ctx, event, val)
 }
 func (env *Environment) Filter(table, newName string) (ast.Expression, bool) {
 	if env.getFilter == nil {
@@ -526,7 +534,7 @@ func (env *Environment) Query(strSQL string, args ...any) (*sql.Rows, error) {
 
 func NewEnclosedEnvironment(outer *Environment) *Environment {
 	env := NewEnvironment(outer.ctx, outer.db, outer.hasFilter, outer.getFilter, outer.dbname, nil,
-		outer.disableUpdate, outer.disabledDDL, outer.signature, outer.external)
+		outer.disableUpdate, outer.disabledDDL, outer.signature, outer.external, outer.emit)
 	env.outer = outer
 	env.limits = nil
 	return env

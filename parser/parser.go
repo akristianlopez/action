@@ -1483,7 +1483,7 @@ func (p *Parser) parseSQLDataType() (*ast.SQLDataType, *ParserError) {
 
 	// Longueur/Précision optionnelle
 	if p.peekTokenIs(token.LPAREN) {
-		if p.curTokenIs(token.INTEGER, token.FLOAT) {
+		if p.curTokenIs(token.FLOAT) {
 			return nil, Create("Constraint is not allowed here", p.curToken.Line, p.curToken.Column)
 		}
 		p.nextToken() // (

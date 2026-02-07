@@ -551,6 +551,19 @@ type SQLDataType struct {
 
 func (sd *SQLDataType) String() string {
 	out := sd.Name
+	switch strings.ToLower(sd.Name) {
+	case "integer":
+		switch sd.Precision.Value {
+		case 1, 2, 3, 4:
+			out = "smallint"
+		case 5, 6, 7, 8, 9, 10:
+			out = "integer"
+		case 11, 12, 13, 14, 15, 16, 17, 18, 19:
+			out = "bigint"
+		}
+	case "float":
+		out = "double"
+	}
 	if sd.Length != nil {
 		out += "(" + sd.Length.String() + ")"
 	} else if sd.Precision != nil && sd.Scale != nil {

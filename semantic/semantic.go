@@ -682,7 +682,7 @@ func (sa *SemanticAnalyzer) visitSQLColumnConstraints(names []string, v *ast.SQL
 		if t == nil {
 			if ok, _ := sa.canHandle(sa.ctx, v.References.TableName.Value, "", ""); ok {
 				// We are in the creation mode
-				if sym := sa.lookupSymbol(v.References.TableName.Value); sym != nil {
+				if sym := sa.lookupSymbol(v.References.TableName.Value); sym != nil && sym.Type == DbObjectSymbol {
 					t = sym.DataType
 				}
 			}
@@ -715,16 +715,16 @@ func toTypeInfo(d *ast.SQLDataType) *TypeInfo {
 		return nil
 	}
 	n := d.Name
-	switch lower(d.Name) {
-	case "varchar", "text":
-		n = "string"
-	case "integer, number":
-		n = "integer"
-	case "decimal", "numeric":
-		n = "float"
-	default:
-		n = "any"
-	}
+	// switch lower(d.Name) {
+	// case "string","varchar", "text":
+	// 	n = "string"
+	// case "integer":
+	// 	n = "integer"
+	// case "decimal", "numeric":
+	// 	n = "float"
+	// default:
+	// 	n = "any"
+	// }
 	structType := &TypeInfo{
 		Name:      n,
 		IsArray:   false,
@@ -742,7 +742,8 @@ func (sa *SemanticAnalyzer) makeSQLCreateAsStructure(s *ast.SQLCreateObjectState
 	for _, sf := range s.Columns {
 		structType.Fields[lower(sf.Name.Value)] = toTypeInfo(sf.DataType)
 	}
-	sa.registerSymbol(s.ObjectName.Value, StructSymbol, structType, s)
+	// sa.registerSymbol(s.ObjectName.Value, StructSymbol, structType, s)
+	sa.registerSymbol(s.ObjectName.Value, DbObjectSymbol, structType, s)
 }
 
 func (sa *SemanticAnalyzer) visitSQLCreateObjectStatement(s *ast.SQLCreateObjectStatement) {

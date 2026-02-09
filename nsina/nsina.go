@@ -1266,7 +1266,7 @@ func evalSQLCreateObject(stmt *ast.SQLCreateObjectStatement, env *object.Environ
 	for _, col := range stmt.Columns {
 		out := ""
 		for _, constraint := range col.Constraints {
-			out += ", " + constraint.String()
+			out += " " + constraint.String()
 		}
 		switch strings.ToLower(env.DBName()) {
 		case "postgres":

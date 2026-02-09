@@ -112,12 +112,12 @@ func NewSemanticAnalyzer(ctx *gin.Context, db *sql.DB, ch func(ctx *gin.Context,
 	}
 
 	analyzer := &SemanticAnalyzer{
-		CurrentScope:  globalScope,
-		GlobalScope:   globalScope,
-		Errors:        []string{},
-		Warnings:      []string{},
-		TypeTable:     make(map[string]*TypeInfo),
-		TypeSql:       make(map[string]*TypeInfo),
+		CurrentScope: globalScope,
+		GlobalScope:  globalScope,
+		Errors:       []string{},
+		Warnings:     []string{},
+		TypeTable:    make(map[string]*TypeInfo),
+		// TypeSql:       make(map[string]*TypeInfo),
 		inType:        1,
 		db:            db,
 		ctx:           ctx,
@@ -258,25 +258,27 @@ func (sa *SemanticAnalyzer) registerBuiltinTypes() {
 	sa.TypeTable["duration"] = &TypeInfo{Name: "duration"}
 	sa.TypeTable["datetime"] = &TypeInfo{Name: "datetime"}
 
-	sa.TypeSql["integer"] = &TypeInfo{Name: "number"}
-	sa.TypeSql["smallint"] = &TypeInfo{Name: "smallint"}
-	sa.TypeSql["number"] = &TypeInfo{Name: "number"}
-	sa.TypeSql["varchar"] = &TypeInfo{Name: "varchar"}
-	sa.TypeSql["char"] = &TypeInfo{Name: "char"}
-	sa.TypeSql["text"] = &TypeInfo{Name: "text"}
-	sa.TypeSql["json"] = &TypeInfo{Name: "json"}
+	// penser a supprimer ces types pour n'utiliser que les types du haut
+	// sa.TypeSql["integer"] = &TypeInfo{Name: "integer"}
+	// sa.TypeSql["string"] = &TypeInfo{Name: "string"}
+	// sa.TypeSql["smallint"] = &TypeInfo{Name: "smallint"}
+	// sa.TypeSql["number"] = &TypeInfo{Name: "number"}
+	// sa.TypeSql["varchar"] = &TypeInfo{Name: "varchar"}
+	// sa.TypeSql["char"] = &TypeInfo{Name: "char"}
+	// sa.TypeSql["text"] = &TypeInfo{Name: "text"}
+	// sa.TypeSql["json"] = &TypeInfo{Name: "json"}
 
-	sa.TypeSql["numeric"] = &TypeInfo{Name: "numeric"}
-	sa.TypeSql["decimal"] = &TypeInfo{Name: "decimal"}
-	sa.TypeSql["date"] = &TypeInfo{Name: "date"}
-	sa.TypeSql["time"] = &TypeInfo{Name: "time"}
-	sa.TypeSql["datetime"] = &TypeInfo{Name: "datetime"}
-	sa.TypeSql["timestamp"] = &TypeInfo{Name: "timestamp"}
-	sa.TypeSql["float"] = &TypeInfo{Name: "float"}
-	sa.TypeSql["real"] = &TypeInfo{Name: "real"}
-	sa.TypeSql["any"] = &TypeInfo{Name: "any"}
-	sa.TypeSql["boolean"] = &TypeInfo{Name: "boolean"}
-	sa.TypeSql["null"] = &TypeInfo{Name: "null"}
+	// sa.TypeSql["numeric"] = &TypeInfo{Name: "numeric"}
+	// sa.TypeSql["decimal"] = &TypeInfo{Name: "decimal"}
+	// sa.TypeSql["date"] = &TypeInfo{Name: "date"}
+	// sa.TypeSql["time"] = &TypeInfo{Name: "time"}
+	// sa.TypeSql["datetime"] = &TypeInfo{Name: "datetime"}
+	// sa.TypeSql["timestamp"] = &TypeInfo{Name: "timestamp"}
+	// sa.TypeSql["float"] = &TypeInfo{Name: "float"}
+	// sa.TypeSql["real"] = &TypeInfo{Name: "real"}
+	// sa.TypeSql["any"] = &TypeInfo{Name: "any"}
+	// sa.TypeSql["boolean"] = &TypeInfo{Name: "boolean"}
+	// sa.TypeSql["null"] = &TypeInfo{Name: "null"}
 }
 
 func (sa *SemanticAnalyzer) Analyze(program *ast.Action) []string {
@@ -454,7 +456,7 @@ func (sa *SemanticAnalyzer) visitSQLAlterObjectStatement(s *ast.SQLAlterObjectSt
 					continue
 				}
 				t := sa.visitExpression(action.Constraint.Check)
-				if _, exists := sa.TypeSql[strings.ToLower(t.Name)]; !exists {
+				if _, exists := sa.TypeTable[strings.ToLower(t.Name)]; !exists {
 					sa.addError("'%s' invalid expression. line:%d, column:%d", action.Constraint.Check.String(),
 						action.Constraint.Check.Line(), action.Constraint.Check.Column())
 				}
@@ -537,7 +539,7 @@ func (sa *SemanticAnalyzer) visitSQLUpdateStatement(s *ast.SQLUpdateStatement) {
 				s.Line(), s.Column())
 		}
 		info := sa.visitExpression(v.Value)
-		if _, exists := sa.TypeSql[lower(info.Name)]; !exists {
+		if _, exists := sa.TypeTable[lower(info.Name)]; !exists {
 			sa.addError("This column '%s[%s]' is not defined. Maybe, it's a field of %s. line:%d, column:%d",
 				v.Column, info.Name, s.ObjectName.Value, s.Line(), s.Column())
 		}
@@ -582,7 +584,7 @@ func (sa *SemanticAnalyzer) visitSQLInsertStatement(s *ast.SQLInsertStatement) {
 			}
 			for _, e := range v.Values {
 				t := sa.visitExpression(e)
-				if _, exists := sa.TypeSql[lower(t.Name)]; !exists {
+				if _, exists := sa.TypeTable[lower(t.Name)]; !exists {
 					if lower(t.Name) == "string" {
 						continue
 					}
@@ -616,7 +618,7 @@ func (sa *SemanticAnalyzer) visitSQLTypeConstraint(v *ast.SQLDataType) {
 	// 		v.Name.Value, v.Token.Line, v.Token.Column)
 	// 	return
 	// }
-	if _, exists := sa.TypeSql[strings.ToLower(v.Name)]; !exists {
+	if _, exists := sa.TypeTable[strings.ToLower(v.Name)]; !exists {
 		sa.addError("'%s' invalid expression. line:%d, column:%d", v.Name,
 			v.Token.Line, v.Token.Column)
 		return
@@ -702,7 +704,7 @@ func (sa *SemanticAnalyzer) visitSQLColumnConstraints(names []string, v *ast.SQL
 	}
 	if v.Check != nil {
 		t := sa.visitExpression(v.Check)
-		if _, exists := sa.TypeSql[strings.ToLower(t.Name)]; !exists {
+		if _, exists := sa.TypeTable[strings.ToLower(t.Name)]; !exists {
 			sa.addError("'%s' invalid expression. line:%d, column:%d",
 				v.Check.String(), v.Check.Line(), v.Check.Column())
 		}

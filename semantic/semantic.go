@@ -677,11 +677,19 @@ func (sa *SemanticAnalyzer) visitSQLColumnConstraints(names []string, v *ast.SQL
 			sa.addError("Too few columns. line:%d, column:%d", v.References.Token.Line, v.References.Token.Column)
 		}
 		t := sa.resolveTypeFromTableName(v.References.TableName.Value)
-		// t := sa.lookupSymbol(v.References.TableName.Value)
 		if t == nil {
-			sa.addError("'%s' Invalid reference name. line:%d, column:%d", v.References.TableName.Value, v.References.Token.Line, v.References.Token.Column)
-			return
+			if ok, _ := sa.canHandle(sa.ctx, v.References.TableName.Value, "", ""); ok {
+				// We are in the creation mode
+				if sym := sa.lookupSymbol(v.References.TableName.Value); sym != nil {
+					t = sym.DataType
+				}
+			}
+			if t == nil {
+				sa.addError("'%s' Invalid reference name. line:%d, column:%d", v.References.TableName.Value, v.References.Token.Line, v.References.Token.Column)
+				return
+			}
 		}
+
 		if t.Fields == nil {
 			sa.addError("'%s' no fields detected. line:%d, column:%d", v.References.TableName.Value, v.References.Token.Line, v.References.Token.Column)
 			return

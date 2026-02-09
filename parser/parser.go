@@ -1451,14 +1451,31 @@ func (p *Parser) parseSQLCreateObject() (*ast.SQLCreateObjectStatement, *ParserE
 	}
 	return stmt, nil
 }
+func (p *Parser) IsDataBaseValidType(val string) bool {
+	switch strings.ToLower(val) {
+	case "string", "text", "char": // chaines de characteres
+		return true
+	case "integer": //nombre
+		return true
+	case "float", "numeric", "decimal": // decimaux et reels
+		return true // check at what the numeric type deserve
+	case "date", "time", "datetime", "duration": // date
+		return true
+	case "boolean": // boolean
+		return true
+	case "json": // structure
+		return true
+	}
 
+	return false
+}
 func (p *Parser) parseSQLColumnDefinition() (*ast.SQLColumnDefinition, *ParserError) {
 	col := &ast.SQLColumnDefinition{Token: p.curToken}
 	col.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 	// Type de données
-	if !p.expectPeekEx(token.IDENT, token.VARCHAR, token.CHAR, token.NUMERIC, token.DATE, token.BOOLEAN,
-		token.INTEGER, token.DECIMAL, token.TIMESTAMP, token.DATETIME, token.TEXT, token.JSON) {
+	if !p.expectPeekEx(token.IDENT, token.DATE, token.DATETIME, token.INTEGER, token.FLOAT,
+		token.DURATION, token.STRING, token.BOOLEAN, token.TIME) {
 		return nil, nil
 	}
 	var pi *ParserError
@@ -1483,9 +1500,9 @@ func (p *Parser) parseSQLDataType() (*ast.SQLDataType, *ParserError) {
 
 	// Longueur/Précision optionnelle
 	if p.peekTokenIs(token.LPAREN) {
-		if p.curTokenIs(token.FLOAT) {
-			return nil, Create("Constraint is not allowed here", p.curToken.Line, p.curToken.Column)
-		}
+		// if p.curTokenIs(token.FLOAT) {
+		// 	return nil, Create("Constraint is not allowed here", p.curToken.Line, p.curToken.Column)
+		// }
 		p.nextToken() // (
 		p.nextToken()
 

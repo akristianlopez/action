@@ -137,15 +137,15 @@ const (
 	ASC      = "ASC"
 	DESC     = "DESC"
 
-	// Types SQL
-	VARCHAR   = "VARCHAR"
-	CHAR      = "CHAR"
-	NUMERIC   = "NUMERIC"
-	DECIMAL   = "DECIMAL"
-	TIMESTAMP = "TIMESTAMP"
-	DATETIME  = "DATETIME"
-	TEXT      = "TEXT"
-	JSON      = "JSON"
+	// // Types SQL
+	// VARCHAR   = "VARCHAR"
+	// CHAR      = "CHAR"
+	// NUMERIC   = "NUMERIC"
+	// DECIMAL   = "DECIMAL"
+	// TIMESTAMP = "TIMESTAMP"
+	DATETIME = "DATETIME"
+	// TEXT      = "TEXT"
+	// JSON = "JSON"
 
 	// SQL récursif
 	WITH        = "WITH"
@@ -269,15 +269,15 @@ var keywords = map[string]TokenType{
 	"siblings": SIBLINGS,
 	"cascade":  CASCADE,
 
-	// Types SQL
-	"varchar":   VARCHAR,
-	"char":      CHAR,
-	"numeric":   NUMERIC,
-	"decimal":   DECIMAL,
-	"timestamp": TIMESTAMP,
-	"datetime":  DATETIME,
-	"text":      TEXT,
-	"json":      JSON,
+	// // Types SQL
+	// "varchar":   VARCHAR,
+	// "char":      CHAR,
+	// "numeric":   NUMERIC,
+	// "decimal":   DECIMAL,
+	// "timestamp": TIMESTAMP,
+	"datetime": DATETIME,
+	// "text":      TEXT,
+	// "json": JSON,
 
 	// SQL récursif et analytique
 	"with":        WITH,

@@ -214,11 +214,11 @@ func evalAction(program *ast.Action, env *object.Environment) object.Object {
 		default:
 			result = Eval(statement, env)
 
-			switch result := result.(type) {
+			switch res := result.(type) {
 			case *object.ReturnValue:
-				return result.Value
+				return res.Value
 			case *object.Error:
-				return result
+				return res
 			}
 		}
 
@@ -1351,11 +1351,17 @@ func evalSQLCreateObject(stmt *ast.SQLCreateObjectStatement, env *object.Environ
 			return object.NULL
 		}
 	}
+	str := ""
+	if stmt.IfNotExists {
+		str = "IF NOT EXISTS"
+	}
+
 	// strSQL := stmt.String()
-	strSQL := fmt.Sprintf("CREATE TABLE %s (%s)", stmt.ObjectName.Value, strings.Join(fields, ", "))
+	strSQL := fmt.Sprintf("CREATE TABLE %s %s(%s)", str, stmt.ObjectName.Value, strings.Join(fields, ", "))
 	res, err := env.Exec(strSQL)
 	if err == nil {
 		r, _ := res.RowsAffected()
+		env.Exec("truncate table " + stmt.ObjectName.Value)
 		return &object.SQLResult{
 			Message:      fmt.Sprintf("OBJECT %s créé avec succès", stmt.ObjectName.Value),
 			RowsAffected: r,
@@ -1436,14 +1442,25 @@ func evalSQLInsert(stmt *ast.SQLInsertStatement, env *object.Environment) object
 		strHeader := ""
 		strParams := ""
 
-		for _, set := range stmt.Columns {
-			if strHeader == "" {
-				strHeader = fmt.Sprintf("%s", set.Value)
-				strParams = fmt.Sprintf("%s", "?")
-				continue
+		for k, set := range stmt.Columns {
+			switch strings.ToLower(env.DBName()) {
+			case "postgres":
+				if strHeader == "" {
+					strHeader = fmt.Sprintf("%s", set.Value)
+					strParams = fmt.Sprintf("$%d", k+1)
+					continue
+				}
+				strHeader = fmt.Sprintf("%s, %s", strHeader, set.Value)
+				strParams = fmt.Sprintf("%s, $%d", strParams, k+1)
+			default:
+				if strHeader == "" {
+					strHeader = fmt.Sprintf("%s", set.Value)
+					strParams = fmt.Sprintf("%s", "?")
+					continue
+				}
+				strHeader = fmt.Sprintf("%s, %s", strHeader, set.Value)
+				strParams = fmt.Sprintf("%s, %s", strParams, "?")
 			}
-			strHeader = fmt.Sprintf("%s, %s", strHeader, set.Value)
-			strParams = fmt.Sprintf("%s, %s", strParams, "?")
 		}
 
 		for _, set := range stmt.Values {

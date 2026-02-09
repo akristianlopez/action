@@ -627,6 +627,8 @@ func (sa *SemanticAnalyzer) visitSQLTypeConstraint(v *ast.SQLDataType) {
 		switch strings.ToLower(v.Name) {
 		case "string":
 			break
+		case "integer", "float":
+			break
 		default:
 			sa.addError("'%d' invalid type '%s' constraint. line:%d, column:%d",
 				v.Length.Value, v.Name, v.Token.Line, v.Token.Column)
@@ -634,7 +636,7 @@ func (sa *SemanticAnalyzer) visitSQLTypeConstraint(v *ast.SQLDataType) {
 	}
 	if v.Precision != nil && v.Precision.Value > 0 {
 		switch strings.ToLower(v.Name) {
-		case "integer", "float":
+		case "float":
 			break
 		default:
 			sa.addError("'%d' invalid type '%s' constraint. line:%d, column:%d",

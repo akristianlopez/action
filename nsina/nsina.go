@@ -1264,13 +1264,12 @@ func evalSQLCreateObject(stmt *ast.SQLCreateObjectStatement, env *object.Environ
 	}
 	fields := make([]string, 0)
 	for _, col := range stmt.Columns {
-
 		out := ""
 		for _, constraint := range col.Constraints {
 			out += ", " + constraint.String()
 		}
 		switch strings.ToLower(env.DBName()) {
-		case "postgre":
+		case "postgres":
 			switch strings.ToLower(col.DataType.Name) {
 			case "integer":
 				switch col.DataType.Length.Value {

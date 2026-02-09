@@ -120,7 +120,6 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.FallthroughStatement:
 		return evalFallthroughStatement(node, env)
 	case *ast.SQLCreateObjectStatement:
-
 		return evalSQLCreateObject(node, env)
 	case *ast.SQLDropObjectStatement:
 		return evalSQLDropObject(node, env)
@@ -1263,7 +1262,98 @@ func evalSQLCreateObject(stmt *ast.SQLCreateObjectStatement, env *object.Environ
 	if !env.IsDDLAllowed() {
 		return object.NULL
 	}
-	strSQL := stmt.String()
+	fields := make([]string, 0)
+	for _, col := range stmt.Columns {
+
+		out := ""
+		for _, constraint := range col.Constraints {
+			out += ", " + constraint.String()
+		}
+		switch strings.ToLower(env.DBName()) {
+		case "postgre":
+			switch strings.ToLower(col.DataType.Name) {
+			case "integer":
+				switch col.DataType.Length.Value {
+				case 1, 2, 3, 4, 5: //smallint -32768 to 32767
+					fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "smallint", out))
+				case 6, 7, 8, 9, 10, 11: //integer -2147483648 to 2147483647
+					fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "integer", out))
+				default: //bigint -9223372036854775808 to 9223372036854775807
+					fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "bigint", out))
+				}
+			case "float":
+				switch {
+				case col.DataType.Length.Value > 0:
+					fields = append(fields, fmt.Sprintf("%s %s(%d) %s", col.Name.Value, "NUMERIC", col.DataType.Length.Value, out))
+				default:
+					if col.DataType.Precision != nil {
+						if col.DataType.Precision.Value > 0 && col.DataType.Scale == nil {
+							fields = append(fields, fmt.Sprintf("%s %s(%d) %s", col.Name.Value, "NUMERIC", col.DataType.Precision.Value, out))
+						}
+						if col.DataType.Precision.Value > 0 && col.DataType.Scale != nil {
+							fields = append(fields, fmt.Sprintf("%s %s(%d,%d) %s", col.Name.Value, "NUMERIC", col.DataType.Precision.Value, col.DataType.Scale.Value, out))
+						}
+					} else {
+						fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "FLOAT", out))
+					}
+				}
+			case "string":
+				switch {
+				case col.DataType.Length.Value < 65535: //smallint -32768 to 32767
+					fields = append(fields, fmt.Sprintf("%s %s(%d) %s", col.Name.Value, "VARCHAR", col.DataType.Length.Value, out))
+				default: //bigint -9223372036854775808 to 9223372036854775807
+					fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "TEXT", out))
+				}
+			default:
+				fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, col.DataType.Name, out))
+			}
+		case "mariadb", "mysql":
+			switch strings.ToLower(col.DataType.Name) {
+			case "integer":
+				switch col.DataType.Length.Value {
+				case 1, 2, 3: //tinyint -128 to 127
+					fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "tinyint", out))
+				case 4, 5: //smallint -32768 to 32767
+					fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "smallint", out))
+				case 6, 7: //mediumint -8388608 to 8388607
+					fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "mediumint", out))
+				case 8, 9, 10, 11: //integer -2147483648 to 2147483647
+					fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "integer", out))
+				default: //bigint -9223372036854775808 to 9223372036854775807
+					fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "bigint", out))
+				}
+			case "float":
+				switch {
+				case col.DataType.Length.Value > 0:
+					fields = append(fields, fmt.Sprintf("%s %s(%d) %s", col.Name.Value, "DECIMAL", col.DataType.Length.Value, out))
+				default:
+					if col.DataType.Precision != nil {
+						if col.DataType.Precision.Value > 0 && col.DataType.Scale == nil {
+							fields = append(fields, fmt.Sprintf("%s %s(%d) %s", col.Name.Value, "DECIMAL", col.DataType.Precision.Value, out))
+						}
+						if col.DataType.Precision.Value > 0 && col.DataType.Scale != nil {
+							fields = append(fields, fmt.Sprintf("%s %s(%d,%d) %s", col.Name.Value, "DECIMAL", col.DataType.Precision.Value, col.DataType.Scale.Value, out))
+						}
+					} else {
+						fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "DOUBLE", out))
+					}
+				}
+			case "string":
+				switch {
+				case col.DataType.Length.Value <= 65535: //VARCHAR
+					fields = append(fields, fmt.Sprintf("%s %s(%d) %s", col.Name.Value, "VARCHAR", col.DataType.Length.Value, out))
+				default: //MEDIUMTEXT
+					fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "MEDIUMTEXT", out))
+				}
+			default:
+				fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, col.DataType.Name, out))
+			}
+		default:
+			return object.NULL
+		}
+	}
+	// strSQL := stmt.String()
+	strSQL := fmt.Sprintf("CREATE TABLE %s (%s)", stmt.ObjectName.Value, strings.Join(fields, ", "))
 	res, err := env.Exec(strSQL)
 	if err == nil {
 		r, _ := res.RowsAffected()

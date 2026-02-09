@@ -1521,7 +1521,7 @@ func (p *Parser) parseSQLDataType() (*ast.SQLDataType, *ParserError) {
 				scale.Value = val
 				dt.Scale = scale
 			} else {
-				// VARCHAR/CHAR avec longueur
+				// VARCHAR/CHAR/INTEGER/FLOAT avec longueur
 				dt.Length = length
 			}
 		}

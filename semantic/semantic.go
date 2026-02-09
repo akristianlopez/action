@@ -699,7 +699,7 @@ func (sa *SemanticAnalyzer) visitSQLColumnConstraints(names []string, v *ast.SQL
 			return
 		}
 		for _, name := range v.References.Columns {
-			if _, ok := t.Fields[name.Value]; !ok {
+			if _, ok := t.Fields[strings.ToLower(name.Value)]; !ok {
 				sa.addError("'%s' Invalid reference name. line:%d, column:%d", v.References.TableName.Value, v.References.Token.Line, v.References.Token.Column)
 			}
 		}

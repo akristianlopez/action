@@ -1361,7 +1361,6 @@ func evalSQLCreateObject(stmt *ast.SQLCreateObjectStatement, env *object.Environ
 	res, err := env.Exec(strSQL)
 	if err == nil {
 		r, _ := res.RowsAffected()
-		env.Exec("truncate table " + stmt.ObjectName.Value)
 		return &object.SQLResult{
 			Message:      fmt.Sprintf("OBJECT %s créé avec succès", stmt.ObjectName.Value),
 			RowsAffected: r,

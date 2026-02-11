@@ -1283,13 +1283,22 @@ func evalSQLCreateObject(stmt *ast.SQLCreateObjectStatement, env *object.Environ
 			case "float":
 				switch {
 				case col.DataType.Length.Value > 0:
+					if col.DataType.Length.Value < 0 || col.DataType.Length.Value > 131072 {
+						return newError("Scale value error: expected value between 0 and 131072, got %v", col.DataType.Scale.Value)
+					}
 					fields = append(fields, fmt.Sprintf("%s %s(%d) %s", col.Name.Value, "NUMERIC", col.DataType.Length.Value, out))
 				default:
 					if col.DataType.Precision != nil {
 						if col.DataType.Precision.Value > 0 && col.DataType.Scale == nil {
+							if col.DataType.Precision.Value < 0 || col.DataType.Scale.Value > 131072 {
+								return newError("Scale value error: expected value between 0 and 131072, got %v", col.DataType.Scale.Value)
+							}
 							fields = append(fields, fmt.Sprintf("%s %s(%d) %s", col.Name.Value, "NUMERIC", col.DataType.Precision.Value, out))
 						}
 						if col.DataType.Precision.Value > 0 && col.DataType.Scale != nil {
+							if col.DataType.Scale.Value < -1000 || col.DataType.Scale.Value > 1000 {
+								return newError("Scale value error: expected value between -1000 and 1000, got %v", col.DataType.Scale.Value)
+							}
 							fields = append(fields, fmt.Sprintf("%s %s(%d,%d) %s", col.Name.Value, "NUMERIC", col.DataType.Precision.Value, col.DataType.Scale.Value, out))
 						}
 					} else {

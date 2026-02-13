@@ -158,6 +158,8 @@ func foldConstantsInStatement(stmt ast.Statement) ast.Statement {
 		return foldFunctionStatement(s)
 	case *ast.IfStatement:
 		return foldIfStatement(s)
+	case *ast.CatchStatement:
+		return foldCatchStatement(s)
 	case *ast.SwitchStatement:
 		return foldSwitchStatement(s)
 	default:
@@ -181,6 +183,13 @@ func foldIfStatement(stmt *ast.IfStatement) ast.Statement {
 		Condition: foldExpression(stmt.Condition),
 		Then:      foldBlockStatement(stmt.Then),
 		Else:      foldBlockStatement(stmt.Else),
+	}
+}
+
+func foldCatchStatement(stmt *ast.CatchStatement) ast.Statement {
+	return &ast.CatchStatement{
+		Token:      stmt.Token,
+		Statements: foldBlockStatement(stmt.Statements),
 	}
 }
 
@@ -448,6 +457,13 @@ func (dce *DeadCodeElimination) Apply(program *ast.Action) *ast.Action {
 			}
 			Warnings("Dead code eliminated: if statement at Line:%d, column:%d has empty body.",
 				s.Token.Line, s.Token.Column)
+		case *ast.CatchStatement:
+			if !isDeadCode(s, program) {
+				optimized.Statements = append(optimized.Statements, s)
+				continue
+			}
+			Warnings("Dead code eliminated: Catch statement at Line:%d, column:%d has empty body.",
+				s.Token.Line, s.Token.Column)
 		case *ast.WhileStatement:
 			if !isDeadCode(s, program) {
 				optimized.Statements = append(optimized.Statements, s)
@@ -606,6 +622,9 @@ func isDeadCode(stmt ast.Statement, actions *ast.Action) bool {
 			return true
 		}
 		return false
+	case *ast.CatchStatement:
+		// Si les deux branches sont mortes, le if est mort
+		return s.Statements == nil || isDeadCode(s.Statements, actions)
 	case *ast.WhileStatement:
 		// Si le corps de la boucle est vide ou mort, la boucle est morte
 		if s.Body == nil || len(s.Body.Statements) == 0 {
@@ -721,6 +740,8 @@ func isStructNameUsedAsType(node ast.Statement, name string) bool {
 		return false
 	case *ast.IfStatement:
 		return isStructNameUsedAsType(st.Then, name) || isStructNameUsedAsType(st.Else, name)
+	case *ast.CatchStatement:
+		return isStructNameUsedAsType(st.Statements, name)
 	case *ast.ForEachStatement:
 		return isStructNameUsedAsType(st.Body, name)
 	case *ast.ForStatement:
@@ -835,6 +856,10 @@ func isFunctionUsedInStatement(stmt ast.Statement, name string) bool {
 			return true
 		}
 		if s.Else != nil && isFunctionUsedInStatement(s.Else, name) {
+			return true
+		}
+	case *ast.CatchStatement:
+		if s.Statements != nil && isFunctionUsedInStatement(s.Statements, name) {
 			return true
 		}
 	case *ast.ForStatement:
@@ -1268,7 +1293,7 @@ func estimateStatementSize(stmt ast.Statement) int {
 		return 2
 	case *ast.ReturnStatement:
 		return 1
-	case *ast.IfStatement:
+	case *ast.IfStatement, *ast.CatchStatement:
 		return 4
 	case *ast.ForStatement, *ast.WhileStatement, *ast.ForEachStatement:
 		return 5
@@ -1642,6 +1667,17 @@ func inlineFunctionsInStatement(stmt ast.Statement, functions map[string]*ast.Fu
 				Condition: cond,
 				Then:      then,
 				Else:      elseBlk,
+			}
+		}
+		return s
+	case *ast.CatchStatement:
+		then := foldBlockStatement(s.Statements)
+		// inline inside then/else
+		then = inlineBlockStatements(then, functions)
+		if then != s.Statements {
+			return &ast.CatchStatement{
+				Token:      s.Token,
+				Statements: then,
 			}
 		}
 		return s

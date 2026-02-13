@@ -22,6 +22,7 @@ const (
 	IF       = "IF"
 	ELSE     = "ELSE"
 	RETURN   = "RETURN"
+	CATCH    = "CATCH"
 	// WHILE    = "WHILE"
 	// FOREACH  = "FOREACH"
 
@@ -197,6 +198,7 @@ var keywords = map[string]TokenType{
 	"if":       IF,
 	"else":     ELSE,
 	"return":   RETURN,
+	"catch":    CATCH,
 	"integer":  INTEGER,
 	"float":    FLOAT,
 	"string":   STRING,

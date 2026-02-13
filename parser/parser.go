@@ -336,6 +336,8 @@ func (p *Parser) parseStmStartSection() (ast.Statement, *ParserError) {
 	switch p.curToken.Type {
 	case token.IF:
 		return p.parseIfStatement()
+	case token.CATCH:
+		return p.parseCatchStatement()
 	case token.FOR:
 		return p.parseForStatement()
 	case token.RETURN:
@@ -751,6 +753,27 @@ func (p *Parser) parseIfStatement() (*ast.IfStatement, *ParserError) {
 		}
 		p.addError(pe)
 		stmt.Else = tp
+	}
+	return stmt, pe
+}
+func (p *Parser) parseCatchStatement() (*ast.CatchStatement, *ParserError) {
+	stmt := &ast.CatchStatement{Token: p.curToken}
+	var pe *ParserError
+
+	if !p.expectPeek(token.LBRACE) {
+		return nil, nil
+	}
+
+	fl := false
+	if !p.peekTokenIs(token.RBRACE) {
+		var tp *ast.BlockStatement
+		tp, pe = p.parseBlockStatement()
+		p.addError(pe)
+		stmt.Statements = tp
+		fl = true
+	}
+	if !fl && p.peekTokenIs(token.RBRACE) {
+		p.nextToken()
 	}
 	return stmt, pe
 }

@@ -15,6 +15,7 @@ import (
 )
 
 var struct_id int = 0
+var last_value object.Object
 
 func Eval(node ast.Node, env *object.Environment) object.Object {
 	if node == nil {
@@ -87,6 +88,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalStructLiteral(node, env)
 	case *ast.IfStatement:
 		return evalIfStatement(node, env)
+	case *ast.CatchStatement:
+		return evalCatchStatement(node, env)
 	case *ast.ForStatement:
 		return evalForStatement(node, env)
 	case *ast.ReturnStatement:
@@ -206,7 +209,8 @@ func evalTypeMember(node *ast.TypeMember, env *object.Environment) object.Object
 
 func evalAction(program *ast.Action, env *object.Environment) object.Object {
 	var result object.Object
-
+	last_value = object.NULL
+	env.Set("error", &object.String{Value: ""})
 	for _, statement := range program.Statements {
 		select {
 		case <-env.Context().Done():
@@ -1054,6 +1058,22 @@ func evalIfStatement(node *ast.IfStatement, env *object.Environment) object.Obje
 	return object.NULL
 }
 
+func evalCatchStatement(node *ast.CatchStatement, env *object.Environment) object.Object {
+	if node.Statements == nil {
+		return object.NULL
+	}
+	scope := object.NewEnclosedEnvironment(env)
+	for _, stm := range node.Statements.Statements {
+		last_value = Eval(stm, scope)
+		if isError(last_value) {
+			scope.Set("error", &object.String{Value: last_value.Inspect()})
+		}
+	}
+	result := last_value
+	last_value = object.NULL
+	return result
+}
+
 func evalPrefixExpression(operator string, right object.Object) object.Object {
 	switch operator {
 	case "!":
@@ -1262,6 +1282,7 @@ func evalSQLCreateObject(stmt *ast.SQLCreateObjectStatement, env *object.Environ
 	if !env.IsDDLAllowed() {
 		return object.NULL
 	}
+
 	fields := make([]string, 0)
 	for _, col := range stmt.Columns {
 		out := ""
@@ -1312,6 +1333,8 @@ func evalSQLCreateObject(stmt *ast.SQLCreateObjectStatement, env *object.Environ
 				default: //bigint -9223372036854775808 to 9223372036854775807
 					fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "TEXT", out))
 				}
+			case "duration":
+				fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "interval", out))
 			default:
 				fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, col.DataType.Name, out))
 			}
@@ -1353,6 +1376,8 @@ func evalSQLCreateObject(stmt *ast.SQLCreateObjectStatement, env *object.Environ
 				default: //MEDIUMTEXT
 					fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "MEDIUMTEXT", out))
 				}
+			case "duration":
+				fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "interval", out))
 			default:
 				fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, col.DataType.Name, out))
 			}
@@ -1414,30 +1439,147 @@ func evalSQLDropObject(stmt *ast.SQLDropObjectStatement, env *object.Environment
 	}
 }
 
+func stringCol(col *ast.SQLColumnDefinition, name, dbname string) (string, object.Object) {
+	fields := make([]string, 0)
+	out := ""
+	for _, constraint := range col.Constraints {
+		out += " " + constraint.String()
+	}
+	switch strings.ToLower(dbname) {
+	case "postgres":
+		switch strings.ToLower(col.DataType.Name) {
+		case "integer":
+			switch col.DataType.Length.Value {
+			case 1, 2, 3, 4, 5: //smallint -32768 to 32767
+				fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "smallint", out))
+			case 6, 7, 8, 9, 10, 11: //integer -2147483648 to 2147483647
+				fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "integer", out))
+			default: //bigint -9223372036854775808 to 9223372036854775807
+				fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "bigint", out))
+			}
+		case "float":
+			switch {
+			case col.DataType.Length.Value > 0:
+				if col.DataType.Length.Value < 0 || col.DataType.Length.Value > 131072 {
+					return "", newError("Scale value error: expected value between 0 and 131072, got %v", col.DataType.Scale.Value)
+				}
+				fields = append(fields, fmt.Sprintf("%s %s(%d) %s", col.Name.Value, "NUMERIC", col.DataType.Length.Value, out))
+			default:
+				if col.DataType.Precision != nil {
+					if col.DataType.Precision.Value > 0 && col.DataType.Scale == nil {
+						if col.DataType.Precision.Value < 0 || col.DataType.Scale.Value > 131072 {
+							return "", newError("Scale value error: expected value between 0 and 131072, got %v", col.DataType.Scale.Value)
+						}
+						fields = append(fields, fmt.Sprintf("%s %s(%d) %s", col.Name.Value, "NUMERIC", col.DataType.Precision.Value, out))
+					}
+					if col.DataType.Precision.Value > 0 && col.DataType.Scale != nil {
+						if col.DataType.Scale.Value < -1000 || col.DataType.Scale.Value > 1000 {
+							return "", newError("Scale value error: expected value between -1000 and 1000, got %v", col.DataType.Scale.Value)
+						}
+						fields = append(fields, fmt.Sprintf("%s %s(%d,%d) %s", col.Name.Value, "NUMERIC", col.DataType.Precision.Value, col.DataType.Scale.Value, out))
+					}
+				} else {
+					fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "FLOAT", out))
+				}
+			}
+		case "string":
+			switch {
+			case col.DataType.Length.Value < 65535: //smallint -32768 to 32767
+				fields = append(fields, fmt.Sprintf("%s %s(%d) %s", col.Name.Value, "VARCHAR", col.DataType.Length.Value, out))
+			default: //bigint -9223372036854775808 to 9223372036854775807
+				fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "TEXT", out))
+			}
+		case "duration":
+			fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "interval", out))
+		default:
+			fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, col.DataType.Name, out))
+		}
+	case "mariadb", "mysql":
+		switch strings.ToLower(col.DataType.Name) {
+		case "integer":
+			switch col.DataType.Length.Value {
+			case 1, 2, 3: //tinyint -128 to 127
+				fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "tinyint", out))
+			case 4, 5: //smallint -32768 to 32767
+				fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "smallint", out))
+			case 6, 7: //mediumint -8388608 to 8388607
+				fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "mediumint", out))
+			case 8, 9, 10, 11: //integer -2147483648 to 2147483647
+				fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "integer", out))
+			default: //bigint -9223372036854775808 to 9223372036854775807
+				fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "bigint", out))
+			}
+		case "float":
+			switch {
+			case col.DataType.Length.Value > 0:
+				fields = append(fields, fmt.Sprintf("%s %s(%d) %s", col.Name.Value, "DECIMAL", col.DataType.Length.Value, out))
+			default:
+				if col.DataType.Precision != nil {
+					if col.DataType.Precision.Value > 0 && col.DataType.Scale == nil {
+						fields = append(fields, fmt.Sprintf("%s %s(%d) %s", col.Name.Value, "DECIMAL", col.DataType.Precision.Value, out))
+					}
+					if col.DataType.Precision.Value > 0 && col.DataType.Scale != nil {
+						fields = append(fields, fmt.Sprintf("%s %s(%d,%d) %s", col.Name.Value, "DECIMAL", col.DataType.Precision.Value, col.DataType.Scale.Value, out))
+					}
+				} else {
+					fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "DOUBLE", out))
+				}
+			}
+		case "string":
+			switch {
+			case col.DataType.Length.Value <= 65535: //VARCHAR
+				fields = append(fields, fmt.Sprintf("%s %s(%d) %s", col.Name.Value, "VARCHAR", col.DataType.Length.Value, out))
+			default: //MEDIUMTEXT
+				fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "MEDIUMTEXT", out))
+			}
+		case "duration":
+			fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "interval", out))
+		default:
+			fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, col.DataType.Name, out))
+		}
+	default:
+		return "", newError("%s: Not supported", dbname)
+	}
+	return fmt.Sprintf("ALTER TABLE %s(%s)", name, strings.Join(fields, ", ")), object.NULL
+}
+
 func evalSQLAlterObject(stmt *ast.SQLAlterObjectStatement, env *object.Environment) object.Object {
 	if !env.IsDDLAllowed() {
 		return object.NULL
 	}
-	if env.DBName() == "sqllite" {
-		return object.NULL
-	}
-	strAlter := stmt.String()
-	res, err := env.Exec(strAlter)
-	if err != nil {
-		return newError("Nsina: %s", err.Error())
-	}
-	/*
-	   ALTER TABLE child ADD CONSTRAINT fk_child_parent
-	     FOREIGN KEY (parent_id)
-	     REFERENCES parent(id);
-	*/
-	i, err := res.RowsAffected()
-	if err != nil {
-		return newError("Nsina: %s", err.Error())
+	rows := int64(0)
+	for _, ac := range stmt.Actions {
+		if ac.Column == nil {
+			switch strings.ToLower(env.DBName()) {
+			case "postgres", "mysql", "mariadb":
+				res, err := env.Exec(fmt.Sprintf("Alter table %s %s", stmt.ObjectName.Value, ac.String()))
+				if err != nil {
+					return newError("Nsina: %s", err.Error())
+				}
+				i, err := res.RowsAffected()
+				if err != nil {
+					return newError("Nsina: %s", err.Error())
+				}
+				rows += i
+			default:
+				return object.NULL
+			}
+			continue
+		}
+		res, err := env.Exec(stringCol(ac.Column, stmt.ObjectName.Value, env.DBName()))
+		// strSQL := stmt.String()
+		if err != nil {
+			return newError("Nsina: %s", err.Error())
+		}
+		i, err := res.RowsAffected()
+		if err != nil {
+			return newError("Nsina: %s", err.Error())
+		}
+		rows += i
 	}
 	return &object.SQLResult{
 		Message:      fmt.Sprintf("OBJECT %s updated", stmt.ObjectName.Value),
-		RowsAffected: i,
+		RowsAffected: rows,
 	}
 }
 
@@ -1771,7 +1913,7 @@ func getDefaultSQLValueAddress(s string) any {
 	tab := strings.Split(s, "(")
 	dataType := strings.ToLower(tab[0])
 	switch dataType {
-	case "integer", "int", "duration":
+	case "integer", "int", "duration", "interval":
 		v := int64(0)
 		return &v
 	case "float", "numeric", "decimal":
@@ -2439,6 +2581,8 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		return val.(*object.ReturnValue).Value
 	}
 	switch strings.ToLower(node.Function.Value) {
+	case "errorexists":
+		return &object.Boolean{Value: isError(last_value)}
 	case "tostring":
 		//TODO: A definir
 		val := Eval(node.Array, env)

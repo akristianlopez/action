@@ -138,6 +138,8 @@ func NewSemanticAnalyzer(ctx *gin.Context, db *sql.DB, ch func(ctx *gin.Context,
 func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	oldScope := sa.CurrentScope
 
+	sa.registerSymbol("error", VariableSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "error"}, -1, 0)
+
 	oldScope.Children = make([]*Scope, 0)
 	funScope := &Scope{
 		Parent:  oldScope,
@@ -244,6 +246,13 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.registerSymbol("data", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "data"}, -1, 1)
 	sa.CurrentScope = oldScope
 	sa.registerSymbol("emit", FunctionSymbol, &TypeInfo{Name: "boolean"}, &ast.Identifier{Value: "emit"}, 9)
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("errorexists", FunctionSymbol, &TypeInfo{Name: "boolean"}, &ast.Identifier{Value: "errorexists"}, 9)
 }
 
 func (sa *SemanticAnalyzer) registerBuiltinTypes() {
@@ -341,6 +350,8 @@ func (sa *SemanticAnalyzer) visitStatement(stmt ast.Statement, t *TypeInfo) {
 		sa.visitAssignmentStatement(s)
 	case *ast.IfStatement:
 		sa.visitIfStatement(s, t)
+	case *ast.CatchStatement:
+		sa.visitCatchStatement(s, t)
 	case *ast.WhileStatement:
 		sa.visitWhileStatement(s, t)
 	case *ast.ForEachStatement:
@@ -1488,6 +1499,26 @@ func (sa *SemanticAnalyzer) visitIfStatement(node *ast.IfStatement, t *TypeInfo)
 	if node.Else != nil {
 		sa.visitStatement(node.Else, t)
 	}
+	// Restaurer le scope
+	sa.CurrentScope = oldScope
+}
+
+func (sa *SemanticAnalyzer) visitCatchStatement(node *ast.CatchStatement, t *TypeInfo) {
+	// Créer un nouveau scope pour la boucle
+	loopScope := &Scope{
+		Parent:  sa.CurrentScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	sa.CurrentScope.Children = append(sa.CurrentScope.Children, loopScope)
+
+	oldScope := sa.CurrentScope
+	sa.CurrentScope = loopScope
+
+	// Analyser l'update
+	if node.Statements != nil {
+		sa.visitStatement(node.Statements, t)
+	}
+
 	// Restaurer le scope
 	sa.CurrentScope = oldScope
 }

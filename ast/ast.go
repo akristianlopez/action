@@ -674,7 +674,7 @@ type SQLAlterObjectStatement struct {
 func (sa *SQLAlterObjectStatement) statementNode()       {}
 func (sa *SQLAlterObjectStatement) TokenLiteral() string { return sa.Token.Literal }
 func (sa *SQLAlterObjectStatement) String() string {
-	out := "ALTER TABLE " + sa.ObjectName.String()
+	out := "ALTER OBJECT " + sa.ObjectName.String()
 	for i, action := range sa.Actions {
 		if i > 0 {
 			out += ", "
@@ -1613,3 +1613,18 @@ func (be *BetweenExpression) String() string {
 func (be *BetweenExpression) expressionNode() {}
 func (be *BetweenExpression) Line() int       { return be.Token.Line }
 func (be *BetweenExpression) Column() int     { return be.Token.Column }
+
+// ForStatement - If
+type CatchStatement struct {
+	Token      token.Token
+	Statements *BlockStatement
+}
+
+func (cs *CatchStatement) statementNode()       {}
+func (cs *CatchStatement) TokenLiteral() string { return cs.Token.Literal }
+func (cs *CatchStatement) String() string {
+	if cs.Statements == nil {
+		return "CATCH{\n}"
+	}
+	return fmt.Sprintf("CATCH{\n\t%s\n}", cs.Statements.String())
+}

@@ -2581,6 +2581,21 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		return val.(*object.ReturnValue).Value
 	}
 	switch strings.ToLower(node.Function.Value) {
+	case "coalesce":
+		if len(node.Arguments) != 1 {
+			return newError("coalesce requires only two arguments")
+		}
+		return &object.String{Value: node.String()}
+	case "sum", "min", "count", "max", "upper", "lower", "trim":
+		if len(node.Arguments) > 0 {
+			return newError("Nsina: %s Too much arguments", node.Function.String())
+		}
+		return &object.String{Value: node.String()}
+	case "substr":
+		if len(node.Arguments) != 2 {
+			return newError("Nsina: %s requires three arguments", node.Function.String())
+		}
+		return &object.String{Value: node.String()}
 	case "errorexists":
 		return &object.Boolean{Value: isError(last_value)}
 	case "tostring":

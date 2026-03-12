@@ -253,6 +253,100 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	oldScope.Children = append(oldScope.Children, funScope)
 	sa.CurrentScope = funScope
 	sa.registerSymbol("errorexists", FunctionSymbol, &TypeInfo{Name: "boolean"}, &ast.Identifier{Value: "errorexists"}, 9)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 0)
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 1)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("coalsce", FunctionSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "coalsce"}, 10)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 0)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("count", FunctionSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "count"}, 11)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 0)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("sum", FunctionSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "sum"}, 12)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 0)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("min", FunctionSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "min"}, 13)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 0)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("max", FunctionSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "max"}, 14)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("source", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "source"}, -1, 0)
+	sa.registerSymbol("pos", ParameterSymbol, &TypeInfo{Name: "integer"}, &ast.Identifier{Value: "pos"}, -1, 1)
+	sa.registerSymbol("count", ParameterSymbol, &TypeInfo{Name: "integer"}, &ast.Identifier{Value: "count"}, -1, 2)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("substr", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "substr"}, 15)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "element"}, -1, 0)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("upper", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "upper"}, 16)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "element"}, -1, 0)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("lower", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "lower"}, 17)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "element"}, -1, 0)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("trim", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "trim"}, 17)
+
 }
 
 func (sa *SemanticAnalyzer) registerBuiltinTypes() {

@@ -261,7 +261,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	oldScope.Children = append(oldScope.Children, funScope)
 	sa.CurrentScope = funScope
 	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 0)
-	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 1)
+	sa.registerSymbol("value", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 1)
 	sa.CurrentScope = oldScope
 	sa.registerSymbol("coalesce", FunctionSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "coalesce"}, 10)
 
@@ -346,7 +346,6 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "element"}, -1, 0)
 	sa.CurrentScope = oldScope
 	sa.registerSymbol("trim", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "trim"}, 17)
-
 }
 
 func (sa *SemanticAnalyzer) registerBuiltinTypes() {

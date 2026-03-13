@@ -263,7 +263,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 0)
 	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 1)
 	sa.CurrentScope = oldScope
-	sa.registerSymbol("coalsce", FunctionSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "coalsce"}, 10)
+	sa.registerSymbol("coalesce", FunctionSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "coalesce"}, 10)
 
 	funScope = &Scope{
 		Parent:  oldScope,

@@ -3,6 +3,7 @@ package nsina
 import (
 	"database/sql"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -138,11 +139,45 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalSQLTruncate(node, env)
 	case *ast.SQLCreateIndexStatement:
 		return evalSQLCreateIndex(node, env)
+	case *ast.LikeExpression:
+		return evalLikeExpression(node, env)
 	default:
 		return newError("Instruction non supportée: %T", node)
 	}
 
 	// return nil
+}
+
+func evalLikeExpression(node *ast.LikeExpression, env *object.Environment) object.Object {
+	// verifier si c'est un champ d'un objet bd si oui retourner une chaine de caractere
+	// evaluer le like
+	left := Eval(node.Left, env)
+	if left.Type() == object.DBFIELD_OBJ {
+		return &object.String{Value: node.String()}
+	}
+	right := Eval(node.Right, env)
+	res := Like(left.Inspect(), right.Inspect())
+	if node.Not {
+		return &object.Boolean{Value: !res}
+	}
+	return &object.Boolean{Value: res}
+}
+func Like(text, pattern string) bool {
+	// 1. Échapper les caractères spéciaux des regex (ex: . + ? [ ] { } ( ) | ^ $ \)
+	rePattern := regexp.QuoteMeta(pattern)
+
+	// 2. Remplacer les jokers SQL par leurs équivalents Regex
+	// % -> .* (n'importe quel nombre de caractères)
+	// _ -> .  (un seul caractère)
+	rePattern = strings.ReplaceAll(rePattern, "%", ".*")
+	rePattern = strings.ReplaceAll(rePattern, "_", ".")
+
+	// 3. Ajouter les ancres de début (^) et de fin ($) pour une correspondance exacte
+	rePattern = "^" + rePattern + "$"
+
+	// 4. Compiler et tester
+	match, _ := regexp.MatchString(rePattern, text)
+	return match
 }
 
 func evalContract(node *ast.TypeExternalCall, env *object.Environment) object.Object {
@@ -2585,17 +2620,82 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		if len(node.Arguments) != 1 {
 			return newError("coalesce requires only two arguments")
 		}
-		return &object.String{Value: node.String()}
-	case "sum", "min", "count", "max", "upper", "lower", "trim":
+		arg := Eval(node.Array, env)
+		if arg.Type() == object.DBFIELD_OBJ {
+			return &object.String{Value: node.String()}
+		}
+		if arg.Type() == object.NULL.Type() {
+			return Eval(node.Arguments[0], env)
+		}
+		return arg
+	case "trim":
+		if len(node.Arguments) > 0 {
+			return newError("%s requires only one argument", node.Function.Value)
+		}
+		arg := Eval(node.Array, env)
+		if arg.Type() == object.DBFIELD_OBJ {
+			return &object.String{Value: node.String()}
+		}
+		if arg.Type() == object.STRING_OBJ {
+			return &object.String{Value: strings.TrimSpace(arg.Inspect())}
+		}
+		return arg
+	case "upper":
+		if len(node.Arguments) > 0 {
+			return newError("%s requires only one argument", node.Function.Value)
+		}
+		arg := Eval(node.Array, env)
+		if arg.Type() == object.DBFIELD_OBJ {
+			return &object.String{Value: node.String()}
+		}
+		if arg.Type() == object.STRING_OBJ {
+			return &object.String{Value: strings.ToUpper(arg.Inspect())}
+		}
+		return arg
+	case "lower":
+		if len(node.Arguments) > 0 {
+			return newError("%s requires only one argument", node.Function.Value)
+		}
+		arg := Eval(node.Array, env)
+		if arg.Type() == object.DBFIELD_OBJ {
+			return &object.String{Value: node.String()}
+		}
+		if arg.Type() == object.STRING_OBJ {
+			return &object.String{Value: strings.ToLower(arg.Inspect())}
+		}
+		return arg
+	case "sum", "min", "count", "max":
 		if len(node.Arguments) > 0 {
 			return newError("Nsina: %s Too much arguments", node.Function.String())
 		}
-		return &object.String{Value: node.String()}
+		arg := Eval(node.Array, env)
+		if arg.Type() == object.DBFIELD_OBJ {
+			return &object.String{Value: node.String()}
+		}
+		return newError("Nsina: unsuported operation '%s'", node.String())
 	case "substr":
 		if len(node.Arguments) != 2 {
 			return newError("Nsina: %s requires three arguments", node.Function.String())
 		}
-		return &object.String{Value: node.String()}
+		arg := Eval(node.Array, env)
+		if arg.Type() == object.DBFIELD_OBJ {
+			return &object.String{Value: node.String()}
+		}
+		pos := Eval(node.Arguments[0], env)
+		end := Eval(node.Arguments[1], env)
+		if pos.Type() == object.INTEGER_OBJ && end.Type() == object.INTEGER_OBJ {
+			v1 := pos.(*object.Integer)
+			v2 := end.(*object.Integer)
+			s := arg.(*object.String)
+			if v1.Value+v2.Value <= int64(len(s.Value)) {
+				return &object.String{Value: s.Value[v1.Value : v1.Value+v2.Value]}
+			}
+			if v1.Value < int64(len(s.Value)) {
+				return &object.String{Value: s.Value[v1.Value:]}
+			}
+			return &object.String{Value: ""}
+		}
+		return newError("Nsina: Invalid operation: %s", node.String())
 	case "errorexists":
 		return &object.Boolean{Value: isError(last_value)}
 	case "tostring":

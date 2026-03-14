@@ -153,7 +153,7 @@ func evalLikeExpression(node *ast.LikeExpression, env *object.Environment) objec
 	// evaluer le like
 	left := Eval(node.Left, env)
 	if left.Type() == object.DBFIELD_OBJ {
-		return &object.String{Value: node.String()}
+		return &object.DBField{Value: node.String()}
 	}
 	right := Eval(node.Right, env)
 	res := Like(left.Inspect(), right.Inspect())
@@ -2622,7 +2622,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		}
 		arg := Eval(node.Array, env)
 		if arg.Type() == object.DBFIELD_OBJ {
-			return &object.String{Value: node.String()}
+			return &object.DBField{Value: node.String()}
 		}
 		if arg.Type() == object.NULL.Type() {
 			return Eval(node.Arguments[0], env)
@@ -2634,7 +2634,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		}
 		arg := Eval(node.Array, env)
 		if arg.Type() == object.DBFIELD_OBJ {
-			return &object.String{Value: node.String()}
+			return &object.DBField{Value: node.String()}
 		}
 		if arg.Type() == object.STRING_OBJ {
 			return &object.String{Value: strings.TrimSpace(arg.Inspect())}
@@ -2646,7 +2646,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		}
 		arg := Eval(node.Array, env)
 		if arg.Type() == object.DBFIELD_OBJ {
-			return &object.String{Value: node.String()}
+			return &object.DBField{Value: node.String()}
 		}
 		if arg.Type() == object.STRING_OBJ {
 			return &object.String{Value: strings.ToUpper(arg.Inspect())}
@@ -2658,7 +2658,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		}
 		arg := Eval(node.Array, env)
 		if arg.Type() == object.DBFIELD_OBJ {
-			return &object.String{Value: node.String()}
+			return &object.DBField{Value: node.String()}
 		}
 		if arg.Type() == object.STRING_OBJ {
 			return &object.String{Value: strings.ToLower(arg.Inspect())}
@@ -2670,7 +2670,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		}
 		arg := Eval(node.Array, env)
 		if arg.Type() == object.DBFIELD_OBJ {
-			return &object.String{Value: node.String()}
+			return &object.DBField{Value: node.String()}
 		}
 		return newError("Nsina: unsuported operation '%s'", node.String())
 	case "substr":
@@ -2679,7 +2679,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		}
 		arg := Eval(node.Array, env)
 		if arg.Type() == object.DBFIELD_OBJ {
-			return &object.String{Value: node.String()}
+			return &object.DBField{Value: node.String()}
 		}
 		pos := Eval(node.Arguments[0], env)
 		end := Eval(node.Arguments[1], env)

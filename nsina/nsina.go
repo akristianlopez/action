@@ -1251,7 +1251,14 @@ func evalStringInfixExpression(operator string, left, right object.Object) objec
 }
 
 func evalDBFieldInfixExpression(operator string, left, right object.Object) object.Object {
-	return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), operator, right.Inspect())}
+	roper := operator
+	switch operator {
+	case "==":
+		roper = "="
+	case "!=":
+		roper = "<>"
+	}
+	return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), roper, right.Inspect())}
 }
 
 func evalBangOperatorExpression(right object.Object) object.Object {

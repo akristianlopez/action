@@ -888,7 +888,7 @@ type SQLJoin struct {
 }
 
 func (sj *SQLJoin) String() string {
-	return sj.Type + " JOIN " + sj.Table.String() + " ON " + sj.On.String()
+	return sj.Type + " JOIN " + sj.Table.String() + " ON " + strings.ReplaceAll(sj.On.String(), "==", "=")
 }
 
 // ReturnStatement - instruction return

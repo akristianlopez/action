@@ -2582,7 +2582,7 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 	leftType := sa.visitExpression(node.Left)
 	rightType := sa.visitExpression(node.Right)
 
-	switch node.Operator {
+	switch lower(node.Operator) {
 	case "%":
 		// Opérations arithmétiques
 		if leftType.Name == "integer" && rightType.Name == "integer" {

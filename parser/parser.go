@@ -2500,7 +2500,10 @@ func (p *Parser) parseSQLSelectStatement() (*ast.SQLSelectStatement, *ParserErro
 	from := ast.FromIdentifier{Token: p.curToken}
 
 	from.Value = p.parseExpression(LOWEST, true)
-	if p.peekTokenIs(token.IDENT) {
+	if p.peekTokenIs(token.IDENT) &&
+		(strings.ToUpper(p.peekToken.Literal) != "INNER" &&
+			strings.ToUpper(p.peekToken.Literal) != "LEFT" &&
+			strings.ToUpper(p.peekToken.Literal) != "FULL") {
 		p.nextToken()
 		from.NewName = p.parseIdentifier()
 	}
@@ -2779,7 +2782,7 @@ func (p *Parser) parseArrayType() *ast.ArrayType {
 }
 
 func (p *Parser) parseInExpression(left ast.Expression) ast.Expression {
-	exp := &ast.InExpression{Token: p.curToken, Left: left}
+	exp := &ast.InExpression{Token: p.curToken, Left: left, Not: false}
 
 	// Vérifier NOT IN
 	if p.curTokenIs(token.NOT) {
@@ -2796,18 +2799,19 @@ func (p *Parser) parseInExpression(left ast.Expression) ast.Expression {
 }
 
 func (p *Parser) parseLikeExpression(left ast.Expression) ast.Expression {
-	exp := &ast.LikeExpression{Token: p.curToken, Left: left}
+	exp := &ast.LikeExpression{Token: p.curToken, Left: left, Not: false}
 
-	// Vérifier NOT IN
-	if p.curTokenIs(token.NOT) {
+	// Vérifier NOT LIKE
+	if p.peekTokenIs(token.NOT) {
 		exp.Not = true
 		if !p.expectPeek(token.LIKE) {
 			return nil
 		}
 	}
 
+	precedence := p.curPrecedence()
 	p.nextToken()
-	exp.Right = p.parseExpression(LOWEST)
+	exp.Right = p.parseExpression(precedence)
 	return exp
 }
 

@@ -251,7 +251,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 		Symbols: make(map[string]*Symbol),
 	}
 	oldScope.Children = append(oldScope.Children, funScope)
-	sa.CurrentScope = funScope
+	sa.CurrentScope = oldScope
 	sa.registerSymbol("errorexists", FunctionSymbol, &TypeInfo{Name: "boolean"}, &ast.Identifier{Value: "errorexists"}, 9)
 
 	funScope = &Scope{
@@ -345,7 +345,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.CurrentScope = funScope
 	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "element"}, -1, 0)
 	sa.CurrentScope = oldScope
-	sa.registerSymbol("trim", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "trim"}, 17)
+	sa.registerSymbol("trim", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "trim"}, 18)
 }
 
 func (sa *SemanticAnalyzer) registerBuiltinTypes() {

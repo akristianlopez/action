@@ -1243,9 +1243,9 @@ func evalStringInfixExpression(operator string, left, right object.Object) objec
 	case "!=":
 		return &object.Boolean{Value: strings.Compare(left.Inspect(), right.Inspect()) != 0}
 	case "+":
-		leftVal := left.(*object.String).Value
-		rightVal := right.(*object.String).Value
-		return &object.String{Value: leftVal + rightVal}
+		leftVal := strings.Trim(left.(*object.String).Value, "'")
+		rightVal := strings.Trim(right.(*object.String).Value, "'")
+		return &object.String{Value: fmt.Sprintf("'%s'", leftVal+rightVal)}
 	}
 	return newError("Invalid operator: %s %s %s", left.Type(), operator, right.Type())
 }

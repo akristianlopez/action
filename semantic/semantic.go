@@ -2759,6 +2759,17 @@ func (sa *SemanticAnalyzer) formType(col *sql.ColumnType) *TypeInfo {
 	s = strings.ReplaceAll(s, "numeric", "float")
 	s = strings.ReplaceAll(s, "double", "float")
 	s = strings.ReplaceAll(s, "blob", "string")
+	switch s {
+	case "int2":
+		return &TypeInfo{Name: "integer", Constraints: &Constraint{Length: 5, Scale: -1, Precision: -1,
+			Range: &RangeValue{Min: -32768, Max: +32767}}}
+	case "int4":
+		return &TypeInfo{Name: "integer", Constraints: &Constraint{Length: 10, Scale: -1, Precision: -1,
+			Range: &RangeValue{Min: -2147483648, Max: +2147483647}}}
+	case "int8":
+		return &TypeInfo{Name: "integer", Constraints: &Constraint{Length: 19, Scale: -1, Precision: -1,
+			Range: &RangeValue{Min: -9223372036854775808, Max: +9223372036854775807}}}
+	}
 
 	result := &TypeInfo{Name: s}
 	if len(tab) == 2 {

@@ -592,7 +592,37 @@ func getDefaultValue(typeName string) object.Object {
 		return object.NULL
 	}
 }
-
+func GetDefaultValue(typeName string) object.Object {
+	switch strings.ToLower(typeName) {
+	case "integer":
+		return &object.Integer{Value: 0}
+	case "float":
+		return &object.Float{Value: 0.0}
+	case "string":
+		return &object.String{Value: ""}
+	case "boolean":
+		return &object.Boolean{Value: false}
+	case "time":
+		return &object.Time{Value: time.Now()}
+	case "date":
+		return &object.Date{Value: time.Now()}
+	case "datetime":
+		return &object.Date{Value: time.Now()}
+	case "array":
+		return &object.Array{Elements: []object.Object{}}
+	case "duration":
+		return &object.Duration{Nanoseconds: 0}
+	default:
+		// Vérifier si c'est un type tableau
+		if strings.HasPrefix(typeName, "array") {
+			return &object.Array{
+				Elements:    []object.Object{},
+				ElementType: extractElementType(typeName),
+			}
+		}
+		return object.NULL
+	}
+}
 func evalFunctionStatement(fn *ast.FunctionStatement, env *object.Environment) object.Object {
 	function := &object.Function{
 		Parameters: fn.Parameters,

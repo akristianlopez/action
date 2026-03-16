@@ -215,3 +215,6 @@ func (action *Action) Signature(src string) ([]*ast.StructField, *ast.TypeAnnota
 func (action *Action) GetDefaultSQLValueAddress(s string) any {
 	return nsina.GetDefaultSQLValueAddress(s)
 }
+func GetDefaultValue(typeName string) object.Object {
+	return nsina.GetDefaultValue(typeName)
+}

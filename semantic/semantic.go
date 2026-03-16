@@ -2748,9 +2748,16 @@ func (sa *SemanticAnalyzer) formType(col *sql.ColumnType) *TypeInfo {
 	s = strings.ReplaceAll(s, "varchar", "string")
 	s = strings.ReplaceAll(s, "ntext", "string")
 	s = strings.ReplaceAll(s, "text", "string")
+	s = strings.ReplaceAll(s, "longtext", "string")
+	s = strings.ReplaceAll(s, "mediumtext", "string")
 	s = strings.ReplaceAll(s, "number", "integer")
+	s = strings.ReplaceAll(s, "int", "integer")
+	s = strings.ReplaceAll(s, "tinyint", "integer")
+	s = strings.ReplaceAll(s, "mediumint", "integer")
+	s = strings.ReplaceAll(s, "bigint", "integer")
 	s = strings.ReplaceAll(s, "decimal", "float")
 	s = strings.ReplaceAll(s, "numeric", "float")
+	s = strings.ReplaceAll(s, "double", "float")
 	s = strings.ReplaceAll(s, "blob", "string")
 
 	result := &TypeInfo{Name: s}

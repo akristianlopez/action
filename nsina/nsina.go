@@ -1175,8 +1175,14 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 	case left.Type() == object.DBFIELD_OBJ || right.Type() == object.DBFIELD_OBJ:
 		return evalDBFieldInfixExpression(operator, left, right)
 	case operator == "==":
+		if left.Type() == object.DBFIELD_OBJ || right.Type() == object.DBFIELD_OBJ {
+			return evalDBFieldInfixExpression(operator, left, right)
+		}
 		return &object.Boolean{Value: left == right}
 	case operator == "!=":
+		if left.Type() == object.DBFIELD_OBJ || right.Type() == object.DBFIELD_OBJ {
+			return evalDBFieldInfixExpression(operator, left, right)
+		}
 		return &object.Boolean{Value: left != right}
 	case left.Type() == object.INTEGER_OBJ && right.Type() == object.INTEGER_OBJ:
 		return evalIntegerInfixExpression(operator, left, right)
@@ -1187,6 +1193,9 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 	// case operator == "==":
 	// 	return &object.Boolean{Value: objectsEqual(left, right)}
 	case operator == "!=":
+		if left.Type() == object.DBFIELD_OBJ || right.Type() == object.DBFIELD_OBJ {
+			return evalDBFieldInfixExpression(operator, left, right)
+		}
 		return &object.Boolean{Value: !objectsEqual(left, right)}
 	case left.Type() == object.DURATION_OBJ && right.Type() == object.DURATION_OBJ:
 		return evalDurationInfixExpression(operator, left, right)

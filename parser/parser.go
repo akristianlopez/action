@@ -1204,6 +1204,10 @@ const (
 
 func (p *Parser) parsePrefixObjectValue() ast.Expression {
 	ident := &ast.Identifier{Token: p.curToken, Value: ""}
+	if !p.peekTokenIs(token.IDENT) {
+		ident.Value = p.curToken.Literal
+		return ident
+	}
 	p.nextToken()
 	ident.Value = p.curToken.Literal
 	return ident

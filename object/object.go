@@ -341,7 +341,14 @@ type DBField struct {
 }
 
 func (s *DBField) Type() ObjectType { return DBFIELD_OBJ }
-func (s *DBField) Inspect() string  { return s.Value }
+func (s *DBField) Inspect() string {
+	out := s.Value
+	out = strings.ReplaceAll(out, "==", "=")
+	out = strings.ReplaceAll(out, "!=", "<>")
+	out = strings.ReplaceAll(out, "[", "(")
+	out = strings.ReplaceAll(out, "]", ")")
+	return out
+}
 
 type Time struct {
 	Value time.Time

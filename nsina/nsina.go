@@ -65,6 +65,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		if val, ok := node.Right.(*ast.SQLSelectStatement); ok {
 			right = toString(val, env)
 		} else {
+			if left.Type() == object.DBFIELD_OBJ {
+				return &object.DBField{Value: node.String()}
+			}
 			right = Eval(node.Right, env)
 		}
 

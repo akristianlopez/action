@@ -1163,6 +1163,8 @@ func evalBooleanInfixExpression(operator string, left, right object.Object) obje
 
 func evalInfixExpression(operator string, left, right object.Object) object.Object {
 	switch {
+	case left.Type() == object.DBFIELD_OBJ || right.Type() == object.DBFIELD_OBJ:
+		return evalDBFieldInfixExpression(operator, left, right)
 	case strings.ToLower(operator) == "and" || strings.ToLower(operator) == "or":
 		return evalBooleanInfixExpression(strings.ToLower(operator), left, right)
 	case left.Type() == object.INTEGER_OBJ && right.Type() == object.INTEGER_OBJ:
@@ -1172,8 +1174,6 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 		return evalFloatInfixExpression(operator, left, right)
 	case left.Type() == object.STRING_OBJ || right.Type() == object.STRING_OBJ:
 		return evalStringInfixExpression(operator, left, right)
-	case left.Type() == object.DBFIELD_OBJ || right.Type() == object.DBFIELD_OBJ:
-		return evalDBFieldInfixExpression(operator, left, right)
 	case operator == "==":
 		if left.Type() == object.DBFIELD_OBJ || right.Type() == object.DBFIELD_OBJ {
 			return evalDBFieldInfixExpression(operator, left, right)
@@ -1190,13 +1190,6 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 		return evalStringInfixExpression(operator, left, right)
 	case left.Type() == object.ARRAY_OBJ && right.Type() == object.ARRAY_OBJ:
 		return evalArrayInfixExpression(operator, left, right)
-	// case operator == "==":
-	// 	return &object.Boolean{Value: objectsEqual(left, right)}
-	case operator == "!=":
-		if left.Type() == object.DBFIELD_OBJ || right.Type() == object.DBFIELD_OBJ {
-			return evalDBFieldInfixExpression(operator, left, right)
-		}
-		return &object.Boolean{Value: !objectsEqual(left, right)}
 	case left.Type() == object.DURATION_OBJ && right.Type() == object.DURATION_OBJ:
 		return evalDurationInfixExpression(operator, left, right)
 	case left.Type() == object.DURATION_OBJ && (right.Type() == object.INTEGER_OBJ || right.Type() == object.FLOAT_OBJ):

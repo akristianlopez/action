@@ -1149,9 +1149,22 @@ func evalPrefixExpression(operator string, right object.Object) object.Object {
 		return newError("Opérateur inconnu: %s%s", operator, right.Type())
 	}
 }
+func evalBooleanInfixExpression(operator string, left, right object.Object) object.Object {
+	if left.Type() == object.DBFIELD_OBJ || right.Type() == object.DBFIELD_OBJ {
+		return evalDBFieldInfixExpression(operator, left, right)
+	}
+	leftVal := left.(*object.Boolean).Value
+	rightVal := right.(*object.Boolean).Value
+	if strings.ToLower(operator) == "and" {
+		return &object.Boolean{Value: leftVal && rightVal}
+	}
+	return &object.Boolean{Value: leftVal || rightVal}
+}
 
 func evalInfixExpression(operator string, left, right object.Object) object.Object {
 	switch {
+	case strings.ToLower(operator) == "and" || strings.ToLower(operator) == "or":
+		return evalBooleanInfixExpression(strings.ToLower(operator), left, right)
 	case left.Type() == object.INTEGER_OBJ && right.Type() == object.INTEGER_OBJ:
 		return evalIntegerInfixExpression(operator, left, right)
 	case (left.Type() == object.FLOAT_OBJ || left.Type() == object.INTEGER_OBJ) && (right.Type() == object.INTEGER_OBJ ||

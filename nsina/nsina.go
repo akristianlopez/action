@@ -65,9 +65,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		if val, ok := node.Right.(*ast.SQLSelectStatement); ok {
 			right = toString(val, env)
 		} else {
-			if left.Type() == object.DBFIELD_OBJ {
-				return &object.DBField{Value: node.String()}
-			}
+			// if left.Type() == object.DBFIELD_OBJ {
+			// 	return &object.DBField{Value: node.String()}
+			// }
 			right = Eval(node.Right, env)
 		}
 
@@ -155,10 +155,10 @@ func evalLikeExpression(node *ast.LikeExpression, env *object.Environment) objec
 	// verifier si c'est un champ d'un objet bd si oui retourner une chaine de caractere
 	// evaluer le like
 	left := Eval(node.Left, env)
-	if left.Type() == object.DBFIELD_OBJ {
-		return &object.DBField{Value: node.String()}
-	}
 	right := Eval(node.Right, env)
+	if left.Type() == object.DBFIELD_OBJ {
+		return evalDBFieldInfixExpression("LIKE", left, right)
+	}
 	res := Like(left.Inspect(), right.Inspect())
 	if node.Not {
 		return &object.Boolean{Value: !res}
@@ -284,7 +284,11 @@ func evalLetStatement(let *ast.LetStatement, env *object.Environment) object.Obj
 				value = env.Params(let.Name.Value)
 				switch strings.ToLower(let.Type.Type) {
 				case "string":
-					let.Value = &ast.StringLiteral{Value: value.Inspect()}
+					v, ok := value.(*object.String)
+					if !ok {
+						return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
+					}
+					let.Value = &ast.StringLiteral{Value: v.Value}
 				case "integer":
 					v, ok := value.(*object.Integer)
 					if !ok {
@@ -2723,8 +2727,9 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 			return newError("coalesce requires only two arguments")
 		}
 		arg := Eval(node.Array, env)
+		val := Eval(node.Arguments[0], env)
 		if arg.Type() == object.DBFIELD_OBJ {
-			return &object.DBField{Value: node.String()}
+			return &object.DBField{Value: fmt.Sprintf("coalesce(%s,%s)", arg.Inspect(), val.Inspect())}
 		}
 		if arg.Type() == object.NULL.Type() {
 			return Eval(node.Arguments[0], env)
@@ -2736,7 +2741,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		}
 		arg := Eval(node.Array, env)
 		if arg.Type() == object.DBFIELD_OBJ {
-			return &object.DBField{Value: node.String()}
+			return &object.DBField{Value: fmt.Sprintf("Trim(%s)", arg.Inspect())}
 		}
 		if arg.Type() == object.STRING_OBJ {
 			return &object.String{Value: strings.TrimSpace(arg.Inspect())}
@@ -2748,7 +2753,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		}
 		arg := Eval(node.Array, env)
 		if arg.Type() == object.DBFIELD_OBJ {
-			return &object.DBField{Value: node.String()}
+			return &object.DBField{Value: fmt.Sprintf("Upper(%s)", arg.Inspect())}
 		}
 		if arg.Type() == object.STRING_OBJ {
 			return &object.String{Value: strings.ToUpper(arg.Inspect())}
@@ -2760,7 +2765,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		}
 		arg := Eval(node.Array, env)
 		if arg.Type() == object.DBFIELD_OBJ {
-			return &object.DBField{Value: node.String()}
+			return &object.DBField{Value: fmt.Sprintf("%s(%s)", node.Function.Value, arg.Inspect())}
 		}
 		if arg.Type() == object.STRING_OBJ {
 			return &object.String{Value: strings.ToLower(arg.Inspect())}
@@ -2772,7 +2777,8 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		}
 		arg := Eval(node.Array, env)
 		if arg.Type() == object.DBFIELD_OBJ {
-			return &object.DBField{Value: node.String()}
+			// return &object.DBField{Value: node.String()}
+			return &object.DBField{Value: fmt.Sprintf("%s(%s)", node.Function.Value, arg.Inspect())}
 		}
 		return newError("Nsina: unsuported operation '%s'", node.String())
 	case "substr":
@@ -2780,15 +2786,20 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 			return newError("Nsina: %s requires three arguments", node.Function.String())
 		}
 		arg := Eval(node.Array, env)
-		if arg.Type() == object.DBFIELD_OBJ {
-			return &object.DBField{Value: node.String()}
-		}
 		pos := Eval(node.Arguments[0], env)
 		end := Eval(node.Arguments[1], env)
 		if pos.Type() == object.INTEGER_OBJ && end.Type() == object.INTEGER_OBJ {
 			v1 := pos.(*object.Integer)
 			v2 := end.(*object.Integer)
 			s := arg.(*object.String)
+			if arg.Type() == object.DBFIELD_OBJ {
+				if v1.Value > v2.Value {
+					return &object.DBField{Value: fmt.Sprintf("%s(%s,%d,%d)", node.Function.Value,
+						arg.Inspect(), v1.Value, v2.Value)}
+				}
+				return newError("Invalid 'substr' parameters :%s(%s,%d,%d)", node.Function.Value,
+					arg.Inspect(), v1.Value, v2.Value)
+			}
 			if v1.Value+v2.Value <= int64(len(s.Value)) {
 				return &object.String{Value: s.Value[v1.Value : v1.Value+v2.Value]}
 			}

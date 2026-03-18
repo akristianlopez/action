@@ -926,6 +926,7 @@ func defineFromObject(exp ast.Expression, env *object.Environment) object.Object
 			if err != nil {
 				return newError("Nsina: %s", err.Error())
 			}
+			defer rows.Close()
 			res, ok := env.Get(ex.Value)
 			if ok && res.Type() != "SQL_TABLE" {
 				if from.NewName != nil {

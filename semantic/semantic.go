@@ -384,14 +384,20 @@ func (sa *SemanticAnalyzer) registerBuiltinTypes() {
 }
 
 func (sa *SemanticAnalyzer) Analyze(program *ast.Action) []string {
-	for _, stmt := range program.Statements {
-		if _, o := stmt.(*ast.StructStatement); o {
-			sa.visitStatement(stmt, nil)
-			continue
+	select {
+	case <-sa.ctx.Done():
+		sa.addError("Cancled by the user")
+		return sa.Errors
+	default:
+		for _, stmt := range program.Statements {
+			if _, o := stmt.(*ast.StructStatement); o {
+				sa.visitStatement(stmt, nil)
+				continue
+			}
 		}
+		sa.visitProgram(program)
+		return sa.Errors
 	}
-	sa.visitProgram(program)
-	return sa.Errors
 }
 func (sa *SemanticAnalyzer) AnalyzeExpression(table, newName string, expr ast.Expression) {
 	select {
@@ -2824,29 +2830,31 @@ func (sa *SemanticAnalyzer) resolveTypeFromTableName(name string) *TypeInfo {
 		rows, err = sa.db.Query(strSQL)
 	} else {
 		rows, err = sa.db.QueryContext(sa.ctx, strSQL)
+		// rows, err = sa.db.Query(strSQL)
 	}
-
-	if err == nil && rows != nil {
-		colTypes, _ := rows.ColumnTypes()
-		structType := &TypeInfo{Name: name, Fields: make(map[string]*TypeInfo)}
-		for _, col := range colTypes {
-			if ok, mesg := sa.canHandle(sa.ctx, name, col.Name(), "read"); !ok {
-				sa.addError("%s", mesg)
-			}
-			structType.Fields[lower(col.Name())] = sa.formType(col)
+	if err != nil || rows == nil {
+		sa.addError("Object '%s' does not exist", name)
+		return nil
+	}
+	defer rows.Close()
+	colTypes, _ := rows.ColumnTypes()
+	structType := &TypeInfo{Name: name, Fields: make(map[string]*TypeInfo)}
+	for _, col := range colTypes {
+		if ok, mesg := sa.canHandle(sa.ctx, name, col.Name(), "read"); !ok {
+			sa.addError("%s", mesg)
 		}
-
-		sa.registerSymbol(structType.Name, StructSymbol, structType, nil)
-		return structType
-		// return &TypeInfo{
-		// 	Name:        "sql_object",
-		// 	IsArray:     true,
-		// 	ArraySize:   0,
-		// 	ElementType: structType,
-		// }
+		structType.Fields[lower(col.Name())] = sa.formType(col)
 	}
-	sa.addError("Object '%s' does not exist", name)
-	return nil
+
+	sa.registerSymbol(structType.Name, StructSymbol, structType, nil)
+	return structType
+	// return &TypeInfo{
+	// 	Name:        "sql_object",
+	// 	IsArray:     true,
+	// 	ArraySize:   0,
+	// 	ElementType: structType,
+	// }
+
 }
 
 func (sa *SemanticAnalyzer) resolveConstraints(tc *ast.TypeConstraints) *Constraint {

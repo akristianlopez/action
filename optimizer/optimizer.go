@@ -578,6 +578,8 @@ func isVariableUsedInExpression(expr ast.Expression, name string) bool {
 			isVariableUsedInExpression(e.Right, name)
 	case *ast.LikeExpression:
 		return isVariableUsedInExpression(e.Left, name) || isVariableUsedInExpression(e.Right, name)
+	case *ast.SQLSelectStatement:
+		return isVariableUsedInExpression(e.Where, name)
 	case *ast.AssignmentStatement:
 		return isVariableUsedInExpression(e.Variable, name) || isVariableUsedInExpression(e.Value, name)
 	case *ast.ArrayFunctionCall:

@@ -801,6 +801,12 @@ func scanForTypeLikeField(node ast.Node, name string) bool {
 	}
 	switch let := node.(type) {
 	case *ast.LetStatement:
+		if let.Type == nil {
+			st, ok := let.Value.(*ast.StructLiteral)
+			if ok {
+				return strings.EqualFold(st.Name.Value, name)
+			}
+		}
 		return isTypeLike(let.Type, name)
 	case *ast.FunctionParameter:
 		return isTypeLike(let.Type, name)

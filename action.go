@@ -53,9 +53,9 @@ func (action *Action) Interpret(src string, canHandle func(ctx *gin.Context, tab
 	opt := optimizer.NewOptimizer()
 	optimizedProgram := opt.Optimize(act)
 	// opt.Optimize(action)
-	if len(opt.Warnings) > 0 {
-		action.setWarnings(append(action.Warnings(), opt.Warnings...))
-	}
+	// if len(opt.Warnings) > 0 {
+	// 	action.setWarnings(append(action.Warnings(), opt.Warnings...))
+	// }
 	env := object.NewEnvironment(action.ctx, action.db, hasFilter, getFilter, action.dbname, params,
 		disableUpdate, disabledDDL, signature, external, emit)
 	result := nsina.Eval(optimizedProgram, env)

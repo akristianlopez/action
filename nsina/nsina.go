@@ -1730,7 +1730,7 @@ func evalSQLAlterObject(stmt *ast.SQLAlterObjectStatement, env *object.Environme
 
 func evalSQLInsert(stmt *ast.SQLInsertStatement, env *object.Environment) object.Object {
 	if !env.IsUpdateAllowed() {
-		return object.NULL
+		return newError("Insert not allowed on %s", stmt.ObjectName.Value)
 	}
 	rowsAffected := int64(0)
 	if stmt.Select == nil {
@@ -1823,7 +1823,7 @@ func evalSQLInsert(stmt *ast.SQLInsertStatement, env *object.Environment) object
 
 func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object.Object {
 	if !env.IsUpdateAllowed() {
-		return object.NULL
+		return newError("Update not allowed on %s", stmt.ObjectName.Value)
 	}
 	expr, ok := env.Filter(stmt.ObjectName.Value, "")
 	var filter object.Object
@@ -1885,8 +1885,9 @@ func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object
 
 func evalSQLDelete(stmt *ast.SQLDeleteStatement, env *object.Environment) object.Object {
 	if !env.IsUpdateAllowed() {
-		return object.NULL
+		return newError("Delete not allowed on %s", stmt.From.Value)
 	}
+
 	var filter object.Object
 	expr, True := env.Filter(stmt.From.Value, "")
 	if True {
@@ -1943,7 +1944,8 @@ func evalSQLDelete(stmt *ast.SQLDeleteStatement, env *object.Environment) object
 
 func evalSQLTruncate(stmt *ast.SQLTruncateStatement, env *object.Environment) object.Object {
 	if !env.IsUpdateAllowed() {
-		return object.NULL
+		// return object.NULL
+		return newError("Truncate not allowed on %s", stmt.ObjectName.Value)
 	}
 	_, ok := env.Filter(stmt.ObjectName.Value, "")
 	if ok {

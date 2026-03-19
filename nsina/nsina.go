@@ -2084,7 +2084,9 @@ func getDefaultSQLValue(dataType string) object.Object {
 		return object.NULL
 	}
 }
-
+func escape(val, p string) string {
+	return strings.TrimSuffix(strings.TrimPrefix(val, p), p)
+}
 func getObjectValue(val object.Object) any {
 	if val == nil {
 		return object.NULL.Inspect()
@@ -2095,7 +2097,7 @@ func getObjectValue(val object.Object) any {
 	case object.FLOAT_OBJ:
 		return val.(*object.Float).Value
 	case object.STRING_OBJ:
-		return val.(*object.String).Value
+		return escape(val.(*object.String).Value, "'")
 	case object.BOOLEAN_OBJ:
 		return val.(*object.Boolean).Value
 	case object.DATE_OBJ:

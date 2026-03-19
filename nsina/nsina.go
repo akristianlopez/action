@@ -33,6 +33,9 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.FloatLiteral:
 		return &object.Float{Value: node.Value}
 	case *ast.StringLiteral:
+		if strings.HasPrefix(node.Value, "'") {
+			return &object.String{Value: fmt.Sprintf("%s", node.Value)}
+		}
 		return &object.String{Value: fmt.Sprintf("'%s'", node.Value)}
 	case *ast.BooleanLiteral:
 		return &object.Boolean{Value: node.Value}

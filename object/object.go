@@ -499,37 +499,18 @@ func (env *Environment) IsFiltered(table string) bool {
 	}
 	return env.hasFilter(env.ctx, table)
 }
+
 func (env *Environment) Exec(strSQL string, args ...any) (sql.Result, error) {
-	if env.db != nil && strSQL != "" {
-		if env.ctx == nil {
-			return nil, errors.New("Nsina: Context is not defined")
-		}
-		tx, err := env.db.Begin()
-		if err != nil {
-			return nil, err
-		}
-		if len(args) == 0 {
-			row, err := tx.ExecContext(env.ctx, strSQL)
-			if err != nil {
-				tx.Rollback()
-				return nil, err
-			}
-			tx.Commit()
-			return row, err
-		}
-		row, err := tx.ExecContext(env.ctx, strSQL, args...)
-		if err != nil {
-			tx.Rollback()
-			return nil, err
-		}
-		tx.Commit()
-		return row, err
-		// return env.db.ExecContext(env.ctx, strSQL, args...)
-	}
 	if env.db == nil {
-		return nil, errors.New("Nsina: no defined database")
+		return nil, errors.New("Nsina: no database")
 	}
-	return nil, errors.New("Nsina: no query to be executed")
+	if env.ctx == nil {
+		return nil, errors.New("Nsina: no context")
+	}
+	if strSQL == "" {
+		return nil, errors.New("Nsina: no query to be executed")
+	}
+	return env.db.ExecContext(env.ctx, strSQL, args...)
 }
 func (env *Environment) External(srv, name string, args map[string]Object) (Object, bool) {
 	if env.external == nil {

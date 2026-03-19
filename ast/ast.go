@@ -194,7 +194,8 @@ func (sl *StringLiteral) Line() int            { return sl.Token.Line }
 func (sl *StringLiteral) Column() int          { return sl.Token.Column }
 func (sl *StringLiteral) TokenLiteral() string { return sl.Token.Literal }
 func (sl *StringLiteral) String() string {
-	return fmt.Sprintf("'%s'", strings.ReplaceAll(sl.Value, "'", "''"))
+	// return fmt.Sprintf("'%s'", strings.ReplaceAll(sl.Value, "'", "''"))
+	return sl.Value
 }
 
 // BooleanLiteral - littéral booléen

@@ -33,10 +33,11 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.FloatLiteral:
 		return &object.Float{Value: node.Value}
 	case *ast.StringLiteral:
-		if strings.HasPrefix(node.Value, "'") {
-			return &object.String{Value: fmt.Sprintf("%s", node.Value)}
-		}
-		return &object.String{Value: fmt.Sprintf("'%s'", node.Value)}
+		// if strings.HasPrefix(node.Value, "'") {
+		// 	return &object.String{Value: fmt.Sprintf("%s", node.Value)}
+		// }
+		// return &object.String{Value: fmt.Sprintf("'%s'", node.Value)}
+		return &object.String{Value: node.Value}
 	case *ast.BooleanLiteral:
 		return &object.Boolean{Value: node.Value}
 	case *ast.DateTimeLiteral:
@@ -1363,6 +1364,12 @@ func evalDBFieldInfixExpression(operator string, left, right object.Object) obje
 		roper = "="
 	case "!=":
 		roper = "<>"
+	}
+	if left.Type() == object.STRING_OBJ {
+		return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", fmt.Sprintf("'%s'", left.Inspect()), roper, right.Inspect())}
+	}
+	if right.Type() == object.STRING_OBJ {
+		return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), roper, fmt.Sprintf("'%s'", right.Inspect()))}
 	}
 	return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), roper, right.Inspect())}
 }

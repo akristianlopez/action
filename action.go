@@ -141,6 +141,7 @@ func (action *Action) Check(src, id, table, newName string, canHandle func(ctx *
 		}
 		if len(analyzer.Errors) > 0 {
 			action.error = append(action.error, analyzer.Errors...)
+			return false, action.AllMessages()
 		}
 		opt := optimizer.NewOptimizer()
 		opt.Optimize(act)

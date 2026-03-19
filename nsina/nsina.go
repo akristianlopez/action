@@ -1875,20 +1875,27 @@ func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object
 		}
 	}
 
-	strHeader := ""
 	strValue := make([]any, 0)
+	strParams := ""
 
-	for _, set := range stmt.Set {
+	for k, set := range stmt.Set {
 		val := Eval(set.Value, scope)
-		if isError(val) {
-			return val
+		switch strings.ToLower(env.DBName()) {
+		case "postgres":
+			if strParams == "" {
+				strParams = fmt.Sprintf("%s= $%d", set.Column.Value, k+1)
+				strValue = append(strValue, getObjectValue(val))
+				continue
+			}
+			strParams = fmt.Sprintf("%s, %s= $%d", strParams, set.Column.Value, k+1)
+		default:
+			if strParams == "" {
+				strParams = fmt.Sprintf("%s= ?", set.Column.Value)
+				strValue = append(strValue, getObjectValue(val))
+				continue
+			}
+			strParams = fmt.Sprintf("%s, %s= ?", strParams, set.Column.Value)
 		}
-		if strHeader == "" {
-			strHeader = fmt.Sprintf("%s= ?", set.Column.Value)
-			strValue = append(strValue, getObjectValue(val))
-			continue
-		}
-		strHeader = fmt.Sprintf("%s, %s= ?", strHeader, set.Column.Value)
 		strValue = append(strValue, getObjectValue(val))
 	}
 	strCond := ""
@@ -1907,7 +1914,7 @@ func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object
 		}
 	}
 	if strCond != "" {
-		result, err := scope.Exec(fmt.Sprintf("UPDATE %s SET %s WHERE %s", stmt.ObjectName.Value, strHeader, strCond), strValue...)
+		result, err := scope.Exec(fmt.Sprintf("UPDATE %s SET %s WHERE %s", stmt.ObjectName.Value, strParams, strCond), strValue...)
 		if err != nil {
 			return newError("Nsina: %s", err.Error())
 		}

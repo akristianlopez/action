@@ -312,25 +312,29 @@ func evalLetStatement(let *ast.LetStatement, env *object.Environment) object.Obj
 					if !ok {
 						return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
 					}
-					return &object.Time{Value: v.Value}
+					// return &object.Time{Value: v.Value}
+					let.Value = &ast.DateTimeLiteral{Value: fmt.Sprintf("#%s#", v.Inspect())}
 				case "date":
 					v, ok := value.(*object.Date)
 					if !ok {
 						return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
 					}
-					return &object.Date{Value: v.Value}
+					// return &object.Date{Value: v.Value}
+					let.Value = &ast.DateTimeLiteral{Value: fmt.Sprintf("#%s#", v.Inspect())}
 				case "datetime":
 					v, ok := value.(*object.Date)
 					if !ok {
 						return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
 					}
-					return &object.Date{Value: v.Value}
+					// return &object.Date{Value: v.Value}
+					let.Value = &ast.DateTimeLiteral{Value: fmt.Sprintf("#%s#", v.Inspect())}
 				case "duration":
 					v, ok := value.(*object.Duration)
 					if !ok {
 						return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
 					}
-					return &object.Duration{Nanoseconds: v.Nanoseconds}
+					let.Value = &ast.DurationLiteral{Value: fmt.Sprintf("#%s#", v.Inspect())}
+					// return &object.Duration{Nanoseconds: v.Nanoseconds}
 				}
 			}
 		} else {

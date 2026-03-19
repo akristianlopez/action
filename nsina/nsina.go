@@ -2798,6 +2798,9 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		arg := Eval(node.Array, env)
 		val := Eval(node.Arguments[0], env)
 		if arg.Type() == object.DBFIELD_OBJ {
+			if val.Type() == object.STRING_OBJ {
+				return &object.DBField{Value: fmt.Sprintf("coalesce(%s,%s)", arg.Inspect(), fmt.Sprintf("'%s'", val.Inspect()))}
+			}
 			return &object.DBField{Value: fmt.Sprintf("coalesce(%s,%s)", arg.Inspect(), val.Inspect())}
 		}
 		if arg.Type() == object.NULL.Type() {

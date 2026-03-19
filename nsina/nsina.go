@@ -1820,22 +1820,53 @@ func evalSQLInsert(stmt *ast.SQLInsertStatement, env *object.Environment) object
 		RowsAffected: 0,
 	}
 }
+func defineObjectFromUpdateDelete(exp ast.Expression, env *object.Environment) object.Object {
+	if exp == nil {
+		return object.NULL
+	}
+	if from, ok := exp.(*ast.Identifier); ok {
+		strSQL := fmt.Sprintf("select * FROM %s LIMIT 1", from.Value)
+		rows, err := env.Query(strSQL)
+		if err != nil {
+			return newError("Nsina: %s", err.Error())
+		}
+		defer rows.Close()
+		res, ok := env.Get(from.Value)
+		if ok && res.Type() != "SQL_TABLE" {
+			return env.Set(from.Value, res)
+		}
+		result := object.DBStruct{Name: strings.ToLower(from.Value), Fields: make(map[string]object.Object)}
+		colt, err := rows.ColumnTypes()
+		if err != nil {
+			return newError("Nsina: %s", err.Error())
+		}
+		for _, col := range colt {
+			ta := formType(col)
+			result.Fields[strings.ToLower(col.Name())] = getDefaultSQLValue(ta.Type)
+			env.Limit(strings.ToLower(col.Name()), defConstraints(ta, env))
+		}
+		env.Set(result.Name, &result)
+		return &result
+	}
+	return object.NULL
+}
 
 func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object.Object {
 	if !env.IsUpdateAllowed() {
 		return newError("Update not allowed on %s", stmt.ObjectName.Value)
 	}
 	// trait objectname
-	from := defineFromObject(stmt.ObjectName, env)
+	scope := object.NewEnclosedEnvironment(env)
+	from := defineObjectFromUpdateDelete(stmt.ObjectName, scope)
 	if isError(from) {
 		return from
 	}
 
-	expr, ok := env.Filter(stmt.ObjectName.Value, "")
+	expr, ok := scope.Filter(stmt.ObjectName.Value, "")
 	var filter object.Object
 	filter = nil
 	if ok {
-		filter = Eval(expr, env)
+		filter = Eval(expr, scope)
 		if isError(filter) {
 			return filter
 		}
@@ -1848,7 +1879,7 @@ func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object
 	strValue := make([]any, 0)
 
 	for _, set := range stmt.Set {
-		val := Eval(set.Value, env)
+		val := Eval(set.Value, scope)
 		if isError(val) {
 			return val
 		}
@@ -1865,7 +1896,7 @@ func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object
 		strCond = fmt.Sprintf("(%s)", filter.Inspect())
 	}
 	if stmt.Where != nil {
-		condition := Eval(stmt.Where, env)
+		condition := Eval(stmt.Where, scope)
 		if isError(condition) {
 			return condition
 		}
@@ -1876,7 +1907,7 @@ func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object
 		}
 	}
 	if strCond != "" {
-		result, err := env.Exec(fmt.Sprintf("UPDATE %s SET %s WHERE %s", stmt.ObjectName.Value, strHeader, strCond), strValue...)
+		result, err := scope.Exec(fmt.Sprintf("UPDATE %s SET %s WHERE %s", stmt.ObjectName.Value, strHeader, strCond), strValue...)
 		if err != nil {
 			return newError("Nsina: %s", err.Error())
 		}
@@ -1893,22 +1924,23 @@ func evalSQLDelete(stmt *ast.SQLDeleteStatement, env *object.Environment) object
 	if !env.IsUpdateAllowed() {
 		return newError("Delete not allowed on %s", stmt.From.Value)
 	}
-	from := defineFromObject(stmt.From, env)
+	scope := object.NewEnclosedEnvironment(env)
+	from := defineFromObject(stmt.From, scope)
 	if isError(from) {
 		return from
 	}
 
 	var filter object.Object
-	expr, True := env.Filter(stmt.From.Value, "")
+	expr, True := scope.Filter(stmt.From.Value, "")
 	if True {
-		filter = Eval(expr, env)
+		filter = Eval(expr, scope)
 		if isError(filter) {
 			return filter
 		}
 	}
 	strSQL := ""
 	if stmt.Where != nil {
-		condition := Eval(stmt.Where, env)
+		condition := Eval(stmt.Where, scope)
 		if isError(condition) {
 			return condition
 		}
@@ -1922,7 +1954,7 @@ func evalSQLDelete(stmt *ast.SQLDeleteStatement, env *object.Environment) object
 			}
 			strSQL = fmt.Sprintf("DELETE FROM %s WHERE ((%s) And (%s))", stmt.From.Value, condition.Inspect(), filter.Inspect())
 		}
-		result, err := env.Exec(strSQL)
+		result, err := scope.Exec(strSQL)
 		if err == nil {
 			rowsAffected, _ := result.RowsAffected()
 			return &object.SQLResult{
@@ -1941,7 +1973,7 @@ func evalSQLDelete(stmt *ast.SQLDeleteStatement, env *object.Environment) object
 	if strSQL == "" {
 		return newError("Nsina: %s", "Invalid Where clause.")
 	}
-	result, err := env.Exec(strSQL)
+	result, err := scope.Exec(strSQL)
 	if err == nil {
 		rowsAffected, _ := result.RowsAffected()
 		return &object.SQLResult{

@@ -2054,13 +2054,14 @@ func getDefaultSQLValueAddress(s string) any {
 	tab := strings.Split(s, "(")
 	dataType := strings.ToLower(tab[0])
 	switch dataType {
-	case "integer", "int", "duration", "interval":
+	case "integer", "int", "smallint", "mediumint", "bigint",
+		"int8", "integer8", "int4", "integer4", "int2", "integer2", "duration", "interval":
 		v := int64(0)
 		return &v
-	case "float", "numeric", "decimal":
+	case "float", "numeric", "decimal", "double":
 		v := float64(0)
 		return &v
-	case "varchar", "char", "text":
+	case "varchar", "char", "mediumtext", "longtext", "text", "varchar2", "nvarchar", "nvarchar2":
 		v := ""
 		return &v
 	case "boolean", "bool":
@@ -2085,11 +2086,12 @@ func getValueFromRealType(typ string, val any) object.Object {
 	}
 	t := strings.Split(typ, "(")
 	switch strings.ToLower(t[0]) {
-	case "integer", "int":
+	case "integer", "int", "smallint", "mediumint", "bigint",
+		"int8", "integer8", "int4", "integer4", "int2", "integer2":
 		return &object.Integer{Value: *(val.(*int64))}
-	case "float", "numeric", "decimal":
+	case "float", "numeric", "decimal", "double":
 		return &object.Float{Value: *(val.(*float64))}
-	case "varchar", "char", "text":
+	case "varchar", "char", "mediumtext", "longtext", "text", "varchar2", "nvarchar", "nvarchar2":
 		return &object.String{Value: *(val.(*string))}
 	case "boolean", "bool":
 		return &object.Boolean{Value: *(val.(*bool))}

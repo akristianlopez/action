@@ -288,7 +288,7 @@ func evalLetStatement(let *ast.LetStatement, env *object.Environment) object.Obj
 					if !ok {
 						return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
 					}
-					let.Value = &ast.StringLiteral{Value: fmt.Sprintf("'%s'",v.Value)}
+					let.Value = &ast.StringLiteral{Value: v.Value}
 				case "integer":
 					v, ok := value.(*object.Integer)
 					if !ok {

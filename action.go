@@ -141,7 +141,12 @@ func (action *Action) Check(src, id, table, newName string, canHandle func(ctx *
 		}
 		if len(analyzer.Errors) > 0 {
 			action.error = append(action.error, analyzer.Errors...)
-			return false, action.error
+		}
+		opt := optimizer.NewOptimizer()
+		opt.Optimize(act)
+		if len(opt.Warnings) > 0 {
+			action.setWarnings(append(action.Warnings(), opt.Warnings...))
+			return false, action.AllMessages()
 		}
 		return true, nil
 	case "expression":

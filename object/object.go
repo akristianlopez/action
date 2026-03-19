@@ -381,7 +381,7 @@ type Error struct {
 }
 
 func (e *Error) Type() ObjectType { return ERROR_OBJ }
-func (e *Error) Inspect() string  { return "ERREUR: " + e.Message }
+func (e *Error) Inspect() string  { return "ERROR: " + e.Message }
 
 type Function struct {
 	Parameters []*ast.FunctionParameter

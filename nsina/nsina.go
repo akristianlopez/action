@@ -1825,6 +1825,12 @@ func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object
 	if !env.IsUpdateAllowed() {
 		return newError("Update not allowed on %s", stmt.ObjectName.Value)
 	}
+	// trait objectname
+	from := defineFromObject(stmt.ObjectName, env)
+	if isError(from) {
+		return from
+	}
+
 	expr, ok := env.Filter(stmt.ObjectName.Value, "")
 	var filter object.Object
 	filter = nil
@@ -1886,6 +1892,10 @@ func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object
 func evalSQLDelete(stmt *ast.SQLDeleteStatement, env *object.Environment) object.Object {
 	if !env.IsUpdateAllowed() {
 		return newError("Delete not allowed on %s", stmt.From.Value)
+	}
+	from := defineFromObject(stmt.From, env)
+	if isError(from) {
+		return from
 	}
 
 	var filter object.Object

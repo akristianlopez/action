@@ -547,7 +547,7 @@ func NewEnclosedEnvironment(outer *Environment) *Environment {
 	return env
 }
 func (e *Environment) IsUpdateAllowed() bool {
-	return !e.disableUpdate
+	return e.disableUpdate
 }
 func (e *Environment) IsDDLAllowed() bool {
 	return !e.disabledDDL

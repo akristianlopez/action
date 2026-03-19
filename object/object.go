@@ -504,10 +504,27 @@ func (env *Environment) Exec(strSQL string, args ...any) (sql.Result, error) {
 		if env.ctx == nil {
 			return nil, errors.New("Nsina: Context is not defined")
 		}
-		if len(args) == 0 {
-			return env.db.ExecContext(env.ctx, strSQL)
+		tx, err := env.db.Begin()
+		if err != nil {
+			return nil, err
 		}
-		return env.db.ExecContext(env.ctx, strSQL, args...)
+		if len(args) == 0 {
+			row, err := tx.ExecContext(env.ctx, strSQL)
+			if err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+			tx.Commit()
+			return row, err
+		}
+		row, err := tx.ExecContext(env.ctx, strSQL, args...)
+		if err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+		tx.Commit()
+		return row, err
+		// return env.db.ExecContext(env.ctx, strSQL, args...)
 	}
 	if env.db == nil {
 		return nil, errors.New("Nsina: no defined database")

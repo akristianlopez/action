@@ -1631,3 +1631,17 @@ func (cs *CatchStatement) String() string {
 	}
 	return fmt.Sprintf("CATCH{\n\t%s\n}", cs.Statements.String())
 }
+
+type ProtectedStatement struct {
+	Token      token.Token
+	Statements *BlockStatement
+}
+
+func (bs *ProtectedStatement) statementNode()       {}
+func (bs *ProtectedStatement) TokenLiteral() string { return bs.Token.Literal }
+func (bs *ProtectedStatement) String() string {
+	if bs.Statements == nil {
+		return "BEGINTRANS{\n}"
+	}
+	return fmt.Sprintf("CATCH{\n\t%s\n}", bs.Statements.String())
+}

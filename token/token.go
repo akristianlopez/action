@@ -11,18 +11,19 @@ type Token struct {
 
 const (
 	// Mots-clés
-	ACTION   = "ACTION"
-	START    = "START"
-	STOP     = "STOP"
-	LET      = "LET"
-	FUNCTION = "FUNCTION"
-	STRUCT   = "STRUCT"
-	TYPE     = "TYPE"
-	FOR      = "FOR"
-	IF       = "IF"
-	ELSE     = "ELSE"
-	RETURN   = "RETURN"
-	CATCH    = "CATCH"
+	ACTION    = "ACTION"
+	START     = "START"
+	STOP      = "STOP"
+	LET       = "LET"
+	FUNCTION  = "FUNCTION"
+	STRUCT    = "STRUCT"
+	TYPE      = "TYPE"
+	FOR       = "FOR"
+	IF        = "IF"
+	ELSE      = "ELSE"
+	RETURN    = "RETURN"
+	CATCH     = "CATCH"
+	PROTECTED = "PROTECTED"
 	// WHILE    = "WHILE"
 	// FOREACH  = "FOREACH"
 
@@ -187,33 +188,34 @@ const (
 )
 
 var keywords = map[string]TokenType{
-	"action":   ACTION,
-	"start":    START,
-	"stop":     STOP,
-	"let":      LET,
-	"function": FUNCTION,
-	"struct":   STRUCT,
-	"type":     TYPE,
-	"for":      FOR,
-	"if":       IF,
-	"else":     ELSE,
-	"return":   RETURN,
-	"catch":    CATCH,
-	"integer":  INTEGER,
-	"float":    FLOAT,
-	"string":   STRING,
-	"boolean":  BOOLEAN,
-	"time":     TIME,
-	"date":     DATE,
-	"select":   SELECT,
-	"from":     FROM,
-	"where":    WHERE,
-	"join":     JOIN,
-	"on":       ON,
-	"object":   OBJECT,
-	"as":       AS,
-	"true":     BOOL_LIT,
-	"false":    BOOL_LIT,
+	"action":    ACTION,
+	"start":     START,
+	"stop":      STOP,
+	"let":       LET,
+	"function":  FUNCTION,
+	"struct":    STRUCT,
+	"type":      TYPE,
+	"for":       FOR,
+	"if":        IF,
+	"else":      ELSE,
+	"return":    RETURN,
+	"catch":     CATCH,
+	"protected": PROTECTED,
+	"integer":   INTEGER,
+	"float":     FLOAT,
+	"string":    STRING,
+	"boolean":   BOOLEAN,
+	"time":      TIME,
+	"date":      DATE,
+	"select":    SELECT,
+	"from":      FROM,
+	"where":     WHERE,
+	"join":      JOIN,
+	"on":        ON,
+	"object":    OBJECT,
+	"as":        AS,
+	"true":      BOOL_LIT,
+	"false":     BOOL_LIT,
 	// "while":    WHILE,
 	// "foreach":  FOREACH,
 

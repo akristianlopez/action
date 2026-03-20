@@ -453,6 +453,8 @@ func (sa *SemanticAnalyzer) visitStatement(stmt ast.Statement, t *TypeInfo) {
 		sa.visitIfStatement(s, t)
 	case *ast.CatchStatement:
 		sa.visitCatchStatement(s, t)
+	case *ast.ProtectedStatement:
+		sa.visitProtectedStatement(s, t)
 	case *ast.WhileStatement:
 		sa.visitWhileStatement(s, t)
 	case *ast.ForEachStatement:
@@ -1623,7 +1625,25 @@ func (sa *SemanticAnalyzer) visitCatchStatement(node *ast.CatchStatement, t *Typ
 	// Restaurer le scope
 	sa.CurrentScope = oldScope
 }
+func (sa *SemanticAnalyzer) visitProtectedStatement(node *ast.ProtectedStatement, t *TypeInfo) {
+	// Créer un nouveau scope pour la boucle
+	loopScope := &Scope{
+		Parent:  sa.CurrentScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	sa.CurrentScope.Children = append(sa.CurrentScope.Children, loopScope)
 
+	oldScope := sa.CurrentScope
+	sa.CurrentScope = loopScope
+
+	// Analyser l'update
+	if node.Statements != nil {
+		sa.visitStatement(node.Statements, t)
+	}
+
+	// Restaurer le scope
+	sa.CurrentScope = oldScope
+}
 func (sa *SemanticAnalyzer) visitWhileStatement(node *ast.WhileStatement, t *TypeInfo) {
 	// Créer un nouveau scope pour la boucle
 	loopScope := &Scope{

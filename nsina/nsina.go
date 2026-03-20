@@ -98,6 +98,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalIfStatement(node, env)
 	case *ast.CatchStatement:
 		return evalCatchStatement(node, env)
+	case *ast.ProtectedStatement:
+		return evalProtectedStatement(node, env)
 	case *ast.ForStatement:
 		return evalForStatement(node, env)
 	case *ast.ReturnStatement:
@@ -1200,7 +1202,27 @@ func evalCatchStatement(node *ast.CatchStatement, env *object.Environment) objec
 	last_value = object.NULL
 	return result
 }
-
+func evalProtectedStatement(node *ast.ProtectedStatement, env *object.Environment) object.Object {
+	if node.Statements == nil {
+		return object.NULL
+	}
+	scope := object.NewEnclosedEnvironment(env)
+	err := scope.StartTrans()
+	if err != nil {
+		return newError("%s", err.Error())
+	}
+	for _, stm := range node.Statements.Statements {
+		last_value = Eval(stm, scope)
+		if isError(last_value) {
+			scope.RollbackTrans()
+			return last_value
+		}
+	}
+	scope.EndTrans()
+	result := last_value
+	last_value = object.NULL
+	return result
+}
 func evalPrefixExpression(operator string, right object.Object) object.Object {
 	switch operator {
 	case "!":

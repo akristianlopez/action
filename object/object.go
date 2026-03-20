@@ -435,6 +435,7 @@ type Environment struct {
 	outer         *Environment
 	limits        *map[string]Limits
 	db            *sql.DB
+	tx            *sql.Tx
 	ctx           *gin.Context
 	hasFilter     func(ctx *gin.Context, table string) bool
 	getFilter     func(ctx *gin.Context, table, newName string) (ast.Expression, bool)
@@ -447,6 +448,34 @@ type Environment struct {
 	emit          func(ctx *gin.Context, subject string, message any) bool
 }
 
+func (env *Environment) StartTrans() error {
+	t, e := env.db.Begin()
+	if e != nil {
+		return e
+	}
+	if env.tx != nil {
+		return errors.New("A transaction already open")
+	}
+	env.tx = t
+	return nil
+}
+func (env *Environment) RollbackTrans() error {
+	if env.tx == nil {
+		return errors.New("No open transactions")
+	}
+	env.tx = nil
+	return nil
+}
+func (env *Environment) EndTrans() error {
+	if env.tx == nil {
+		return errors.New("No open transactions")
+	}
+	err := env.tx.Commit()
+	if err == nil {
+		env.tx = nil
+	}
+	return err
+}
 func (env *Environment) Context() context.Context {
 	return env.ctx
 }
@@ -460,7 +489,7 @@ func NewEnvironment(ctx *gin.Context, db *sql.DB, hf func(ctx *gin.Context, tabl
 	emit func(ctx *gin.Context, subject string, message any) bool) *Environment {
 	s := make(map[string]Object)
 
-	return &Environment{store: s, outer: nil, limits: nil, db: db, ctx: ctx,
+	return &Environment{store: s, outer: nil, limits: nil, db: db, ctx: ctx, tx: nil,
 		hasFilter: hf, getFilter: gf, dbname: dbname, params: &params, emit: emit,
 		disableUpdate: disableUpdate, disabledDDL: disabledDDL, external: external, signature: sign}
 }
@@ -510,6 +539,9 @@ func (env *Environment) Exec(strSQL string, args ...any) (sql.Result, error) {
 	if strSQL == "" {
 		return nil, errors.New("Nsina: no query to be executed")
 	}
+	if env.tx != nil {
+		return env.db.ExecContext(env.ctx, strSQL, args...)
+	}
 	return env.db.ExecContext(env.ctx, strSQL, args...)
 }
 func (env *Environment) External(srv, name string, args map[string]Object) (Object, bool) {
@@ -540,6 +572,7 @@ func (env *Environment) Query(strSQL string, args ...any) (*sql.Rows, error) {
 func NewEnclosedEnvironment(outer *Environment) *Environment {
 	env := NewEnvironment(outer.ctx, outer.db, outer.hasFilter, outer.getFilter, outer.dbname, nil,
 		outer.disableUpdate, outer.disabledDDL, outer.signature, outer.external, outer.emit)
+	env.tx = outer.tx
 	env.outer = outer
 	env.limits = nil
 	return env

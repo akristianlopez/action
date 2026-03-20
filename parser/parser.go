@@ -2818,9 +2818,9 @@ func (p *Parser) parseInExpression(left ast.Expression) ast.Expression {
 			return nil
 		}
 	}
-
+	precedence := p.curPrecedence()
 	p.nextToken()
-	exp.Right = p.parseExpression(LOWEST)
+	exp.Right = p.parseExpression(precedence)
 
 	return exp
 }

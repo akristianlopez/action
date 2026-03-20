@@ -2214,7 +2214,7 @@ func (sa *SemanticAnalyzer) visitTypeMember(node *ast.TypeMember, path string) *
 		if left.Fields != nil {
 			switch r := node.Right.(type) {
 			case *ast.Identifier:
-				return left.Fields[lower(r.Value)].ElementType
+				return left.Fields[lower(r.Value)]
 			default:
 				sa.addError("Invalid expression '%s'. line:%d, column:%d", node.Left.String(),
 					node.Left.Line(), node.Left.Column())

@@ -455,13 +455,27 @@ func (env *Environment) propagate(out *Environment, t *sql.Tx) {
 	out.tx = t
 	env.propagate(out.outer, t)
 }
+func (env *Environment) findtrans(out *Environment) *sql.Tx {
+	if out == nil {
+		return nil
+	}
+	if out.tx != nil {
+		return out.tx
+	}
+	return env.findtrans(out.outer)
+}
 func (env *Environment) StartTrans() error {
+	if env.tx != nil {
+		return errors.New("A transaction already open")
+	}
+	tx := env.findtrans(env.outer)
+	if tx != nil {
+		env.tx = tx
+		return nil
+	}
 	t, e := env.db.Begin()
 	if e != nil {
 		return e
-	}
-	if env.tx != nil {
-		return errors.New("A transaction already open")
 	}
 	env.tx = t
 	env.propagate(env.outer, t)

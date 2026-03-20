@@ -2209,6 +2209,19 @@ func (sa *SemanticAnalyzer) visitTypeMember(node *ast.TypeMember, path string) *
 	case *ast.ArrayFunctionCall:
 		sa.addError("Invalid expression '%s'. line:%d, column:%d", node.Left.String(),
 			node.Left.Line(), node.Left.Column())
+	case *ast.IndexExpression:
+		left := sa.visitIndexExpression(t)
+		if left.Fields != nil {
+			switch r := node.Right.(type) {
+			case *ast.Identifier:
+				return left.Fields[lower(r.Value)].ElementType
+			default:
+				sa.addError("Invalid expression '%s'. line:%d, column:%d", node.Left.String(),
+					node.Left.Line(), node.Left.Column())
+				return &TypeInfo{Name: "void"}
+			}
+		}
+		return left
 	default:
 		sa.addError("Invalid expression '%s'. line:%d, column:%d", node.Left.String(),
 			node.Left.Line(), node.Left.Column())

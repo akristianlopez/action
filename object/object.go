@@ -448,6 +448,13 @@ type Environment struct {
 	emit          func(ctx *gin.Context, subject string, message any) bool
 }
 
+func (env *Environment) propagate(out *Environment, t *sql.Tx) {
+	if out == nil {
+		return
+	}
+	out.tx = t
+	env.propagate(out.outer, t)
+}
 func (env *Environment) StartTrans() error {
 	t, e := env.db.Begin()
 	if e != nil {
@@ -457,6 +464,7 @@ func (env *Environment) StartTrans() error {
 		return errors.New("A transaction already open")
 	}
 	env.tx = t
+	env.propagate(env.outer, t)
 	return nil
 }
 func (env *Environment) RollbackTrans() error {
@@ -464,6 +472,7 @@ func (env *Environment) RollbackTrans() error {
 		return errors.New("No open transactions")
 	}
 	env.tx = nil
+	env.propagate(env.outer, nil)
 	return nil
 }
 func (env *Environment) EndTrans() error {
@@ -473,7 +482,17 @@ func (env *Environment) EndTrans() error {
 	err := env.tx.Commit()
 	if err == nil {
 		env.tx = nil
+		env.propagate(env.outer, nil)
 	}
+	return err
+}
+func (env *Environment) ClearTrans() error {
+	if env.tx == nil {
+		return nil
+	}
+	err := env.tx.Rollback()
+	env.tx = nil
+	env.propagate(env.outer, nil)
 	return err
 }
 func (env *Environment) Context() context.Context {

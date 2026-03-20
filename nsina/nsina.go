@@ -255,6 +255,7 @@ func evalAction(program *ast.Action, env *object.Environment) object.Object {
 	var result object.Object
 	last_value = object.NULL
 	env.Set("error", &object.String{Value: ""})
+	defer env.ClearTrans()
 	for _, statement := range program.Statements {
 		select {
 		case <-env.Context().Done():

@@ -235,7 +235,7 @@ func evalTypeMember(node *ast.TypeMember, env *object.Environment) object.Object
 				val, ok = key.(*ast.TypeMember)
 				continue
 			}
-			return newError("Invalid field name '%s'. Line:%d, column:%d", val.Left.String(),
+			return newError("Invalid field name '%s'. line:%d, column:%d", val.Left.String(),
 				key.Line(), key.Column())
 		}
 		break
@@ -362,7 +362,7 @@ func evalLetStatement(let *ast.LetStatement, env *object.Environment) object.Obj
 					if en != nil {
 						ok, msg := en.Valid(fmt.Sprintf("%s.%s", objtype, k), v)
 						if !ok {
-							return newError(msg+". Line:%d, column:%d", let.Value.Line(), let.Value.Column())
+							return newError(msg+". line:%d, column:%d", let.Value.Line(), let.Value.Column())
 						}
 					}
 				}
@@ -403,12 +403,12 @@ func evalAssignmentStatement(node *ast.AssignmentStatement, env *object.Environm
 		if en := env.GetLimitEnv(target.Value); en != nil {
 			ok, msg := en.Valid(target.Value, value)
 			if !ok {
-				return newError(msg+".Line:%d, column:%d", target.Value, target.Line(), target.Column())
+				return newError(msg+".line:%d, column:%d", target.Value, target.Line(), target.Column())
 			}
 		}
 		res := env.Set(target.Value, value)
 		if res == object.NULL {
-			return newError("Invalid name '%s'. Line:%d, column:%d", target.Value, target.Line(), target.Column())
+			return newError("Invalid name '%s'. line:%d, column:%d", target.Value, target.Line(), target.Column())
 		}
 		return value
 	case *ast.TypeMember:
@@ -424,7 +424,7 @@ func evalAssignmentStatement(node *ast.AssignmentStatement, env *object.Environm
 					key = val.Right
 					continue
 				}
-				return newError("Invalid field name '%s'. Line:%d, column:%d", key.String(),
+				return newError("Invalid field name '%s'. line:%d, column:%d", key.String(),
 					key.Line(), key.Column())
 			}
 			break
@@ -436,7 +436,7 @@ func evalAssignmentStatement(node *ast.AssignmentStatement, env *object.Environm
 				if en := env.GetLimitEnv(ob.Name + "." + key.String()); en != nil {
 					ok, msg := en.Valid(ob.Name+"."+key.String(), value)
 					if !ok {
-						return newError(msg+".Line:%d, column:%d", key.Line(), key.Column())
+						return newError(msg+".line:%d, column:%d", key.Line(), key.Column())
 					}
 				}
 				ob.Fields[key.String()] = value
@@ -471,7 +471,7 @@ func evalAssignmentStatement(node *ast.AssignmentStatement, env *object.Environm
 			if en := env.GetLimitEnv(target.Left.String()); en != nil {
 				ok, msg := en.Valid(target.Left.String(), value)
 				if !ok {
-					return newError(msg+".Line:%d, column:%d", target.Left.Line(), target.Left.Column())
+					return newError(msg+".line:%d, column:%d", target.Left.Line(), target.Left.Column())
 				}
 			}
 			arr.Elements[idx] = value
@@ -1141,11 +1141,11 @@ func evalStructLiteral(node *ast.StructLiteral, env *object.Environment) object.
 	}
 	stdobj, ok := env.Get(structObj.Name)
 	if !ok {
-		return newError("Invalid type name '%s'. Line:%d, column:%d", structObj.Name, node.Line(), node.Column())
+		return newError("Invalid type name '%s'. line:%d, column:%d", structObj.Name, node.Line(), node.Column())
 	}
 	strStruct, ok := stdobj.(*object.Struct)
 	if !ok {
-		return newError("Invalid type name '%s'. Expected '%v', got '%v'. Line:%d, column:%d",
+		return newError("Invalid type name '%s'. Expected '%v', got '%v'. line:%d, column:%d",
 			structObj.Name, object.STRUCT_OBJ, stdobj.Type(), node.Line(), node.Column())
 	}
 
@@ -1159,7 +1159,7 @@ func evalStructLiteral(node *ast.StructLiteral, env *object.Environment) object.
 		if en != nil {
 			ok, msg := en.Valid(k, v)
 			if !ok {
-				return newError(msg+". Line:%d, column:%d", node.Line(), node.Column())
+				return newError(msg+". line:%d, column:%d", node.Line(), node.Column())
 			}
 		}
 	}

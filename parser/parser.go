@@ -70,7 +70,7 @@ func (pe *ParserError) Line() int   { return pe.line }
 func (pe *ParserError) Column() int { return pe.column }
 func (pe *ParserError) String() string {
 	if pe.msg != "" {
-		return fmt.Sprintf("%s. Line:%d, column:%d", pe.msg, pe.line, pe.column)
+		return fmt.Sprintf("%s. line:%d, column:%d", pe.msg, pe.line, pe.column)
 	}
 	return ""
 }

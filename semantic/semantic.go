@@ -96,16 +96,17 @@ type SemanticAnalyzer struct {
 	inType        int
 	db            *sql.DB
 	ctx           *gin.Context
-	canHandle     func(ctx *gin.Context, table, field, operation string) (bool, string)
+	mode          bool
+	canHandle     func(ctx *gin.Context, table, field, operation string, mode bool) (bool, string)
 	serviceExists func(serviceName string) bool
 	signature     func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error)
 }
 
 // var tokenList []string
 
-func NewSemanticAnalyzer(ctx *gin.Context, db *sql.DB, ch func(ctx *gin.Context, table, field, operation string) (bool, string),
+func NewSemanticAnalyzer(ctx *gin.Context, db *sql.DB, ch func(ctx *gin.Context, table, field, operation string, mode bool) (bool, string),
 	srvExists func(serviceName string) bool,
-	srvSignature func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error)) *SemanticAnalyzer {
+	srvSignature func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error), mode bool) *SemanticAnalyzer {
 
 	globalScope := &Scope{
 		Symbols: make(map[string]*Symbol),
@@ -124,6 +125,7 @@ func NewSemanticAnalyzer(ctx *gin.Context, db *sql.DB, ch func(ctx *gin.Context,
 		canHandle:     ch,
 		serviceExists: srvExists,
 		signature:     srvSignature,
+		mode:          mode,
 	}
 
 	// Enregistrement des functions standards
@@ -485,14 +487,14 @@ func (sa *SemanticAnalyzer) visitStatement(stmt ast.Statement, t *TypeInfo) {
 }
 
 func (sa *SemanticAnalyzer) visitSQLTruncateStatement(s *ast.SQLTruncateStatement) {
-	if ok, msg := sa.canHandle(sa.ctx, s.ObjectName.Value, "", "delete"); !ok {
+	if ok, msg := sa.canHandle(sa.ctx, s.ObjectName.Value, "", "delete", sa.mode); !ok {
 		sa.addError("%s", msg)
 		return
 	}
 }
 
 func (sa *SemanticAnalyzer) visitSQLDropObjectStatement(s *ast.SQLDropObjectStatement) {
-	if ok, msg := sa.canHandle(sa.ctx, s.ObjectName.Value, "", "ddl_delete"); !ok {
+	if ok, msg := sa.canHandle(sa.ctx, s.ObjectName.Value, "", "ddl_delete", sa.mode); !ok {
 		sa.addError("%s", msg)
 		return
 	}
@@ -519,7 +521,7 @@ func (sa *SemanticAnalyzer) visitSQLAlterObjectStatement(s *ast.SQLAlterObjectSt
 			sa.addError("Unknown action '%s' in ALTER OBJECT statement. line:%d, column:%d", action.Type, s.Token.Line, s.Token.Column)
 			continue
 		}
-		if ok, msg := sa.canHandle(sa.ctx, s.ObjectName.Value, action.Type, "ddl_update"); !ok {
+		if ok, msg := sa.canHandle(sa.ctx, s.ObjectName.Value, action.Type, "ddl_update", sa.mode); !ok {
 			sa.addError("%s", msg)
 			return
 		}
@@ -588,7 +590,7 @@ func (sa *SemanticAnalyzer) visitSQLDeleteStatement(s *ast.SQLDeleteStatement) {
 			s.Line(), s.Column())
 		return
 	}
-	if ok, msg := sa.canHandle(sa.ctx, s.From.Value, "", "delete"); !ok {
+	if ok, msg := sa.canHandle(sa.ctx, s.From.Value, "", "delete", sa.mode); !ok {
 		sa.addError("%s", msg)
 		return
 	}
@@ -629,7 +631,7 @@ func (sa *SemanticAnalyzer) visitSQLUpdateStatement(s *ast.SQLUpdateStatement) {
 		return
 	}
 	for _, stm := range s.Set {
-		if ok, msg := sa.canHandle(sa.ctx, s.ObjectName.Value, stm.Column.Value, "update"); !ok {
+		if ok, msg := sa.canHandle(sa.ctx, s.ObjectName.Value, stm.Column.Value, "update", sa.mode); !ok {
 			sa.addError("%s", msg)
 			return
 		}
@@ -677,7 +679,7 @@ func (sa *SemanticAnalyzer) visitSQLInsertStatement(s *ast.SQLInsertStatement) {
 		return
 	}
 	for _, name := range s.Columns {
-		if ok, msg := sa.canHandle(sa.ctx, s.ObjectName.Value, name.Value, "insert"); !ok {
+		if ok, msg := sa.canHandle(sa.ctx, s.ObjectName.Value, name.Value, "insert", sa.mode); !ok {
 			sa.addError("%s", msg)
 			return
 		}
@@ -792,7 +794,7 @@ func (sa *SemanticAnalyzer) visitSQLColumnConstraints(names []string, v *ast.SQL
 		}
 		t := sa.resolveTypeFromTableName(v.References.TableName.Value)
 		if t == nil {
-			if ok, _ := sa.canHandle(sa.ctx, v.References.TableName.Value, "", ""); ok {
+			if ok, _ := sa.canHandle(sa.ctx, v.References.TableName.Value, "", "", sa.mode); ok {
 				// We are in the creation mode
 				if sym := sa.lookupSymbol(v.References.TableName.Value); sym != nil && sym.Type == DbObjectSymbol {
 					t = sym.DataType
@@ -868,7 +870,7 @@ func (sa *SemanticAnalyzer) visitSQLCreateObjectStatement(s *ast.SQLCreateObject
 		sa.addError("Define at least one column. line:%d, column:%d", s.Token.Line, s.Token.Column)
 		return
 	}
-	if ok, msg := sa.canHandle(sa.ctx, s.ObjectName.Value, "", "ddl_insert"); !ok {
+	if ok, msg := sa.canHandle(sa.ctx, s.ObjectName.Value, "", "ddl_insert", sa.mode); !ok {
 		sa.addError("%s", msg)
 		return
 	}
@@ -1176,7 +1178,7 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 				}
 				switch r := s.Right.(type) {
 				case *ast.Identifier, *ast.StringLiteral:
-					if ok, msg := sa.canHandle(sa.ctx, n.Value, r.String(), "read"); !ok {
+					if ok, msg := sa.canHandle(sa.ctx, n.Value, r.String(), "read", sa.mode); !ok {
 						sa.addError("%s", msg)
 					}
 					continue
@@ -1826,7 +1828,7 @@ func (sa *SemanticAnalyzer) visitSelectArgs(node *ast.SelectArgs) *TypeInfo {
 			sa.addError("Object '%s' does not exist. Line:%d, column:%d.", fl.Right.String(), fl.Right.Line(), fl.Right.Column())
 			return nil
 		}
-		if ok, msg := sa.canHandle(sa.ctx, symp.DataType.Name, fi.Value, "read"); !ok {
+		if ok, msg := sa.canHandle(sa.ctx, symp.DataType.Name, fi.Value, "read", sa.mode); !ok {
 			sa.addError("%s", msg)
 			return nil
 		}
@@ -2813,7 +2815,7 @@ func (sa *SemanticAnalyzer) formType(col *sql.ColumnType) *TypeInfo {
 	return result
 }
 func (sa *SemanticAnalyzer) resolveTypeFromTableName(name string) *TypeInfo {
-	if f, m := sa.canHandle(sa.ctx, name, "", "read"); !f {
+	if f, m := sa.canHandle(sa.ctx, name, "", "read", sa.mode); !f {
 		sa.addError("%s", m)
 		return nil
 	}
@@ -2840,7 +2842,7 @@ func (sa *SemanticAnalyzer) resolveTypeFromTableName(name string) *TypeInfo {
 	colTypes, _ := rows.ColumnTypes()
 	structType := &TypeInfo{Name: name, Fields: make(map[string]*TypeInfo)}
 	for _, col := range colTypes {
-		if ok, mesg := sa.canHandle(sa.ctx, name, col.Name(), "read"); !ok {
+		if ok, mesg := sa.canHandle(sa.ctx, name, col.Name(), "read", sa.mode); !ok {
 			sa.addError("%s", mesg)
 		}
 		structType.Fields[lower(col.Name())] = sa.formType(col)

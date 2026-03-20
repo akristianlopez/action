@@ -25,7 +25,7 @@ type Action struct {
 func NewAction(ctx *gin.Context, db *sql.DB, dbname string) *Action {
 	return &Action{ctx: ctx, db: db, dbname: dbname, error: make([]string, 0)}
 }
-func (action *Action) Interpret(src string, canHandle func(ctx *gin.Context, table, field, operation string) (bool, string),
+func (action *Action) Interpret(src string, canHandle func(ctx *gin.Context, table, field, operation string, mode bool) (bool, string),
 	hasFilter func(ctx *gin.Context, table string) bool, getFilter func(ctx *gin.Context, table, newName string) (ast.Expression, bool),
 	params map[string]object.Object, disableUpdate, disabledDDL bool,
 	serviceExists func(serviceName string) bool,
@@ -41,7 +41,7 @@ func (action *Action) Interpret(src string, canHandle func(ctx *gin.Context, tab
 		}
 		return object.NULL, action.error
 	}
-	analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, serviceExists, signature)
+	analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, serviceExists, signature, false)
 	errors := analyzer.Analyze(act)
 	if len(analyzer.Warnings) > 0 {
 		action.setWarnings(append(action.Warnings(), analyzer.Warnings...))
@@ -71,7 +71,7 @@ func (action *Action) Execute(prog *ast.Action, hasFilter func(ctx *gin.Context,
 	result := nsina.Eval(prog, env)
 	return result
 }
-func (action *Action) Generate(src string, canHandle func(ctx *gin.Context, table, field, operation string) (bool, string), serviceExists func(serviceName string) bool,
+func (action *Action) Generate(src string, canHandle func(ctx *gin.Context, table, field, operation string, mode bool) (bool, string), serviceExists func(serviceName string) bool,
 	signature func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error)) (*ast.Action, []string) {
 	lex := lexer.New(src)
 	p := parser.New(lex)
@@ -82,7 +82,7 @@ func (action *Action) Generate(src string, canHandle func(ctx *gin.Context, tabl
 		}
 		return nil, action.error
 	}
-	analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, serviceExists, signature)
+	analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, serviceExists, signature, false)
 	errors := analyzer.Analyze(act)
 	if len(analyzer.Warnings) > 0 {
 		action.setWarnings(append(action.Warnings(), analyzer.Warnings...))
@@ -100,7 +100,7 @@ func (action *Action) Generate(src string, canHandle func(ctx *gin.Context, tabl
 	}
 	return optimizedProgram, nil
 }
-func (action *Action) Expression(src, table, newName string, canHandle func(ctx *gin.Context, table, field, operation string) (bool, string)) (ast.Expression, []string) {
+func (action *Action) Expression(src, table, newName string, canHandle func(ctx *gin.Context, table, field, operation string, mode bool) (bool, string)) (ast.Expression, []string) {
 	lex := lexer.New(src)
 	p := parser.New(lex)
 	act := p.ParseExpression()
@@ -110,7 +110,7 @@ func (action *Action) Expression(src, table, newName string, canHandle func(ctx 
 		}
 		return nil, action.error
 	}
-	analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, nil, nil)
+	analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, nil, nil, false)
 	analyzer.AnalyzeExpression(table, newName, act)
 	if len(analyzer.Warnings) > 0 {
 		action.setWarnings(append(action.Warnings(), analyzer.Warnings...))
@@ -121,8 +121,8 @@ func (action *Action) Expression(src, table, newName string, canHandle func(ctx 
 	}
 	return act, action.error
 }
-func (action *Action) Check(src, id, table, newName string, canHandle func(ctx *gin.Context, table, field, operation string) (bool, string), serviceExists func(serviceName string) bool,
-	signature func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error)) (bool, []string) {
+func (action *Action) Check(src, id, table, newName string, canHandle func(ctx *gin.Context, table, field, operation string, mode bool) (bool, string), serviceExists func(serviceName string) bool,
+	signature func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error), mode bool) (bool, []string) {
 	lex := lexer.New(src)
 	p := parser.New(lex)
 	switch strings.ToLower(id) {
@@ -134,7 +134,7 @@ func (action *Action) Check(src, id, table, newName string, canHandle func(ctx *
 			}
 			return false, action.error
 		}
-		analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, serviceExists, signature)
+		analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, serviceExists, signature, mode)
 		analyzer.Analyze(act)
 		if len(analyzer.Warnings) > 0 {
 			action.setWarnings(append(action.Warnings(), analyzer.Warnings...))
@@ -158,7 +158,7 @@ func (action *Action) Check(src, id, table, newName string, canHandle func(ctx *
 			}
 			return false, action.error
 		}
-		analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, nil, nil)
+		analyzer := semantic.NewSemanticAnalyzer(action.ctx, action.db, canHandle, nil, nil, mode)
 		analyzer.AnalyzeExpression(table, newName, act)
 		if len(analyzer.Warnings) > 0 {
 			action.setWarnings(append(action.Warnings(), analyzer.Warnings...))

@@ -283,7 +283,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	}
 	oldScope.Children = append(oldScope.Children, funScope)
 	sa.CurrentScope = funScope
-	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 0)
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "$n_arguments"}, &ast.Identifier{Value: "element"}, -1, 0)
 	sa.CurrentScope = oldScope
 	sa.registerSymbol("sum", FunctionSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "sum"}, 13)
 
@@ -293,7 +293,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	}
 	oldScope.Children = append(oldScope.Children, funScope)
 	sa.CurrentScope = funScope
-	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 0)
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "$n_arguments"}, &ast.Identifier{Value: "element"}, -1, 0)
 	sa.CurrentScope = oldScope
 	sa.registerSymbol("min", FunctionSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "min"}, 14)
 
@@ -303,7 +303,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	}
 	oldScope.Children = append(oldScope.Children, funScope)
 	sa.CurrentScope = funScope
-	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 0)
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "$n_arguments"}, &ast.Identifier{Value: "element"}, -1, 0)
 	sa.CurrentScope = oldScope
 	sa.registerSymbol("max", FunctionSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "max"}, 15)
 
@@ -348,6 +348,67 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "element"}, -1, 0)
 	sa.CurrentScope = oldScope
 	sa.registerSymbol("trim", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "trim"}, 19)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "element"}, -1, 0)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("idpcreaterole", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "idpcreaterole"}, 20)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "element"}, -1, 0)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("idpcreateuser", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "idpcreateuser"}, 21)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "element"}, -1, 0)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("idpdeleterole", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "idpdeleterole"}, 22)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "element"}, -1, 0)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("idpdeleteuser", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "idpdeleteuser"}, 23)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "$_arguments"}, &ast.Identifier{Value: "element"}, -1, 0)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("idprevokerole", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "idprevokerole"}, 24)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "$_arguments"}, &ast.Identifier{Value: "element"}, -1, 0)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("idpassignerole", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "idpassignrole"}, 25)
+
 }
 
 func (sa *SemanticAnalyzer) registerBuiltinTypes() {
@@ -608,7 +669,7 @@ func (sa *SemanticAnalyzer) visitSQLDeleteStatement(s *ast.SQLDeleteStatement) {
 
 	condType := sa.visitExpression(s.Where)
 	if condType.Name != "boolean" {
-		sa.addError("The condition of a for loop must be boolean. line:%d column:%d",
+		sa.addError("The condition of a for loop must be boolean. line:%d, column:%d",
 			s.Line(), s.Column())
 		sa.CurrentScope = oldScope
 		return
@@ -661,7 +722,7 @@ func (sa *SemanticAnalyzer) visitSQLUpdateStatement(s *ast.SQLUpdateStatement) {
 	if s.Where != nil {
 		condType := sa.visitExpression(s.Where)
 		if condType.Name != "boolean" {
-			sa.addError("The condition of a for loop must be boolean. line:%d column:%d",
+			sa.addError("The condition of a for loop must be boolean. line:%d, column:%d",
 				s.Line(), s.Column())
 			sa.CurrentScope = oldScope
 			return
@@ -1134,7 +1195,7 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 			//check the clause ON globally
 			condType := sa.visitExpression(fm.On)
 			if condType.Name != "boolean" {
-				sa.addError("The condition of a for loop must be boolean. line:%d column:%d",
+				sa.addError("The condition of a for loop must be boolean. line:%d, column:%d",
 					ss.Line(), ss.Column())
 				sa.CurrentScope = oldscope
 				return &TypeInfo{Name: "void"}
@@ -1280,7 +1341,7 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 		condType := sa.visitExpression(ss.Where)
 		sa.CurrentScope = oldscope
 		if condType.Name != "boolean" {
-			sa.addError("The condition of a for loop must be boolean. line:%d column:%d",
+			sa.addError("The condition of a for loop must be boolean. line:%d, column:%d",
 				ss.Line(), ss.Column())
 		}
 		//Verify that each time, we have a.b, a exists in the list
@@ -1291,7 +1352,7 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 	if ss.Having != nil {
 		condType := sa.visitExpression(ss.Having)
 		if condType.Name != "boolean" {
-			sa.addError("The condition of a for loop must be boolean. line:%d column:%d",
+			sa.addError("The condition of a for loop must be boolean. line:%d, column:%d",
 				ss.Line(), ss.Column())
 		}
 	}
@@ -1312,19 +1373,19 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 			case *ast.IntegerLiteral:
 				//verify if the value of the literal is between 0 and length of the select arguments list
 				if t.Value <= 0 || t.Value >= int64(len(argList)) {
-					sa.addError("Index '%d' out of box. line:%d column:%d", t.Value,
+					sa.addError("Index '%d' out of box. line:%d, column:%d", t.Value,
 						t.Line(), t.Column())
 				}
 			case *ast.StringLiteral:
 				//Verify that this literal exists into the select rguments list
 				if !contains(argList, strings.ToLower(t.Value)) {
-					sa.addError("Invalid express '%s'. line:%d column:%d", t.String(),
+					sa.addError("Invalid express '%s'. line:%d, column:%d", t.String(),
 						t.Line(), t.Column())
 				}
 			case *ast.ArrayFunctionCall:
 				//very that this function was call in the select clause
 				if !contains(argList, strings.ToLower(t.String())) {
-					sa.addError("Invalid express '%s'. line:%d column:%d", t.String(),
+					sa.addError("Invalid express '%s'. line:%d, column:%d", t.String(),
 						t.Line(), t.Column())
 				}
 			default:
@@ -1385,7 +1446,7 @@ func (sa *SemanticAnalyzer) visitLetStatement(node *ast.LetStatement) {
 	// Vérifier si la variable est déjà déclarée
 	var varType *TypeInfo
 	if sa.lookupSymbol(node.Name.Value) != nil {
-		sa.addError("Variable '%s' already declared. line:%d column:%d",
+		sa.addError("Variable '%s' already declared. line:%d, column:%d",
 			node.Name.Value, node.Name.Token.Line, node.Name.Token.Column)
 		return
 	}
@@ -1397,7 +1458,7 @@ func (sa *SemanticAnalyzer) visitLetStatement(node *ast.LetStatement) {
 		valueType := sa.visitExpression(node.Value)
 
 		if varType != nil && !sa.areTypesCompatible(varType, valueType) {
-			sa.addError("Type mismatch for the variable '%s': expected %s, got %s. line:%d column:%d",
+			sa.addError("Type mismatch for the variable '%s': expected %s, got %s. line:%d, column:%d",
 				node.Name.Value, varType.Name, valueType.Name, node.Token.Line, node.Token.Column)
 		}
 		// Si le type n'est pas spécifié, l'inférer
@@ -1421,7 +1482,7 @@ func (sa *SemanticAnalyzer) visitAssignmentStatement(node *ast.AssignmentStateme
 	case *ast.Identifier:
 		sym := sa.lookupSymbol(left.Value)
 		if sym == nil {
-			sa.addError("Non declared identifier: %s line:%d column:%d", left.Value, left.Token.Line, left.Token.Column)
+			sa.addError("Non declared identifier: %s line:%d, column:%d", left.Value, left.Token.Line, left.Token.Column)
 			return &TypeInfo{Name: "void"}
 		}
 		leftType = sym.DataType
@@ -1431,7 +1492,7 @@ func (sa *SemanticAnalyzer) visitAssignmentStatement(node *ast.AssignmentStateme
 		leftType = sa.visitIndexExpression(left)
 		if leftType == nil {
 			// visitIndexExpression reports its own errors
-			sa.addError("Invalid left side in assignment: %s. line:%d column:%d", left.String(), left.Line(), left.Column())
+			sa.addError("Invalid left side in assignment: %s. line:%d, column:%d", left.String(), left.Line(), left.Column())
 			return &TypeInfo{Name: "void"}
 		}
 
@@ -1440,12 +1501,12 @@ func (sa *SemanticAnalyzer) visitAssignmentStatement(node *ast.AssignmentStateme
 		leftType = sa.visitTypeMember(left, "")
 		if leftType == nil {
 			// visitTypeMember reports its own errors
-			sa.addError("Invalid left side in assignment: %s. line:%d column:%d", left.String(), left.Line(), left.Column())
+			sa.addError("Invalid left side in assignment: %s. line:%d, column:%d", left.String(), left.Line(), left.Column())
 			return &TypeInfo{Name: "void"}
 		}
 
 	default:
-		sa.addError("Invalid Left side in assignment: %s. line:%d column:%d", node.Variable.String(), node.Variable.Line(), node.Variable.Column())
+		sa.addError("Invalid Left side in assignment: %s. line:%d, column:%d", node.Variable.String(), node.Variable.Line(), node.Variable.Column())
 		return &TypeInfo{Name: "void"}
 	}
 
@@ -1453,13 +1514,13 @@ func (sa *SemanticAnalyzer) visitAssignmentStatement(node *ast.AssignmentStateme
 	rightType := sa.visitExpression(node.Value)
 	if rightType == nil {
 		// visitExpression may have reported errors
-		sa.addError("Invalid Right side expression has no type. line:%d column:%d",
+		sa.addError("Invalid Right side expression has no type. line:%d, column:%d",
 			node.Value.Line(), node.Value.Column())
 		return &TypeInfo{Name: "void"}
 	}
 
 	if !sa.areTypesCompatible(leftType, rightType) {
-		sa.addError("Type mismatch in assignment: expected %s, got %s. line:%d column:%d",
+		sa.addError("Type mismatch in assignment: expected %s, got %s. line:%d, column:%d",
 			leftType.String(), rightType.String(), node.Token.Line, node.Token.Column)
 		return &TypeInfo{Name: "void"}
 	}
@@ -1510,7 +1571,7 @@ func (sa *SemanticAnalyzer) visitFunctionStatement(node *ast.FunctionStatement) 
 func (sa *SemanticAnalyzer) visitStructStatement(node *ast.StructStatement) {
 	// Vérifier si la structure est déjà déclarée
 	if sa.lookupSymbol(node.Name.Value) != nil {
-		sa.addError("Type '%s' already declared. line:%d column:%d", node.Name.Value,
+		sa.addError("Type '%s' already declared. line:%d, column:%d", node.Name.Value,
 			node.Token.Line, node.Token.Column)
 		return
 	}
@@ -1556,7 +1617,7 @@ func (sa *SemanticAnalyzer) visitForStatement(node *ast.ForStatement, t *TypeInf
 	if node.Condition != nil {
 		condType := sa.visitExpression(node.Condition)
 		if condType.Name != "boolean" && condType.Name != "any" {
-			sa.addError("The condition of a for loop must be boolean. line:%d column:%d",
+			sa.addError("The condition of a for loop must be boolean. line:%d, column:%d",
 				node.Token.Line, node.Token.Column)
 		}
 	}
@@ -1588,7 +1649,7 @@ func (sa *SemanticAnalyzer) visitIfStatement(node *ast.IfStatement, t *TypeInfo)
 	if node.Condition != nil {
 		condType := sa.visitExpression(node.Condition)
 		if condType.Name != "boolean" && condType.Name != "any" {
-			sa.addError("The condition of a If statement must be boolean. line:%d column:%d",
+			sa.addError("The condition of a If statement must be boolean. line:%d, column:%d",
 				node.Token.Line, node.Token.Column)
 			return
 		}
@@ -1659,7 +1720,7 @@ func (sa *SemanticAnalyzer) visitWhileStatement(node *ast.WhileStatement, t *Typ
 	if node.Condition != nil {
 		condType := sa.visitExpression(node.Condition)
 		if condType.Name != "boolean" && condType.Name != "any" {
-			sa.addError("The condition of a If statement must be boolean. line:%d column:%d",
+			sa.addError("The condition of a If statement must be boolean. line:%d, column:%d",
 				node.Token.Line, node.Token.Column)
 			return
 		}
@@ -1943,7 +2004,7 @@ func (sa *SemanticAnalyzer) visitSelectExpression(node *ast.SQLSelectStatement) 
 	for _, f := range node.Select {
 		if fld, ok := f.(*ast.SelectArgs); ok {
 			if fi, o := fld.Expr.(*ast.Identifier); o {
-				sa.addError("'%s' needs to be prefixed by the name of an object. line:%d column:%d", fi.Value,
+				sa.addError("'%s' needs to be prefixed by the name of an object. line:%d, column:%d", fi.Value,
 					fi.Line(), fi.Column())
 				continue
 			}
@@ -1966,12 +2027,12 @@ func (sa *SemanticAnalyzer) visitSelectExpression(node *ast.SQLSelectStatement) 
 					structType.ElementType.Fields[lower(fi.Value)] = fieldType
 					continue
 				}
-				sa.addError("Invalid column expression '%s'. line:%d column:%d", fld.Expr.String(),
+				sa.addError("Invalid column expression '%s'. line:%d, column:%d", fld.Expr.String(),
 					fld.Expr.Line(), fld.Expr.Column())
 				sa.CurrentScope = oldScope
 				return &TypeInfo{Name: "void"}
 			}
-			sa.addError("'%s' needs to be renamed. line:%d column:%d", fld.Expr.String(),
+			sa.addError("'%s' needs to be renamed. line:%d, column:%d", fld.Expr.String(),
 				fld.Expr.Line(), fld.Expr.Column())
 			sa.CurrentScope = oldScope
 			return &TypeInfo{Name: "void"}
@@ -2028,12 +2089,12 @@ func (sa *SemanticAnalyzer) visitBetweenExpression(e *ast.BetweenExpression) *Ty
 	tc := sa.visitExpression(e.Left)
 	te := sa.visitExpression(e.Right)
 	if !sa.areTypesCompatible(tb, tc) {
-		sa.addError("Type mismatch in BETWEEN expression: base '%s' and correct '%s' are not compatible. line:%d column:%d",
+		sa.addError("Type mismatch in BETWEEN expression: base '%s' and correct '%s' are not compatible. line:%d, column:%d",
 			tb.Name, tc.Name, e.Line(), e.Column())
 		return &TypeInfo{Name: "void"}
 	}
 	if !sa.areTypesCompatible(tb, te) {
-		sa.addError("Type mismatch in BETWEEN expression: base '%s' and error '%s' are not compatible. line:%d column:%d",
+		sa.addError("Type mismatch in BETWEEN expression: base '%s' and error '%s' are not compatible. line:%d, column:%d",
 			tb.Name, te.Name, e.Line(), e.Column())
 		return &TypeInfo{Name: "void"}
 	}
@@ -2044,16 +2105,16 @@ func (sa *SemanticAnalyzer) visitSliceExpression(e *ast.SliceExpression) *TypeIn
 	ts := sa.visitExpression(e.Start)
 	te := sa.visitExpression(e.End)
 	if ts != nil && ts.Name != "integer" {
-		sa.addError("This expression '%s' must be integer. line:%d column:%d",
+		sa.addError("This expression '%s' must be integer. line:%d, column:%d",
 			e.String(), e.Start.Line(), e.Start.Column())
 	}
 	if te != nil && te.Name != "integer" {
-		sa.addError("This expression '%s' must be integer. line:%d column:%d",
+		sa.addError("This expression '%s' must be integer. line:%d, column:%d",
 			e.String(), e.End.Line(), e.End.Column())
 	}
 	symbol := sa.lookupSymbol(e.Left.String())
 	if symbol == nil {
-		sa.addError("Non declared identifier: %s line:%d column:%d", e.Left.String(),
+		sa.addError("Non declared identifier: %s line:%d, column:%d", e.Left.String(),
 			e.Left.Line(), e.Left.Column())
 		return &TypeInfo{Name: "void"}
 	}
@@ -2065,7 +2126,7 @@ func (sa *SemanticAnalyzer) visitArrayFunctionCall(e *ast.ArrayFunctionCall) *Ty
 	oldScope := sa.CurrentScope
 	symbol := sa.lookupSymbol(e.Function.String())
 	if symbol == nil {
-		sa.addError("Non declared function: %s. line:%d column:%d", e.Function.Value,
+		sa.addError("Non declared function: %s. line:%d, column:%d", e.Function.Value,
 			e.Function.Token.Line, e.Function.Token.Column)
 		sa.CurrentScope = oldScope
 		return &TypeInfo{Name: "void"}
@@ -2076,26 +2137,26 @@ func (sa *SemanticAnalyzer) visitArrayFunctionCall(e *ast.ArrayFunctionCall) *Ty
 		return symbol.DataType
 	}
 	if Scope == nil && e.Array != nil {
-		sa.addError("The function '%s' does not have argument(s). line:%d column:%d", e.Function.Value,
+		sa.addError("The function '%s' does not have argument(s). line:%d, column:%d", e.Function.Value,
 			e.Function.Token.Line, e.Function.Token.Column)
 		sa.CurrentScope = oldScope
 		return &TypeInfo{Name: "void"}
 	}
 	if e.Array == nil && len(Scope.Symbols) > 0 {
-		sa.addError("The function '%s' must have argument(s). line:%d column:%d", e.Function.Value,
+		sa.addError("The function '%s' must have argument(s). line:%d, column:%d", e.Function.Value,
 			e.Function.Token.Line, e.Function.Token.Column)
 		sa.CurrentScope = oldScope
 		return &TypeInfo{Name: "void"}
 	}
 
 	if len(e.Arguments) > 0 && len(Scope.Symbols)-1 == 0 {
-		sa.addError("The function '%s' does not have argument(s). line:%d column:%d", e.Function.Value,
+		sa.addError("The function '%s' does not have argument(s). line:%d, column:%d", e.Function.Value,
 			e.Function.Token.Line, e.Function.Token.Column)
 		sa.CurrentScope = oldScope
 		return &TypeInfo{Name: "void"}
 	}
 	if len(Scope.Symbols) != (len(e.Arguments) + 1) {
-		sa.addError("The function '%s' expects %d argument(s), but got %d. line:%d column:%d", e.Function.Value,
+		sa.addError("The function '%s' expects %d argument(s), but got %d. line:%d, column:%d", e.Function.Value,
 			len(Scope.Symbols), len(e.Arguments), e.Function.Token.Line, e.Function.Token.Column)
 		sa.CurrentScope = oldScope
 		return &TypeInfo{Name: "void"}
@@ -2107,8 +2168,29 @@ func (sa *SemanticAnalyzer) visitArrayFunctionCall(e *ast.ArrayFunctionCall) *Ty
 	}
 	currentType := sa.visitExpression(e.Array)
 	expectedType := Scope.Symbols[args[0]]
+	isArgList := false
+	if expectedType.DataType.Name == "$_arguments" {
+		isArgList = true
+		expectedType = &Symbol{Name: "", Type: ParameterSymbol, DataType: currentType}
+		if currentType.Name != "string" {
+			sa.addError("Type mismatch for argument '%s' in function '%s': expected %s, got %s. line:%d, column:%d",
+				e.Array.String(), e.Function.Value, "string", currentType.Name,
+				e.Array.Line(), e.Array.Column())
+			return &TypeInfo{Name: "void"}
+		}
+	}
+	if expectedType.DataType.Name == "$n_arguments" {
+		isArgList = true
+		expectedType = &Symbol{Name: "", Type: ParameterSymbol, DataType: currentType}
+		if currentType.Name != "integer" && currentType.Name != "float" && currentType.Name != "string" {
+			sa.addError("Type mismatch for argument '%s' in function '%s': expected %s, got %s. line:%d, column:%d",
+				e.Array.String(), e.Function.Value, "integer or float", currentType.Name,
+				e.Array.Line(), e.Array.Column())
+			return &TypeInfo{Name: "void"}
+		}
+	}
 	if !sa.areSameType(expectedType.DataType, currentType) {
-		sa.addError("Type mismatch for argument '%s' in function '%s': expected %s, got %s. line:%d column:%d",
+		sa.addError("Type mismatch for argument '%s' in function '%s': expected %s, got %s. line:%d, column:%d",
 			e.Array.String(), e.Function.Value, expectedType.DataType.Name, currentType.Name,
 			e.Function.Token.Line, e.Function.Token.Column)
 		return &TypeInfo{Name: "void"}
@@ -2117,14 +2199,16 @@ func (sa *SemanticAnalyzer) visitArrayFunctionCall(e *ast.ArrayFunctionCall) *Ty
 
 	for k, arg := range e.Arguments {
 		currentType = sa.visitExpression(arg)
-		expectedType, exists = Scope.Symbols[args[k+1]]
-		if !exists {
-			sa.addError("The function '%s' does not have argument '%s'. line:%d column:%d", e.Function.Value,
-				arg.String(), e.Function.Token.Line, e.Function.Token.Column)
-			continue
+		if !isArgList {
+			expectedType, exists = Scope.Symbols[args[k+1]]
+			if !exists {
+				sa.addError("The function '%s' does not have argument '%s'. line:%d, column:%d", e.Function.Value,
+					arg.String(), e.Function.Token.Line, e.Function.Token.Column)
+				continue
+			}
 		}
 		if !sa.areSameType(expectedType.DataType, currentType) {
-			sa.addError("Type mismatch for argument '%s' in function '%s': expected %s, got %s. line:%d column:%d",
+			sa.addError("Type mismatch for argument '%s' in function '%s': expected %s, got %s. line:%d, column:%d",
 				arg.String(), e.Function.Value, expectedType.DataType.Name, currentType.Name,
 				e.Function.Token.Line, e.Function.Token.Column)
 		}
@@ -2136,7 +2220,7 @@ func (sa *SemanticAnalyzer) visitArrayFunctionCall(e *ast.ArrayFunctionCall) *Ty
 func (sa *SemanticAnalyzer) visitIdentifier(node *ast.Identifier) *TypeInfo {
 	symbol := sa.lookupSymbol(node.Value)
 	if symbol == nil {
-		sa.addError("Non declared identifier: %s line:%d column:%d", node.Value, node.Token.Line,
+		sa.addError("Non declared identifier: %s line:%d, column:%d", node.Value, node.Token.Line,
 			node.Token.Column)
 		return &TypeInfo{Name: "any"}
 	}
@@ -2357,7 +2441,7 @@ func (sa *SemanticAnalyzer) visitStructLiteral(node *ast.StructLiteral) *TypeInf
 	if node.Name != nil {
 		structType := sa.lookupSymbol(lower(node.Name.Value))
 		if structType == nil {
-			sa.addError("Type '%s' not declared. line:%d column:%d", node.Name.Value,
+			sa.addError("Type '%s' not declared. line:%d, column:%d", node.Name.Value,
 				node.Token.Line, node.Token.Column)
 			return &TypeInfo{Name: "void"}
 		}
@@ -2385,7 +2469,7 @@ func (sa *SemanticAnalyzer) visitStructLiteral(node *ast.StructLiteral) *TypeInf
 		elemType := sa.visitExpression(elem.Value)
 		expectedType, exists := resultType.Fields[lower(elem.Name.Value)]
 		if !exists {
-			sa.addError("Field '%s' does not exist in type '%s'. line:%d column:%d",
+			sa.addError("Field '%s' does not exist in type '%s'. line:%d, column:%d",
 				elem.Name.Value, resultType.Name, elem.Name.Token.Line, elem.Name.Token.Column)
 			continue
 		}
@@ -3193,13 +3277,13 @@ func (sa *SemanticAnalyzer) addWarning(format string, args ...interface{}) {
 // Méthodes restantes pour visiter les autres types d'expressions et instructions
 func (sa *SemanticAnalyzer) visitReturnStatement(node *ast.ReturnStatement, t *TypeInfo) {
 	if (t == nil || t.Name == "void") && node.ReturnValue != nil {
-		sa.addError("Fonction does not return a value. line:%d column:%d",
+		sa.addError("Fonction does not return a value. line:%d, column:%d",
 			node.Token.Line, node.Token.Column)
 		return
 	}
 	ti := sa.visitExpression(node.ReturnValue)
 	if !sa.areTypesCompatible(t, ti) {
-		sa.addError("Type of the Return value mismatch: expected %s, got %s. line:%d column:%d",
+		sa.addError("Type of the Return value mismatch: expected %s, got %s. line:%d, column:%d",
 			t.Name, ti.Name, node.Token.Line, node.Token.Column)
 	}
 }

@@ -446,6 +446,7 @@ type Environment struct {
 	external      func(ctx *gin.Context, srv, name string, args map[string]Object) (Object, bool)
 	signature     func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error)
 	emit          func(ctx *gin.Context, subject string, message any) bool
+	idps          func(ctx *gin.Context, arg ...string) error
 }
 
 func (env *Environment) propagate(out *Environment, t *sql.Tx) {
@@ -519,11 +520,11 @@ func NewEnvironment(ctx *gin.Context, db *sql.DB, hf func(ctx *gin.Context, tabl
 	gf func(ctx *gin.Context, table, newName string) (ast.Expression, bool), dbname string, params map[string]Object,
 	disableUpdate, disabledDDL bool, sign func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error),
 	external func(ctx *gin.Context, srv, name string, args map[string]Object) (Object, bool),
-	emit func(ctx *gin.Context, subject string, message any) bool) *Environment {
+	emit func(ctx *gin.Context, subject string, message any) bool, idps func(ctx *gin.Context, arg ...string) error) *Environment {
 	s := make(map[string]Object)
 
 	return &Environment{store: s, outer: nil, limits: nil, db: db, ctx: ctx, tx: nil,
-		hasFilter: hf, getFilter: gf, dbname: dbname, params: &params, emit: emit,
+		hasFilter: hf, getFilter: gf, dbname: dbname, params: &params, emit: emit, idps: idps,
 		disableUpdate: disableUpdate, disabledDDL: disabledDDL, external: external, signature: sign}
 }
 func (env *Environment) IsParams(name string) bool {
@@ -548,6 +549,16 @@ func (env *Environment) Emit(event string, val Object) bool {
 		return false
 	}
 	return env.emit(env.ctx, event, val)
+}
+func (env *Environment) IdPs(event string, arg ...String) error {
+	if env.idps == nil {
+		return errors.New("No IdPs defined")
+	}
+	args := make([]string, 0)
+	for _, s := range arg {
+		args = append(args, s.Value)
+	}
+	return env.idps(env.ctx, args...)
 }
 func (env *Environment) Filter(table, newName string) (ast.Expression, bool) {
 	if env.getFilter == nil {
@@ -604,7 +615,7 @@ func (env *Environment) Query(strSQL string, args ...any) (*sql.Rows, error) {
 
 func NewEnclosedEnvironment(outer *Environment) *Environment {
 	env := NewEnvironment(outer.ctx, outer.db, outer.hasFilter, outer.getFilter, outer.dbname, nil,
-		outer.disableUpdate, outer.disabledDDL, outer.signature, outer.external, outer.emit)
+		outer.disableUpdate, outer.disabledDDL, outer.signature, outer.external, outer.emit, outer.idps)
 	env.tx = outer.tx
 	env.outer = outer
 	env.limits = nil

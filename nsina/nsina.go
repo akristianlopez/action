@@ -2786,6 +2786,19 @@ func objectsEqual(a, b object.Object) bool {
 	}
 }
 
+type Number interface {
+	int | int64 | float64 | float32 | string
+}
+
+// Sum additionne les éléments de n'importe quelle slice de nombres
+func Sum[T Number](slice []T) T {
+	var total T
+	for _, v := range slice {
+		total += v
+	}
+	return total
+}
+
 func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment) object.Object {
 	//How to save the context before running the function
 	f, ok := env.Get(node.Function.Value)
@@ -2813,7 +2826,36 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		}
 		return val.(*object.ReturnValue).Value
 	}
-	switch strings.ToLower(node.Function.Value) {
+	fn := strings.ToLower(node.Function.Value)
+	switch fn {
+	case "idpcreaterole", "idpcreateuser", "idpdeleterole", "idpdeleteuser":
+		if len(node.Arguments) != 0 {
+			return newError("%s requires only one argument", strings.ToLower(node.Function.Value))
+		}
+		arg := Eval(node.Array, env)
+		if v, ok := arg.(*object.String); ok {
+			err := env.IdPs(strings.ToLower(node.Function.Value), *v)
+			if err != nil {
+				return newError("%s", err.Error())
+			}
+		}
+		return newError("'%s' Invalid datatype", node.String())
+	case "idprevokerole", "idpassignrole":
+		if len(node.Arguments) == 0 {
+			return newError("%s requires at least two arguments", strings.ToLower(node.Function.Value))
+		}
+		arg := Eval(node.Array, env)
+		args := make([]object.String, 0)
+		args = append(args, *arg.(*object.String))
+		for _, ar := range node.Arguments {
+			arg = Eval(ar, env)
+			args = append(args, *arg.(*object.String))
+		}
+		err := env.IdPs(strings.ToLower(node.Function.Value), args...)
+		if err != nil {
+			return newError("%s", err.Error())
+		}
+		return object.TRUE
 	case "coalesce":
 		if len(node.Arguments) != 1 {
 			return newError("coalesce requires only two arguments")
@@ -2867,13 +2909,86 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		}
 		return arg
 	case "sum", "min", "count", "max":
-		if len(node.Arguments) > 0 {
-			return newError("Nsina: %s Too much arguments", node.Function.String())
-		}
 		arg := Eval(node.Array, env)
 		if arg.Type() == object.DBFIELD_OBJ {
-			// return &object.DBField{Value: node.String()}
+			if len(node.Arguments) > 0 {
+				return newError("Nsina: %s Too much arguments", node.Function.String())
+			}
 			return &object.DBField{Value: fmt.Sprintf("%s(%s)", node.Function.Value, arg.Inspect())}
+		}
+		switch {
+		case arg.Type() == object.INTEGER_OBJ:
+			result := &object.Integer{Value: arg.(*object.Integer).Value}
+			for _, k := range node.Arguments {
+				arg = Eval(k, env)
+				if v, ok := arg.(*object.Integer); ok {
+					switch fn {
+					case "sum":
+						result.Value += v.Value
+					case "min":
+						if result.Value > v.Value {
+							result.Value = v.Value
+						}
+					case "max":
+						if result.Value < v.Value {
+							result.Value = v.Value
+						}
+					case "count":
+						return newError("Nsina: unsuported operation '%s'", node.String())
+					}
+					continue
+				}
+				return newError("'%s' Invalid datatype", node.String())
+			}
+			return result
+		case arg.Type() == object.FLOAT_OBJ:
+			result := &object.Float{Value: arg.(*object.Float).Value}
+			for _, k := range node.Arguments {
+				arg = Eval(k, env)
+				if v, ok := arg.(*object.Float); ok {
+					switch fn {
+					case "sum":
+						result.Value += v.Value
+					case "min":
+						if result.Value > v.Value {
+							result.Value = v.Value
+						}
+					case "max":
+						if result.Value < v.Value {
+							result.Value = v.Value
+						}
+					case "count":
+						return newError("Nsina: unsuported operation '%s'", node.String())
+					}
+					continue
+				}
+				return newError("'%s' Invalid datatype", node.String())
+			}
+			return result
+		case arg.Type() == object.STRING_OBJ:
+			result := &object.String{Value: arg.(*object.String).Value}
+			for _, k := range node.Arguments {
+				arg = Eval(k, env)
+				if v, ok := arg.(*object.String); ok {
+					switch fn {
+					case "sum":
+						result.Value += v.Value
+					case "min":
+						if result.Value > v.Value {
+							result.Value = v.Value
+						}
+					case "max":
+						if result.Value < v.Value {
+							result.Value = v.Value
+						}
+					case "count":
+						return newError("Nsina: unsuported operation '%s'", node.String())
+					}
+					continue
+				}
+				return newError("'%s' Invalid datatype", node.String())
+			}
+			return result
 		}
 		return newError("Nsina: unsuported operation '%s'", node.String())
 	case "substr":

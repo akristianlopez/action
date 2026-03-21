@@ -31,7 +31,8 @@ func (action *Action) Interpret(src string, canHandle func(ctx *gin.Context, tab
 	serviceExists func(serviceName string) bool,
 	signature func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error),
 	external func(ctx *gin.Context, srv, name string, args map[string]object.Object) (object.Object, bool),
-	emit func(ctx *gin.Context, subject string, message any) bool) (object.Object, []string) {
+	emit func(ctx *gin.Context, subject string, message any) bool,
+	idps func(ctx *gin.Context, arg ...string) error) (object.Object, []string) {
 	lex := lexer.New(src)
 	p := parser.New(lex)
 	act := p.ParseAction()
@@ -57,7 +58,7 @@ func (action *Action) Interpret(src string, canHandle func(ctx *gin.Context, tab
 	// 	action.setWarnings(append(action.Warnings(), opt.Warnings...))
 	// }
 	env := object.NewEnvironment(action.ctx, action.db, hasFilter, getFilter, action.dbname, params,
-		disableUpdate, disabledDDL, signature, external, emit)
+		disableUpdate, disabledDDL, signature, external, emit, idps)
 	result := nsina.Eval(optimizedProgram, env)
 	return result, action.AllMessages()
 }
@@ -65,9 +66,10 @@ func (action *Action) Execute(prog *ast.Action, hasFilter func(ctx *gin.Context,
 	params map[string]object.Object, disableUpdate, disabledDDL bool, serviceExists func(serviceName string) bool,
 	signature func(ctx *gin.Context, serviceName, methodName string) ([]*ast.StructField, *ast.TypeAnnotation, error),
 	external func(ctx *gin.Context, srv, name string, args map[string]object.Object) (object.Object, bool),
-	emit func(ctx *gin.Context, subject string, message any) bool) object.Object {
+	emit func(ctx *gin.Context, subject string, message any) bool,
+	idps func(ctx *gin.Context, arg ...string) error) object.Object {
 	env := object.NewEnvironment(action.ctx, action.db, hasFilter, getFilter, action.dbname, params,
-		disableUpdate, disabledDDL, signature, external, emit)
+		disableUpdate, disabledDDL, signature, external, emit, idps)
 	result := nsina.Eval(prog, env)
 	return result
 }

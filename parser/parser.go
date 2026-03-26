@@ -2071,7 +2071,7 @@ func (p *Parser) parseSelectList() []ast.Expression {
 		if !p.expectPeekEx(token.IDENT, token.STRING_LIT, token.INT_LIT) {
 			return nil
 		}
-		p.nextToken() //move to the new name
+		// p.nextToken() //move to the new name
 		arg.NewName = p.parseIdentifier().(*ast.Identifier)
 	}
 	expressions = append(expressions, arg)

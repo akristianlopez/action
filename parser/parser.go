@@ -347,9 +347,7 @@ func (p *Parser) ParseSignature() ([]*ast.StructField, *ast.TypeAnnotation, []*a
 		val := p.getDefinitionStatement(args.Type, types.Statements)
 		if val != nil {
 			otherTypes = append(otherTypes, val)
-			continue
 		}
-		return nil, nil, nil
 	}
 	for _, args := range otherTypes {
 		for _, field := range args.Fields {

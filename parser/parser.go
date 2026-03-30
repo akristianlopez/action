@@ -135,8 +135,9 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.OR, p.parseInfixExpression)
 	p.registerInfix(token.LBRACKET, p.parseIndexOrSliceExpression)
 	p.registerInfix(token.IN, p.parseInExpression)
+
 	// p.registerInfix(token.AS, p.parseInfixExpression)
-	p.registerInfix(token.IS, p.parseInfixExpression)
+	// p.registerInfix(token.IS, p.parseIsExpression)
 	p.registerInfix(token.DOT, p.parsePropertyAccess)
 	p.registerInfix(token.BETWEEN, p.parseBetweenExpression)
 	p.registerInfix(token.LIKE, p.parseLikeExpression)
@@ -1320,7 +1321,7 @@ func (p *Parser) parseExpression(precedence int, flag ...bool) ast.Expression {
 			p.Save()
 			isSaved = true
 			p.nextToken()
-			if !p.peekTokenIs(token.IN, token.LIKE, token.BETWEEN) {
+			if !p.peekTokenIs(token.IN /* token.IS, */, token.LIKE, token.BETWEEN) {
 				p.Restore()
 				isSaved = false
 			}
@@ -2242,9 +2243,9 @@ var precedences = map[token.TokenType]int{
 	token.MOD:      PRODUCT,
 	token.LBRACKET: INDEX,
 	// token.CONCAT:   SUM,
-	token.IN:      LESSGREATER,
-	token.NOT:     LESSGREATER,
-	token.IS:      EQUALS,
+	token.IN:  LESSGREATER,
+	token.NOT: LESSGREATER,
+	// token.IS:      EQUALS,
 	token.LIKE:    LESSGREATER,
 	token.BETWEEN: LESSGREATER,
 	// token.AS:       EQUALS,
@@ -2882,6 +2883,23 @@ func (p *Parser) parseInExpression(left ast.Expression) ast.Expression {
 		if !p.expectPeek(token.IN) {
 			return nil
 		}
+	}
+	precedence := p.curPrecedence()
+	p.nextToken()
+	exp.Right = p.parseExpression(precedence)
+
+	return exp
+}
+
+func (p *Parser) parseIsExpression(left ast.Expression) ast.Expression {
+	exp := &ast.IsExpression{Token: p.curToken, Left: left, Not: false}
+
+	// Vérifier NOT IN
+	if p.curTokenIs(token.NOT) {
+		exp.Not = true
+		// if !p.expectPeek(token.IS) {
+		// 	return nil
+		// }
 	}
 	precedence := p.curPrecedence()
 	p.nextToken()

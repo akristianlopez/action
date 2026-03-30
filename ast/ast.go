@@ -1645,3 +1645,23 @@ func (bs *ProtectedStatement) String() string {
 	}
 	return fmt.Sprintf("CATCH{\n\t%s\n}", bs.Statements.String())
 }
+
+type IsExpression struct {
+	Token token.Token
+	Left  Expression
+	Right Expression // Peut être un ArrayLiteral ou une expression
+	Not   bool
+}
+
+func (ie *IsExpression) TokenLiteral() string { return ie.Token.Literal }
+func (ie *IsExpression) String() string {
+	out := "(" + ie.Left.String()
+	if ie.Not {
+		out += " NOT"
+	}
+	out += " IS " + ie.Right.String() + ")"
+	return out
+}
+func (ie *IsExpression) expressionNode() {}
+func (ie *IsExpression) Line() int       { return ie.Token.Line }
+func (ie *IsExpression) Column() int     { return ie.Token.Column }

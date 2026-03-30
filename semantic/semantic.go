@@ -1864,6 +1864,8 @@ func (sa *SemanticAnalyzer) visitExpression(expr ast.Expression) *TypeInfo {
 		return sa.visitSliceExpression(e)
 	case *ast.InExpression:
 		return sa.visitInExpression(e)
+	case *ast.IsExpression:
+		return sa.visitIsExpression(e)
 	case *ast.ArrayFunctionCall:
 		return sa.visitArrayFunctionCall(e)
 	case *ast.SQLSelectStatement:
@@ -2860,6 +2862,44 @@ func (sa *SemanticAnalyzer) visitInExpression(node *ast.InExpression) *TypeInfo 
 	}
 	return &TypeInfo{Name: "boolean"}
 }
+
+func (sa *SemanticAnalyzer) visitIsExpression(node *ast.IsExpression) *TypeInfo {
+	leftType := sa.visitExpression(node.Left)
+	rightType := sa.visitExpression(node.Right)
+	isSelect := false
+	// if _, ok := node.Right.(*ast.SQLSelectStatement); ok {
+	// 	isSelect = true
+	// }
+	if rightType.Name == "string" && sa.areTypesCompatible(leftType, rightType) {
+		return &TypeInfo{Name: "boolean"}
+	}
+
+	if !rightType.IsArray {
+		sa.addError("'%s' must be an array type in IN operation. line:%d, column:%d",
+			node.Right.String(), node.Right.Line(), node.Right.Column())
+		return &TypeInfo{Name: "void"}
+	}
+	if isSelect && len(rightType.ElementType.Fields) == 1 {
+		ok := true
+		for _, v := range rightType.ElementType.Fields {
+			ok = sa.areTypesCompatible(leftType, v)
+		}
+		if !ok {
+			sa.addError("Type '%s' mismatch for IN. line:%d, column:%d",
+				leftType.Name, node.Left.Line(), node.Left.Column())
+			return &TypeInfo{Name: "void"}
+
+		}
+		return &TypeInfo{Name: "boolean"}
+	}
+	if !sa.areTypesCompatible(leftType, rightType.ElementType) {
+		sa.addError("Type '%s' mismatch for IN. line:%d, column:%d",
+			leftType.Name, node.Left.Line(), node.Left.Column())
+		return &TypeInfo{Name: "void"}
+	}
+	return &TypeInfo{Name: "boolean"}
+}
+
 func (sa *SemanticAnalyzer) formType(col *sql.ColumnType) *TypeInfo {
 	if col == nil {
 		return nil

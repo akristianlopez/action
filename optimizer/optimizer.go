@@ -594,7 +594,16 @@ func isVariableUsedInExpression(expr ast.Expression, name string) bool {
 	case *ast.LikeExpression:
 		return isVariableUsedInExpression(e.Left, name) || isVariableUsedInExpression(e.Right, name)
 	case *ast.SQLSelectStatement:
-		return isVariableUsedInExpression(e.Where, name)
+		flag := isVariableUsedInExpression(e.Where, name) || isVariableUsedInExpression(e.From, name)
+		for _, ex := range e.Select {
+			flag = flag || isVariableUsedInExpression(ex, name)
+		}
+		for _, ex := range e.Joins {
+			flag = flag || isVariableUsedInExpression(ex.On, name)
+		}
+		return flag
+	case *ast.InExpression:
+		return isVariableUsedInExpression(e.Left, name) || isVariableUsedInExpression(e.Right, name)
 	case *ast.AssignmentStatement:
 		return isVariableUsedInExpression(e.Variable, name) || isVariableUsedInExpression(e.Value, name)
 	case *ast.ArrayFunctionCall:

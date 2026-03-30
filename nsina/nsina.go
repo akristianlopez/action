@@ -225,14 +225,13 @@ func evalTypeMember(node *ast.TypeMember, env *object.Environment) object.Object
 	fl := false
 	obj = object.NULL
 	if val, ok := node.Left.(*ast.IndexExpression); ok {
-		obj := Eval(val, env)
+		obj = Eval(val, env)
 		if isError(obj) {
 			return obj
 		}
 		if obj.Type() == object.DBOBJECT_OBJ {
 			return newError("Operation not supported by '%s'", obj.Type())
 		}
-
 		fl = true
 	}
 	if !fl {
@@ -261,6 +260,14 @@ func evalTypeMember(node *ast.TypeMember, env *object.Environment) object.Object
 	}
 	if obj.Type() == object.STRUCT_OBJ {
 		ob := obj.(*object.Struct)
+		keys, ok := key.(*ast.Identifier)
+		if !ok {
+			return newError("Invalid field type '%s'. line:%d, column:%d", key.String(),
+				key.Line(), key.Column())
+		}
+		if value, exists := ob.Fields[strings.ToLower(keys.Value)]; exists {
+			return value
+		}
 		if value, exists := ob.Fields[key.String()]; exists {
 			return value
 		}

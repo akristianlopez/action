@@ -351,7 +351,27 @@ func (p *Parser) ParseSignature() ([]*ast.StructField, *ast.TypeAnnotation, []*a
 		}
 		return nil, nil, nil
 	}
+	for _, args := range otherTypes {
+		for _, field := range args.Fields {
+			val := p.getDefinitionStatement(field.Type, types.Statements)
+			if val != nil {
+				otherTypes = append(otherTypes, p.AllStructureForSignature(val, types.Statements)...)
+			}
+		}
+	}
 	return program, ReturnType, otherTypes
+}
+func (p *Parser) AllStructureForSignature(args *ast.StructStatement, st []ast.Statement) []*ast.StructStatement {
+	otherTypes := make([]*ast.StructStatement, 0)
+	otherTypes = append(otherTypes, args)
+	for _, field := range args.Fields {
+		val := p.getDefinitionStatement(field.Type, st)
+		if val != nil {
+			otherTypes = append(otherTypes, p.AllStructureForSignature(val, st)...)
+
+		}
+	}
+	return otherTypes
 }
 func (p *Parser) getDefinitionStatement(ss *ast.TypeAnnotation, st []ast.Statement) *ast.StructStatement {
 	var res *ast.StructStatement

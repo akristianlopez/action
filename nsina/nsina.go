@@ -891,7 +891,11 @@ func toString(selectStmt *ast.SQLSelectStatement, env *object.Environment) objec
 		if isError(from) {
 			return from
 		}
-		strFrom = fmt.Sprintf("%s %s JOIN %s ON %s", strFrom, step.Type, step.Table.String(), strings.ReplaceAll(step.On.String(), "==", "="))
+		exp := Eval(step.On, env)
+		if isError(exp) {
+			return exp
+		}
+		strFrom = fmt.Sprintf("%s %s JOIN %s ON %s", strFrom, step.Type, step.Table.String(), strings.ReplaceAll(exp.Inspect(), "==", "="))
 		v, _ := selectStmt.From.(*ast.FromIdentifier)
 		if n, True := v.Value.(*ast.Identifier); True {
 			var (

@@ -273,25 +273,25 @@ func (p *Parser) ParseAction() *ast.Action {
 
 	return program
 }
-func (p *Parser) ParseSignature() ([]*ast.StructField, *ast.TypeAnnotation) {
+func (p *Parser) ParseSignature() ([]*ast.StructField, *ast.TypeAnnotation, []*ast.StructStatement) {
 	program := make([]*ast.StructField, 0)
 	var ReturnType *ast.TypeAnnotation
 
 	// Vérifier que le programme commence par 'action'
 	if !p.curTokenIs(token.ACTION) {
 		p.errors = append(p.errors, *Create("The action must start with the word 'action'", p.curToken.Line, p.curToken.Column))
-		return nil, nil
+		return nil, nil, nil
 	}
 	p.nextToken() //move to name
 
 	// Lire le nom de l'action
 	if !p.curTokenIs(token.STRING_LIT) {
 		p.errors = append(p.errors, *Create("Attendu un nom d'action après 'action'", p.curToken.Line, p.curToken.Column))
-		return nil, nil
+		return nil, nil, nil
 	}
 	// program.ActionName = p.curToken.Literal
 	if !p.expectPeek(token.LPAREN) {
-		return nil, nil
+		return nil, nil, nil
 	}
 	p.nextToken() //move to name
 	for !p.curTokenIs(token.START, token.EOF, token.RPAREN) {
@@ -299,21 +299,22 @@ func (p *Parser) ParseSignature() ([]*ast.StructField, *ast.TypeAnnotation) {
 		field.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
 		if !p.expectPeek(token.COLON) {
-			return nil, nil
+			return nil, nil, nil
 		}
 
 		p.nextToken()
 		field.Type = p.parseTypeAnnotation()
 		program = append(program, field)
 		if !p.expectPeekEx(token.COMMA, token.RPAREN) {
-			return nil, nil
+			return nil, nil, nil
 		}
 		if p.curTokenIs(token.COMMA) {
 			p.nextToken()
 		}
 	}
+
 	if !p.curTokenIs(token.RPAREN) {
-		return nil, nil
+		return nil, nil, nil
 	}
 	if p.peekTokenIs(token.COLON) {
 		p.nextToken() // :
@@ -324,8 +325,50 @@ func (p *Parser) ParseSignature() ([]*ast.StructField, *ast.TypeAnnotation) {
 		ReturnType = nil
 	}
 	p.nextToken()
-	return program, ReturnType
+	types := &ast.Action{}
+	for !p.curTokenIs(token.START) && !p.curTokenIs(token.EOF) {
+		stmt, pe := p.parseStatement(false)
+		if pe != nil {
+			p.errors = append(p.errors, *pe)
+		}
+		if stmt != nil {
+			if arr, ok := stmt.(*ast.LetStatements); ok {
+				for _, val := range *arr {
+					types.Statements = append(types.Statements, &val)
+				}
+			} else {
+				types.Statements = append(types.Statements, stmt)
+			}
+		}
+		p.nextToken()
+	}
+	otherTypes := make([]*ast.StructStatement, 0)
+	for _, args := range program {
+		val := p.getDefinitionStatement(args.Type, types.Statements)
+		if val != nil {
+			otherTypes = append(otherTypes, val)
+			continue
+		}
+		return nil, nil, nil
+	}
+	return program, ReturnType, otherTypes
 }
+func (p *Parser) getDefinitionStatement(ss *ast.TypeAnnotation, st []ast.Statement) *ast.StructStatement {
+	var res *ast.StructStatement
+	res = nil
+	for _, ts := range st {
+		if ss.ArrayType != nil {
+			return p.getDefinitionStatement(ss.ArrayType.ElementType, st)
+		}
+		if val, ok := ts.(*ast.StructStatement); ok &&
+			strings.EqualFold(val.Name.Value, ss.Type) {
+			res = val
+			break
+		}
+	}
+	return res
+}
+
 func (p *Parser) ParseExpression() ast.Expression {
 	returnEx := p.parseExpression(LOWEST)
 	if !p.expectPeek(token.EOF) {

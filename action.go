@@ -208,17 +208,17 @@ func (action *Action) ClearErrors() {
 func (action *Action) ClearWarnings() {
 	action.warnings = make([]string, 0)
 }
-func (action *Action) Signature(src string) ([]*ast.StructField, *ast.TypeAnnotation, []string) {
+func (action *Action) Signature(src string) ([]*ast.StructField, *ast.TypeAnnotation, []*ast.StructStatement, []string) {
 	lex := lexer.New(src)
 	p := parser.New(lex)
-	args, retType := p.ParseSignature()
+	args, retType, otherTypes := p.ParseSignature()
 	if p.Errors() != nil && len(p.Errors()) != 0 {
 		for _, msg := range p.Errors() {
 			action.error = append(action.error, msg.String())
 		}
-		return nil, nil, action.error
+		return nil, nil, nil, action.error
 	}
-	return args, retType, nil
+	return args, retType, otherTypes, nil
 }
 func (action *Action) GetDefaultSQLValueAddress(s string) any {
 	return nsina.GetDefaultSQLValueAddress(s)

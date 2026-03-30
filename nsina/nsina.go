@@ -218,7 +218,26 @@ func evalContract(node *ast.TypeExternalCall, env *object.Environment) object.Ob
 }
 
 func evalTypeMember(node *ast.TypeMember, env *object.Environment) object.Object {
-	obj, fl := env.Get(node.Left.String())
+	if node.Left == nil || node.Right == nil {
+		return newError("Invalid type member access")
+	}
+	var obj object.Object
+	fl := false
+	obj = object.NULL
+	if val, ok := node.Left.(*ast.IndexExpression); ok {
+		obj := Eval(val, env)
+		if isError(obj) {
+			return obj
+		}
+		if obj.Type() == object.DBOBJECT_OBJ {
+			return newError("Operation not supported by '%s'", obj.Type())
+		}
+
+		fl = true
+	}
+	if !fl {
+		obj, fl = env.Get(node.Left.String())
+	}
 	if !fl {
 		return newError("Invalid structure name '%s'", node.Left.String())
 	}
@@ -287,6 +306,9 @@ func evalLetStatement(let *ast.LetStatement, env *object.Environment) object.Obj
 		// Valeur par défaut selon le type
 		if let.Type != nil {
 			value = getDefaultValue(let.Type.Type)
+			if let.Type.Type == "" && let.Type.ArrayType != nil {
+				value = getDefaultValue(strings.ToLower("array of " + let.Type.ArrayType.ElementType.Type))
+			}
 			if env.IsParams(let.Name.Value) {
 				value = env.Params(let.Name.Value)
 				switch strings.ToLower(let.Type.Type) {

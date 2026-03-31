@@ -759,6 +759,7 @@ func (sa *SemanticAnalyzer) visitSQLInsertStatement(s *ast.SQLInsertStatement) {
 			}
 			for _, e := range v.Values {
 				t := sa.visitExpression(e)
+				if(t==nil){continue}
 				if _, exists := sa.TypeTable[lower(t.Name)]; !exists {
 					if lower(t.Name) == "string" {
 						continue

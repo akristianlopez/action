@@ -1927,6 +1927,21 @@ func (sa *SemanticAnalyzer) visitSelectArgs(node *ast.SelectArgs) *TypeInfo {
 	}
 	return &TypeInfo{Name: "void"}
 }
+func toInt64(val any) (int64, error) {
+	switch v := val.(type) {
+	case int:
+		return int64(v), nil
+	case int64:
+		return v, nil
+	case float64:
+		return int64(v), nil
+	case string:
+		// Utilisation de strconv pour les chaînes
+		return strconv.ParseInt(v, 10, 64)
+	default:
+		return 0, fmt.Errorf("type non supporté")
+	}
+}
 
 func (sa *SemanticAnalyzer) visitSingleFromClauseExpression(node *ast.FromIdentifier) {
 	symp := sa.lookupSymbol(node.Value.String())
@@ -3141,8 +3156,12 @@ func (sa *SemanticAnalyzer) areTypesConstraintsCompatible(t1, t2 *TypeInfo) bool
 		res = res && c1.Range.Min.(float64) <= c2.Range.Min.(float64)
 		return res
 	}
-	res = res && c1.Range.Max.(int64) >= c2.Range.Max.(int64)
-	res = res && c1.Range.Min.(int64) <= c2.Range.Min.(int64)
+	mc1, _ := toInt64(c1.Range.Max)
+	mc2, _ := toInt64(c2.Range.Max)
+	res = res && mc1 >= mc2
+	mc1, _ = toInt64(c1.Range.Min)
+	mc2, _ = toInt64(c2.Range.Min)
+	res = res && mc1 <= mc2
 	return res
 }
 func (sa *SemanticAnalyzer) areTypesCompatible(t1, t2 *TypeInfo) bool {

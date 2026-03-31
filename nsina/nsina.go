@@ -1180,7 +1180,7 @@ func evalIsExpression(node *ast.IsExpression, env *object.Environment) object.Ob
 	if left.Type() == object.DBFIELD_OBJ || right.Type() == object.DBFIELD_OBJ {
 		op := "Is"
 		if node.Not {
-			op = "Not IS"
+			op = "Is Not"
 		}
 		if left.Type() == object.STRING_OBJ {
 			return &object.DBField{Value: fmt.Sprintf("(%s %s '%s')", left.Inspect(), op, right.Inspect())}

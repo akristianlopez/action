@@ -1000,6 +1000,24 @@ func toString(selectStmt *ast.SQLSelectStatement, env *object.Environment) objec
 		}
 		strSQL = fmt.Sprintf("%s\nGROUP BY \n%s", strSQL, strGroup)
 	}
+	if selectStmt.OrderBy != nil {
+		strOrder := ""
+		for k, v := range selectStmt.OrderBy {
+			if k == 0 {
+				strOrder = v.String()
+				continue
+			}
+			strOrder = fmt.Sprintf("%s, %s", strOrder, v.String())
+		}
+		strSQL = fmt.Sprintf("%s\nORDER BY \n%s", strSQL, strOrder)
+	}
+	if selectStmt.Limit != nil {
+		exp := Eval(selectStmt.Limit, env)
+		if isError(exp) {
+			return exp
+		}
+		strSQL = fmt.Sprintf("%s\nLIMIT %s", strSQL, exp.Inspect())
+	}
 	if selectStmt.Having != nil {
 		strHaving := Eval(selectStmt.Having, env)
 		strSQL = fmt.Sprintf("%s\nHAVING(%s)", strSQL, strHaving.Inspect())

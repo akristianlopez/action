@@ -1942,6 +1942,23 @@ func toInt64(val any) (int64, error) {
 		return 0, fmt.Errorf("type non supporté")
 	}
 }
+func toFloat64(val any) (float64, error) {
+	switch v := val.(type) {
+	case float64:
+		return v, nil
+	case float32:
+		return float64(v), nil
+	case int:
+		return float64(v), nil
+	case int64:
+		return float64(v), nil
+	case string:
+		// Utile pour les entrées utilisateur ou formulaires
+		return strconv.ParseFloat(v, 64)
+	default:
+		return 0, fmt.Errorf("type %T non convertible en float64", v)
+	}
+}
 
 func (sa *SemanticAnalyzer) visitSingleFromClauseExpression(node *ast.FromIdentifier) {
 	symp := sa.lookupSymbol(node.Value.String())
@@ -3152,8 +3169,12 @@ func (sa *SemanticAnalyzer) areTypesConstraintsCompatible(t1, t2 *TypeInfo) bool
 		return !res
 	}
 	if _, ok := c1.Range.Max.(float64); ok {
-		res = res && c1.Range.Max.(float64) >= c2.Range.Max.(float64)
-		res = res && c1.Range.Min.(float64) <= c2.Range.Min.(float64)
+		mc1, _ := toFloat64(c1.Range.Max)
+		mc2, _ := toFloat64(c2.Range.Max)
+		res = res && mc1 >= mc2
+		mc1, _ = toFloat64(c1.Range.Min)
+		mc2, _ = toFloat64(c2.Range.Min)
+		res = res && mc1 <= mc2
 		return res
 	}
 	mc1, _ := toInt64(c1.Range.Max)

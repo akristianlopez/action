@@ -1922,6 +1922,9 @@ func (sa *SemanticAnalyzer) visitSelectArgs(node *ast.SelectArgs) *TypeInfo {
 		}
 		return res
 	}
+	if fl, ok := node.Expr.(*ast.ArrayFunctionCall); ok {
+		return sa.visitArrayFunctionCall(fl)
+	}
 	return &TypeInfo{Name: "void"}
 }
 

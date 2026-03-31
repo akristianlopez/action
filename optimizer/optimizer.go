@@ -604,6 +604,8 @@ func isVariableUsedInExpression(expr ast.Expression, name string) bool {
 		return flag
 	case *ast.InExpression:
 		return isVariableUsedInExpression(e.Left, name) || isVariableUsedInExpression(e.Right, name)
+	case *ast.IsExpression:
+		return isVariableUsedInExpression(e.Left, name) || isVariableUsedInExpression(e.Right, name)
 	case *ast.AssignmentStatement:
 		return isVariableUsedInExpression(e.Variable, name) || isVariableUsedInExpression(e.Value, name)
 	case *ast.ArrayFunctionCall:

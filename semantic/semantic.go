@@ -2866,35 +2866,22 @@ func (sa *SemanticAnalyzer) visitInExpression(node *ast.InExpression) *TypeInfo 
 func (sa *SemanticAnalyzer) visitIsExpression(node *ast.IsExpression) *TypeInfo {
 	leftType := sa.visitExpression(node.Left)
 	rightType := sa.visitExpression(node.Right)
-	isSelect := false
-	// if _, ok := node.Right.(*ast.SQLSelectStatement); ok {
-	// 	isSelect = true
-	// }
-	if rightType.Name == "string" && sa.areTypesCompatible(leftType, rightType) {
+
+	if leftType.Name == "duration" && rightType.Name == "duration" {
 		return &TypeInfo{Name: "boolean"}
 	}
-
-	if !rightType.IsArray {
-		sa.addError("'%s' must be an array type in IN operation. line:%d, column:%d",
-			node.Right.String(), node.Right.Line(), node.Right.Column())
-		return &TypeInfo{Name: "void"}
-	}
-	if isSelect && len(rightType.ElementType.Fields) == 1 {
-		ok := true
-		for _, v := range rightType.ElementType.Fields {
-			ok = sa.areTypesCompatible(leftType, v)
-		}
-		if !ok {
-			sa.addError("Type '%s' mismatch for IN. line:%d, column:%d",
-				leftType.Name, node.Left.Line(), node.Left.Column())
-			return &TypeInfo{Name: "void"}
-
-		}
+	// Comparaisons Date/Time + Duration
+	if (leftType.Name == "date" || leftType.Name == "time") && rightType.Name == "duration" {
+		sa.addWarning("Comparison Date/Time with Duration - implicite conversion")
 		return &TypeInfo{Name: "boolean"}
 	}
-	if !sa.areTypesCompatible(leftType, rightType.ElementType) {
-		sa.addError("Type '%s' mismatch for IN. line:%d, column:%d",
-			leftType.Name, node.Left.Line(), node.Left.Column())
+	if leftType.Name == "null" && rightType.Name != "null" {
+		return &TypeInfo{Name: "boolean"}
+	}
+	// Opérations de comparaison
+	if !sa.areTypesCompatibleEx(leftType, rightType) {
+		sa.addError("Non authorize comparision between %s and %s",
+			leftType.String(), rightType.String())
 		return &TypeInfo{Name: "void"}
 	}
 	return &TypeInfo{Name: "boolean"}

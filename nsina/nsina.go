@@ -120,6 +120,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalSliceExpression(node, env)
 	case *ast.InExpression:
 		return evalInExpression(node, env)
+	case *ast.IsExpression:
+		return evalIsExpression(node, env)
 	case *ast.ArrayFunctionCall:
 		return evalArrayFunctionCall(node, env)
 	case *ast.SwitchStatement:
@@ -1144,6 +1146,39 @@ func evalFromClause(from ast.Expression, env *object.Environment) object.Object 
 
 // Les fonctions evalPrefixExpression, evalInfixExpression, evalIdentifier, etc.
 // suivent le même pattern que dans un évaluateur standard...
+
+// Ajout de la fonction manquante evalIsExpression
+func evalIsExpression(node *ast.IsExpression, env *object.Environment) object.Object {
+	left := Eval(node.Left, env)
+	if isError(left) {
+		return left
+	}
+
+	right := Eval(node.Right, env)
+	if isError(right) {
+		return right
+	}
+
+	if left.Type() == object.DBFIELD_OBJ || right.Type() == object.DBFIELD_OBJ {
+		op := "Is"
+		if node.Not {
+			op = "Not IS"
+		}
+		if left.Type() == object.STRING_OBJ {
+			return &object.DBField{Value: fmt.Sprintf("(%s %s '%s')", left.Inspect(), op, right.Inspect())}
+		}
+		if right.Type() == object.STRING_OBJ {
+			return &object.DBField{Value: fmt.Sprintf("(%s %s '%s')", left.Inspect(), op, right.Inspect())}
+		}
+		return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), op, right.Inspect())}
+	}
+
+	eq := objectsEqual(left, right)
+	if node.Not {
+		eq = !eq
+	}
+	return &object.Boolean{Value: eq}
+}
 
 func evalStructLiteral(node *ast.StructLiteral, env *object.Environment) object.Object {
 	// Créer un objet struct littéral avec ses champs évalués

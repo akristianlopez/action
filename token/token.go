@@ -131,13 +131,13 @@ const (
 	EXISTS   = "EXISTS"
 	LIKE     = "LIKE"
 	BETWEEN  = "BETWEEN"
-	// IS       = "IS"
-	NULL = "NULL"
-	NOT  = "NOT"
-	AND  = "AND"
-	OR   = "OR"
-	ASC  = "ASC"
-	DESC = "DESC"
+	IS       = "IS"
+	NULL     = "NULL"
+	NOT      = "NOT"
+	AND      = "AND"
+	OR       = "OR"
+	ASC      = "ASC"
+	DESC     = "DESC"
 
 	// // Types SQL
 	// VARCHAR   = "VARCHAR"
@@ -260,7 +260,7 @@ var keywords = map[string]TokenType{
 	"exists":   EXISTS,
 	"like":     LIKE,
 	"between":  BETWEEN,
-	// "is":       IS,
+	"is":       IS,
 	"null":     NULL,
 	"not":      NOT,
 	"and":      AND,

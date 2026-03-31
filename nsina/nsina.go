@@ -3759,6 +3759,7 @@ func evalForEachStatement(n ast.Node, env *object.Environment) object.Object {
 		return newError("L'opérande de foreach n'est pas itérable: %s", collection.Type())
 	}
 }
+
 func toInt64(val any) (int64, error) {
 	switch v := val.(type) {
 	case int:
@@ -3774,6 +3775,7 @@ func toInt64(val any) (int64, error) {
 		return 0, fmt.Errorf("type non supporté")
 	}
 }
+
 func toFloat64(val any) (float64, error) {
 	switch v := val.(type) {
 	case float64:

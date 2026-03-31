@@ -2673,14 +2673,15 @@ func (sa *SemanticAnalyzer) getConstraint(leftType *TypeInfo, rightType *TypeInf
 		if lc.Range == nil && rc.Range != nil {
 			return leftType
 		}
-
-		if rc.Range.Max.(int64) > lc.Range.Max.(int64) &&
-			rc.Range.Min.(int64) < lc.Range.Min.(int64) {
+		mc1, _ := toInt64(lc.Range.Max)
+		mc2, _ := toInt64(rc.Range.Max)
+		mn1, _ := toInt64(lc.Range.Min)
+		mn2, _ := toInt64(rc.Range.Min)
+		if mc2 > mc1 && mn2 < mn1 {
 			resultType.Constraints.Range = rc.Range
 			return resultType
 		}
-		if rc.Range.Max.(int64) > lc.Range.Max.(int64) &&
-			rc.Range.Min.(int64) > lc.Range.Min.(int64) {
+		if mc2 > mc1 && mn2 > mc1 {
 			resultType.Constraints.Range.Min = lc.Range.Min
 			resultType.Constraints.Range.Max = lc.Range.Max
 			return resultType
@@ -2703,13 +2704,15 @@ func (sa *SemanticAnalyzer) getConstraint(leftType *TypeInfo, rightType *TypeInf
 		if lc.Range == nil && rc.Range != nil {
 			return leftType
 		}
-		if rc.Range.Max.(float64) > lc.Range.Max.(float64) &&
-			rc.Range.Min.(float64) < lc.Range.Min.(float64) {
+		mx2, _ := toFloat64(rc.Range.Max)
+		mx1, _ := toFloat64(lc.Range.Max)
+		mn2, _ := toFloat64(rc.Range.Min)
+		mn1, _ := toFloat64(lc.Range.Min)
+		if mx2 > mx1 && mn2 < mn1 {
 			resultType.Constraints.Range = rc.Range
 			return resultType
 		}
-		if rc.Range.Max.(float64) > lc.Range.Max.(float64) &&
-			rc.Range.Min.(float64) > lc.Range.Min.(float64) {
+		if mx2 > mx1 && mn2 > mx1 {
 			resultType.Constraints.Range.Min = lc.Range.Min
 			resultType.Constraints.Range.Max = lc.Range.Max
 			return resultType

@@ -2308,6 +2308,8 @@ func evalCommonTableExpression(cte *ast.SQLCommonTableExpression, env *object.En
 
 	// Stocker le résultat comme table temporaire
 	if sqlResult, ok := result.(*object.SQLResult); ok {
+		defer sqlResult.Rows.Close()
+
 		table := &object.SQLTable{
 			Name:    cte.Name.Value,
 			Columns: make(map[string]*object.SQLColumn),
@@ -3645,6 +3647,8 @@ func evalForEachStatement(n ast.Node, env *object.Environment) object.Object {
 		if coll.Rows == nil {
 			return object.NULL
 		}
+		defer coll.Rows.Close()
+
 		_, err1 := coll.Rows.Columns()
 		cols, err2 := coll.Rows.ColumnTypes()
 		if err1 != nil {

@@ -584,7 +584,7 @@ func (env *Environment) Exec(strSQL string, args ...any) (sql.Result, error) {
 		return nil, errors.New("Nsina: no query to be executed")
 	}
 	if env.tx != nil {
-		return env.db.ExecContext(env.ctx, strSQL, args...)
+		return env.tx.ExecContext(env.ctx, strSQL, args...)
 	}
 	return env.db.ExecContext(env.ctx, strSQL, args...)
 }

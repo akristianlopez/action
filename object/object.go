@@ -603,9 +603,15 @@ func (env *Environment) Query(strSQL string, args ...any) (*sql.Rows, error) {
 			return nil, errors.New("Nsina: Context is not defined")
 		}
 		if len(args) == 0 {
+			if env.tx != nil {
+				return env.tx.QueryContext(env.ctx, strSQL)
+			}
 			return env.db.QueryContext(env.ctx, strSQL)
 		}
-		return env.db.QueryContext(env.ctx, strSQL, args)
+		if env.tx != nil {
+			return env.tx.QueryContext(env.ctx, strSQL, args...)
+		}
+		return env.db.QueryContext(env.ctx, strSQL, args...)
 	}
 	if env.db == nil {
 		return nil, errors.New("Nsina: no defined database")

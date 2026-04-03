@@ -889,6 +889,22 @@ func isFunctionUsedInStatement(stmt ast.Statement, name string) bool {
 			return strings.EqualFold(t.Value, name)
 		}
 		return false
+	case *ast.SQLDeleteStatement:
+		return isVariableUsedInExpression(s.Where, name) || isVariableUsedInExpression(s.From, name)
+	case *ast.SQLUpdateStatement:
+		flag := isVariableUsedInExpression(s.Where, name)
+		for _, ex := range s.Set {
+			flag = flag || isVariableUsedInExpression(ex.Value, name)
+		}
+		return flag
+	case *ast.SQLInsertStatement:
+		flag := false
+		for _, ex := range s.Values {
+			for _, v := range ex.Values {
+				flag = flag || isVariableUsedInExpression(v, name)
+			}
+		}
+		return flag
 	case *ast.ReturnStatement:
 		if s.ReturnValue != nil {
 			return isVariableUsedInExpression(s.ReturnValue, name)

@@ -602,6 +602,22 @@ func isVariableUsedInExpression(expr ast.Expression, name string) bool {
 			flag = flag || isVariableUsedInExpression(ex.On, name)
 		}
 		return flag
+	case *ast.SQLDeleteStatement:
+		return isVariableUsedInExpression(e.Where, name) || isVariableUsedInExpression(e.From, name)
+	case *ast.SQLUpdateStatement:
+		flag := isVariableUsedInExpression(e.Where, name)
+		for _, ex := range e.Set {
+			flag = flag || isVariableUsedInExpression(ex.Value, name)
+		}
+		return flag
+	case *ast.SQLInsertStatement:
+		flag := false
+		for _, ex := range e.Values {
+			for _, v := range ex.Values {
+				flag = flag || isVariableUsedInExpression(v, name)
+			}
+		}
+		return flag
 	case *ast.InExpression:
 		return isVariableUsedInExpression(e.Left, name) || isVariableUsedInExpression(e.Right, name)
 	case *ast.IsExpression:

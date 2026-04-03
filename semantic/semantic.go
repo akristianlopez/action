@@ -759,7 +759,9 @@ func (sa *SemanticAnalyzer) visitSQLInsertStatement(s *ast.SQLInsertStatement) {
 			}
 			for _, e := range v.Values {
 				t := sa.visitExpression(e)
-				if(t==nil){continue}
+				if t == nil {
+					continue
+				}
 				if _, exists := sa.TypeTable[lower(t.Name)]; !exists {
 					if lower(t.Name) == "string" {
 						continue
@@ -2960,6 +2962,11 @@ func (sa *SemanticAnalyzer) formType(col *sql.ColumnType) *TypeInfo {
 	case "int8", "integer8":
 		return &TypeInfo{Name: "integer", Constraints: &Constraint{Length: 19, Scale: -1, Precision: -1,
 			Range: &RangeValue{Min: -9223372036854775808, Max: +9223372036854775807}}}
+	case "string":
+		if length, ok := col.Length(); ok {
+			return &TypeInfo{Name: "string", Constraints: &Constraint{Length: length, Scale: -1, Precision: -1, Range: nil}}
+			// fmt.Sprintf("%s(%d)", s, length)
+		}
 	}
 
 	result := &TypeInfo{Name: s}

@@ -827,6 +827,10 @@ func isStructNameUsedAsType(node ast.Statement, name string) bool {
 				return true
 			}
 		}
+	case *ast.ReturnStatement:
+		if st.ReturnValue != nil {
+			return isFunctionUsedInStatement(st, name)
+		}
 	}
 	return false
 }

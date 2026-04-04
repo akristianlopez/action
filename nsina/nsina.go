@@ -1311,11 +1311,13 @@ func evalProtectedStatement(node *ast.ProtectedStatement, env *object.Environmen
 	return result
 }
 func evalPrefixExpression(operator string, right object.Object) object.Object {
-	switch operator {
-	case "!":
+	switch strings.ToLower(operator) {
+	case "not":
 		return evalBangOperatorExpression(right)
 	case "-":
 		return evalMinusPrefixOperatorExpression(right)
+	case "+":
+		return evalPlusPrefixOperatorExpression(right)
 	default:
 		return newError("Opérateur inconnu: %s%s", operator, right.Type())
 	}
@@ -1508,6 +1510,20 @@ func evalMinusPrefixOperatorExpression(right object.Object) object.Object {
 		return &object.Float{Value: -right.Value}
 	default:
 		return newError("Opérateur inconnu: -%s", right.Type())
+	}
+}
+func evalPlusPrefixOperatorExpression(right object.Object) object.Object {
+	if right.Type() != object.INTEGER_OBJ && right.Type() != object.FLOAT_OBJ {
+		return newError("Opérateur inconnu: -%s", right.Type())
+	}
+
+	switch right := right.(type) {
+	case *object.Integer:
+		return &object.Integer{Value: +right.Value}
+	case *object.Float:
+		return &object.Float{Value: +right.Value}
+	default:
+		return newError("Opérateur inconnu: +%s", right.Type())
 	}
 }
 

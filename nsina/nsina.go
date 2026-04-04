@@ -1668,13 +1668,23 @@ func evalSQLCreateObject(stmt *ast.SQLCreateObjectStatement, env *object.Environ
 			return object.NULL
 		}
 	}
+	constraints := ""
+	if len(stmt.Constraints) > 0 {
+		for _, con := range stmt.Constraints {
+			if constraints == "" {
+				constraints = fmt.Sprintf(", %s", con.String())
+				continue
+			}
+			constraints = fmt.Sprintf("%s, %s", constraints, con.String())
+		}
+	}
 	str := ""
 	if stmt.IfNotExists {
 		str = "IF NOT EXISTS"
 	}
 
 	// strSQL := stmt.String()
-	strSQL := fmt.Sprintf("CREATE TABLE %s %s(%s)", str, stmt.ObjectName.Value, strings.Join(fields, ", "))
+	strSQL := fmt.Sprintf("CREATE TABLE %s %s(%s %s)", str, stmt.ObjectName.Value, strings.Join(fields, ", "), constraints)
 	res, err := env.Exec(strSQL)
 	if err == nil {
 		r, _ := res.RowsAffected()

@@ -1311,6 +1311,9 @@ func evalProtectedStatement(node *ast.ProtectedStatement, env *object.Environmen
 	return result
 }
 func evalPrefixExpression(operator string, right object.Object) object.Object {
+	if right.Type() == object.DBFIELD_OBJ {
+		return &object.DBField{Value: fmt.Sprintf("%s %s", operator, right.Inspect())}
+	}
 	switch strings.ToLower(operator) {
 	case "not":
 		return evalBangOperatorExpression(right)

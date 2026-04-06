@@ -1489,16 +1489,11 @@ func evalDBFieldInfixExpression(operator string, left, right object.Object) obje
 }
 
 func evalBangOperatorExpression(right object.Object) object.Object {
-	switch right {
-	case object.TRUE:
-		return object.FALSE
-	case object.FALSE:
-		return object.TRUE
-	case object.NULL:
-		return object.TRUE
-	default:
-		return object.FALSE
+	b, ok := right.(*object.Boolean)
+	if ok {
+		return &object.Boolean{Value: !b.Value}
 	}
+	return newError("Invalid operand type")
 }
 
 func evalMinusPrefixOperatorExpression(right object.Object) object.Object {

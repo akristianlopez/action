@@ -2097,9 +2097,6 @@ func evalSQLDelete(stmt *ast.SQLDeleteStatement, env *object.Environment) object
 		if isError(condition) {
 			return condition
 		}
-		if !isTruthy(condition) {
-			return newError("Invalid expression '%s'", stmt.Where.String())
-		}
 		strSQL = fmt.Sprintf("DELETE FROM %s WHERE (%s)", stmt.From.Value, condition.Inspect())
 		if filter != nil {
 			if !isTruthy(filter) {

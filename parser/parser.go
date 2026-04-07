@@ -2894,18 +2894,13 @@ func (p *Parser) parseInExpression(left ast.Expression) ast.Expression {
 
 func (p *Parser) parseIsExpression(left ast.Expression) ast.Expression {
 	exp := &ast.IsExpression{Token: p.curToken, Left: left, Not: false}
-
-	// Vérifier NOT IN
-	if p.curTokenIs(token.NOT) {
-		exp.Not = true
-		if !p.expectPeek(token.IS) {
-			return nil
-		}
-	}
 	precedence := p.curPrecedence()
+	if p.peekTokenIs(token.NOT) {
+		exp.Not = true
+		p.nextToken()
+	}
 	p.nextToken()
 	exp.Right = p.parseExpression(precedence)
-
 	return exp
 }
 

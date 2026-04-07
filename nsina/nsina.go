@@ -1042,7 +1042,7 @@ func defineFromObject(exp ast.Expression, env *object.Environment) object.Object
 			}
 			defer rows.Close()
 			res, ok := env.Get(ex.Value)
-			if ok && res.Type() != "SQL_TABLE" {
+			if ok && res.Type() == object.DBOBJECT_OBJ {
 				if from.NewName != nil {
 					return env.Set(from.NewName.String(), res)
 				}
@@ -1968,6 +1968,9 @@ func defineObjectFromUpdateDelete(exp ast.Expression, env *object.Environment) o
 		return object.NULL
 	}
 	if from, ok := exp.(*ast.Identifier); ok {
+		if res, ok := env.Get(from.Value); ok && res.Type() == object.DBOBJECT_OBJ {
+			return res
+		}
 		strSQL := fmt.Sprintf("select * FROM %s LIMIT 1", from.Value)
 		rows, err := env.Query(strSQL)
 		if err != nil {
@@ -1975,7 +1978,7 @@ func defineObjectFromUpdateDelete(exp ast.Expression, env *object.Environment) o
 		}
 		defer rows.Close()
 		res, ok := env.Get(from.Value)
-		if ok && res.Type() != "SQL_TABLE" {
+		if ok && res.Type() != object.DBOBJECT_OBJ {
 			return env.Set(from.Value, res)
 		}
 		result := object.DBStruct{Name: strings.ToLower(from.Value), Fields: make(map[string]object.Object)}
@@ -2075,7 +2078,7 @@ func evalSQLDelete(stmt *ast.SQLDeleteStatement, env *object.Environment) object
 		return newError("Delete not allowed on %s", stmt.From.Value)
 	}
 	scope := object.NewEnclosedEnvironment(env)
-	from := defineFromObject(stmt.From, scope)
+	from := defineObjectFromUpdateDelete(stmt.From, scope)
 	if isError(from) {
 		return from
 	}

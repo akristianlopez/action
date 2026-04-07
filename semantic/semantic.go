@@ -2907,6 +2907,9 @@ func (sa *SemanticAnalyzer) visitInExpression(node *ast.InExpression) *TypeInfo 
 func (sa *SemanticAnalyzer) visitIsExpression(node *ast.IsExpression) *TypeInfo {
 	leftType := sa.visitExpression(node.Left)
 	rightType := sa.visitExpression(node.Right)
+	if rightType.Name == "null" {
+		return &TypeInfo{Name: "boolean"}
+	}
 
 	if leftType.Name == "duration" && rightType.Name == "duration" {
 		return &TypeInfo{Name: "boolean"}

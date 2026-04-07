@@ -2970,6 +2970,8 @@ func (sa *SemanticAnalyzer) formType(col *sql.ColumnType) *TypeInfo {
 			return &TypeInfo{Name: "string", Constraints: &Constraint{Length: length, Scale: -1, Precision: -1, Range: nil}}
 			// fmt.Sprintf("%s(%d)", s, length)
 		}
+	case "name":
+		return &TypeInfo{Name: "string"}
 	}
 
 	result := &TypeInfo{Name: s}

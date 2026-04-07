@@ -2535,7 +2535,7 @@ func (sa *SemanticAnalyzer) visitPrefixExpression(node *ast.PrefixExpression) *T
 		sa.addError("'%s' non supported operation on %s",
 			node.Operator, rightType.Name)
 	case "not":
-		if rightType.Name == "boolean" {
+		if rightType.Name == "boolean" || rightType.Name =="null"{
 			return &TypeInfo{Name: rightType.Name}
 		}
 	case "is":

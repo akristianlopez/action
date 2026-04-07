@@ -1035,12 +1035,6 @@ func defineFromObject(exp ast.Expression, env *object.Environment) object.Object
 	if from, ok := exp.(*ast.FromIdentifier); ok {
 		switch ex := from.Value.(type) {
 		case *ast.Identifier:
-			strSQL := fmt.Sprintf("select * FROM %s LIMIT 1", ex.Value)
-			rows, err := env.Query(strSQL)
-			if err != nil {
-				return newError("Nsina: %s", err.Error())
-			}
-			defer rows.Close()
 			res, ok := env.Get(ex.Value)
 			if ok && res.Type() == object.DBOBJECT_OBJ {
 				if from.NewName != nil {
@@ -1048,6 +1042,12 @@ func defineFromObject(exp ast.Expression, env *object.Environment) object.Object
 				}
 				return env.Set(ex.Value, res)
 			}
+			strSQL := fmt.Sprintf("select * FROM %s LIMIT 1", ex.Value)
+			rows, err := env.Query(strSQL)
+			if err != nil {
+				return newError("Nsina: %s", err.Error())
+			}
+			defer rows.Close()
 			result := object.DBStruct{Name: strings.ToLower(ex.Value), Fields: make(map[string]object.Object)}
 			colt, err := rows.ColumnTypes()
 			if err != nil {
@@ -1971,16 +1971,16 @@ func defineObjectFromUpdateDelete(exp ast.Expression, env *object.Environment) o
 		if res, ok := env.Get(from.Value); ok && res.Type() == object.DBOBJECT_OBJ {
 			return res
 		}
+		// res, ok := env.Get(from.Value)
+		// if ok && res.Type() == object.DBOBJECT_OBJ {
+		// 	return env.Set(from.Value, res)
+		// }
 		strSQL := fmt.Sprintf("select * FROM %s LIMIT 1", from.Value)
 		rows, err := env.Query(strSQL)
 		if err != nil {
 			return newError("Nsina: %s", err.Error())
 		}
 		defer rows.Close()
-		res, ok := env.Get(from.Value)
-		if ok && res.Type() != object.DBOBJECT_OBJ {
-			return env.Set(from.Value, res)
-		}
 		result := object.DBStruct{Name: strings.ToLower(from.Value), Fields: make(map[string]object.Object)}
 		colt, err := rows.ColumnTypes()
 		if err != nil {

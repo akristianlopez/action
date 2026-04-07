@@ -1034,6 +1034,36 @@ func defineFromObject(exp ast.Expression, env *object.Environment) object.Object
 	}
 	if from, ok := exp.(*ast.FromIdentifier); ok {
 		switch ex := from.Value.(type) {
+		case *ast.StringLiteral:
+			res, ok := env.Get(ex.Value)
+			if ok && res.Type() == object.DBOBJECT_OBJ {
+				if from.NewName != nil {
+					return env.Set(from.NewName.String(), res)
+				}
+				return env.Set(ex.Value, res)
+			}
+			strSQL := fmt.Sprintf("select * FROM %s LIMIT 1", ex.Value)
+			rows, err := env.Query(strSQL)
+			if err != nil {
+				return newError("Nsina: %s", err.Error())
+			}
+			defer rows.Close()
+			result := object.DBStruct{Name: strings.ToLower(ex.Value), Fields: make(map[string]object.Object)}
+			colt, err := rows.ColumnTypes()
+			if err != nil {
+				return newError("Nsina: %s", err.Error())
+			}
+
+			for _, col := range colt {
+				ta := formType(col)
+				result.Fields[strings.ToLower(col.Name())] = getDefaultSQLValue(ta.Type)
+				env.Limit(strings.ToLower(col.Name()), defConstraints(ta, env))
+			}
+			env.Set(result.Name, &result)
+			// if from.NewName != nil {
+			// 	env.Set(from.NewName.String(), &result)
+			// }
+			return &result
 		case *ast.Identifier:
 			res, ok := env.Get(ex.Value)
 			if ok && res.Type() == object.DBOBJECT_OBJ {
@@ -2291,7 +2321,7 @@ func getValueFromRealType(typ string, val any) object.Object {
 		return &object.Integer{Value: *(val.(*int64))}
 	case "float", "numeric", "decimal", "double":
 		return &object.Float{Value: *(val.(*float64))}
-	case "varchar", "char", "mediumtext", "longtext", "text", "varchar2", "nvarchar", "nvarchar2":
+	case "name", "varchar", "char", "mediumtext", "longtext", "text", "varchar2", "nvarchar", "nvarchar2":
 		return &object.String{Value: *(val.(*string))}
 	case "boolean", "bool":
 		return &object.Boolean{Value: *(val.(*bool))}

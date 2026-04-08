@@ -2858,9 +2858,16 @@ func evalInExpression(node *ast.InExpression, env *object.Environment) object.Ob
 	case *object.Array:
 		if left.Type() != object.DBFIELD_OBJ {
 			// contains = arrayContains(right, left)
+			if node.Not {
+				return &object.Boolean{Value: !arrayContains(right, left)}
+			}
 			return &object.Boolean{Value: arrayContains(right, left)}
 		}
 		strVal := ""
+		strOper := "IN"
+		if node.Not {
+			strOper = "NOT IN"
+		}
 		for _, v := range right.Elements {
 			switch strings.ToLower(right.ElementType) {
 			case "string":
@@ -2877,7 +2884,7 @@ func evalInExpression(node *ast.InExpression, env *object.Environment) object.Ob
 				strVal = fmt.Sprintf("%s, %s", strVal, v.Inspect())
 			}
 		}
-		return &object.DBField{Value: fmt.Sprintf("%s IN (%s)", left.Inspect(), strVal)}
+		return &object.DBField{Value: fmt.Sprintf("%s %s (%s)", left.Inspect(), strOper, strVal)}
 	case *object.String:
 		if left.Type() != object.STRING_OBJ {
 			return newError("L'opérateur IN sur les chaînes nécessite une chaîne à gauche")
@@ -2885,16 +2892,15 @@ func evalInExpression(node *ast.InExpression, env *object.Environment) object.Ob
 		leftStr := left.(*object.String).Value
 		rightStr := right.Value
 		contains = strings.Contains(rightStr, leftStr)
+		if node.Not {
+			return &object.Boolean{Value: !contains}
+		}
+		return &object.Boolean{Value: contains}
 	case *object.DBField:
 		return &object.DBField{Value: fmt.Sprintf("%s IN (%s)", left.Inspect(), right.Inspect())}
 	default:
 		return newError("L'opérande droit de IN doit être un tableau ou une chaîne, got %s", right.Type())
 	}
-
-	if node.Not {
-		return &object.Boolean{Value: !contains}
-	}
-	return &object.Boolean{Value: contains}
 }
 
 func arrayContains(array *object.Array, element object.Object) bool {

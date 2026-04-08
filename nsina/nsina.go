@@ -955,6 +955,24 @@ func toString(selectStmt *ast.SQLSelectStatement, env *object.Environment) objec
 				}
 				continue
 			}
+			if ident, ok := e.Expr.(*ast.StringLiteral); ok {
+				if ident.Value == "*" {
+					strSelect = ident.Value
+					break
+				}
+				if len(strSelect) == 0 {
+					strSelect = ident.Value
+					if e.NewName != nil {
+						strSelect = fmt.Sprintf(`'%s' as "%s"`, strSelect, e.NewName.Value)
+					}
+					continue
+				}
+				strSelect = fmt.Sprintf("%s, '%s'", strSelect, ident.Value)
+				if e.NewName != nil {
+					strSelect = fmt.Sprintf(`%s as "%s"`, strSelect, e.NewName.Value)
+				}
+				continue
+			}
 			if len(strSelect) == 0 {
 				strSelect = Eval(e.Expr, env).Inspect()
 				if e.NewName != nil {

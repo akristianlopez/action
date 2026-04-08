@@ -2291,7 +2291,7 @@ func getDefaultSQLValueAddress(s string) any {
 	case "float", "numeric", "decimal", "double":
 		v := float64(0)
 		return &v
-	case "varchar", "char", "mediumtext", "longtext", "text", "varchar2", "nvarchar", "nvarchar2":
+	case "name", "varchar", "char", "mediumtext", "longtext", "text", "varchar2", "nvarchar", "nvarchar2":
 		v := ""
 		return &v
 	case "boolean", "bool":
@@ -2676,9 +2676,13 @@ func evalArrayLiteral(node *ast.ArrayLiteral, env *object.Environment) object.Ob
 			return evaluated
 		}
 		elements[i] = evaluated
-	}
 
-	return &object.Array{Elements: elements}
+	}
+	te := ""
+	if len(elements) > 0 {
+		te = string(elements[0].Type())
+	}
+	return &object.Array{Elements: elements, ElementType: te}
 }
 
 func evalIndexExpression(node *ast.IndexExpression, env *object.Environment) object.Object {
@@ -2853,15 +2857,25 @@ func evalInExpression(node *ast.InExpression, env *object.Environment) object.Ob
 	switch right := right.(type) {
 	case *object.Array:
 		if left.Type() != object.DBFIELD_OBJ {
-			contains = arrayContains(right, left)
+			// contains = arrayContains(right, left)
+			return &object.Boolean{Value: arrayContains(right, left)}
 		}
 		strVal := ""
 		for _, v := range right.Elements {
-			if strVal == "" {
-				strVal = v.Inspect()
-				continue
+			switch strings.ToLower(right.ElementType) {
+			case "string":
+				if strVal == "" {
+					strVal = fmt.Sprintf("'%s'", v.Inspect())
+					continue
+				}
+				strVal = fmt.Sprintf("%s, '%s'", strVal, v.Inspect())
+			default:
+				if strVal == "" {
+					strVal = v.Inspect()
+					continue
+				}
+				strVal = fmt.Sprintf("%s, %s", strVal, v.Inspect())
 			}
-			strVal = fmt.Sprintf("%s, %s", strVal, v.Inspect())
 		}
 		return &object.DBField{Value: fmt.Sprintf("%s IN (%s)", left.Inspect(), strVal)}
 	case *object.String:

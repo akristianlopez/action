@@ -2300,7 +2300,7 @@ func (sa *SemanticAnalyzer) visitTypeMember(node *ast.TypeMember, path string) *
 		if l.Type == DbObjectSymbol {
 			return &TypeInfo{Name: "any"}
 		}
-		if (l.Type == VariableSymbol || l.Type == StructSymbol) && !l.DataType.IsArray &&
+		if (l.Type == VariableSymbol || l.Type == StructSymbol) && l.DataType != nil && !l.DataType.IsArray &&
 			len(l.DataType.Fields) > 0 {
 			switch node.Right.(type) {
 			case *ast.Identifier:

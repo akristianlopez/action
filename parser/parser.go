@@ -2118,9 +2118,9 @@ func (p *Parser) parseExpressionList(stopTokens ...token.TokenType) []ast.Expres
 	return expressions
 }
 
-func (p *Parser) parseSelectList() []ast.Expression {
+func (p *Parser) parseSelectList(readParan bool) []ast.Expression {
 	var expressions []ast.Expression
-
+	extread := readParan
 	if p.curTokenIs(token.ASTERISK) {
 		p.addError(Create(fmt.Sprintf("'%s' is not expected here.", p.curToken.Literal), p.curToken.Line, p.curToken.Column))
 		return nil
@@ -2133,6 +2133,14 @@ func (p *Parser) parseSelectList() []ast.Expression {
 	}
 	arg := &ast.SelectArgs{}
 	arg.Expr = p.parseExpression(LOWEST)
+	if extread {
+		if !p.peekTokenIs(token.RPAREN) {
+			p.addError(Create(fmt.Sprintf("Expected ')' got %s", p.peekToken.Type), p.peekToken.Line, p.peekToken.Column))
+			return nil
+		}
+		p.nextToken()
+		extread = false
+	}
 	if p.peekTokenIs(token.AS) {
 		p.nextToken()
 		if !p.expectPeekEx(token.IDENT, token.STRING_LIT, token.INT_LIT) {
@@ -2578,13 +2586,18 @@ func (p *Parser) parseSQLSelectStatement() (*ast.SQLSelectStatement, *ParserErro
 	selectStmt := &ast.SQLSelectStatement{Token: p.curToken}
 
 	// DISTINCT optionnel
+	readParan := false
 	if p.peekTokenIs(token.DISTINCT) {
 		p.nextToken()
 		selectStmt.Distinct = true
+		if p.peekTokenIs(token.LPAREN) {
+			p.nextToken()
+			readParan = true
+		}
 	}
 
 	p.nextToken()
-	selectStmt.Select = p.parseSelectList()
+	selectStmt.Select = p.parseSelectList(readParan)
 
 	// FROM
 	if !p.expectPeek(token.FROM) {

@@ -2049,6 +2049,9 @@ func (sa *SemanticAnalyzer) visitSelectExpression(node *ast.SQLSelectStatement) 
 				continue
 			}
 			fieldType := sa.visitSelectArgs(fld)
+			if fieldType == nil {
+				continue
+			}
 			if fld.NewName != nil {
 				if fieldType != nil && !strings.EqualFold(fieldType.Name, "void") {
 					structType.ElementType.Fields[lower(fld.NewName.Value)] = fieldType

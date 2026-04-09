@@ -926,6 +926,9 @@ func toString(selectStmt *ast.SQLSelectStatement, env *object.Environment) objec
 			if _, ok := e.Expr.(*ast.TypeMember); ok {
 				if len(strSelect) == 0 {
 					strSelect = Eval(e.Expr, env).Inspect()
+					if selectStmt.Distinct {
+						strSelect = fmt.Sprintf(`distinct(%s)`, strSelect)
+					}
 					if e.NewName != nil {
 						strSelect = fmt.Sprintf(`%s as "%s"`, strSelect, e.NewName.Value)
 					}
@@ -944,6 +947,9 @@ func toString(selectStmt *ast.SQLSelectStatement, env *object.Environment) objec
 				}
 				if len(strSelect) == 0 {
 					strSelect = ident.Value
+					if selectStmt.Distinct {
+						strSelect = fmt.Sprintf(`distinct(%s)`, strSelect)
+					}
 					if e.NewName != nil {
 						strSelect = fmt.Sprintf(`%s as "%s"`, strSelect, e.NewName.Value)
 					}

@@ -2510,6 +2510,9 @@ func (sa *SemanticAnalyzer) visitStructLiteral(node *ast.StructLiteral) *TypeInf
 	}
 	for _, elem := range node.Fields {
 		elemType := sa.visitExpression(elem.Value)
+		if elemType == nil {
+			continue
+		}
 		expectedType, exists := resultType.Fields[lower(elem.Name.Value)]
 		if !exists {
 			sa.addError("Field '%s' does not exist in type '%s'. line:%d, column:%d",
@@ -2752,7 +2755,9 @@ func (sa *SemanticAnalyzer) rightTypeForMinus(leftType *TypeInfo, rightType *Typ
 func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *TypeInfo {
 	leftType := sa.visitExpression(node.Left)
 	rightType := sa.visitExpression(node.Right)
-
+	if leftType == nil || rightType == nil {
+		return nil
+	}
 	switch lower(node.Operator) {
 	case "%":
 		// Opérations arithmétiques
@@ -2873,6 +2878,10 @@ func (sa *SemanticAnalyzer) visitIndexExpression(node *ast.IndexExpression) *Typ
 func (sa *SemanticAnalyzer) visitInExpression(node *ast.InExpression) *TypeInfo {
 	leftType := sa.visitExpression(node.Left)
 	rightType := sa.visitExpression(node.Right)
+	if leftType == nil || rightType == nil {
+		return nil
+	}
+
 	isSelect := false
 	if _, ok := node.Right.(*ast.SQLSelectStatement); ok {
 		isSelect = true

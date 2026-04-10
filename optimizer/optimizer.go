@@ -637,10 +637,14 @@ func isVariableUsedInExpression(expr ast.Expression, name string) bool {
 			}
 		}
 	case *ast.StructLiteral:
-		if e.Name == nil {
-			return false
+		if e.Name != nil && strings.EqualFold(e.Name.Value, name) {
+			return true
 		}
-		return strings.EqualFold(e.Name.Value, name)
+		for _, arg := range e.Fields {
+			if isVariableUsedInExpression(arg.Value, name) {
+				return true
+			}
+		}
 	}
 	return false
 }

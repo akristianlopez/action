@@ -3335,14 +3335,14 @@ func arrayAppend(arr *object.Array, element object.Object) object.Object {
 	newElements := make([]object.Object, len(arr.Elements)+1)
 	copy(newElements, arr.Elements)
 	newElements[len(arr.Elements)] = element
-	return &object.Array{Elements: newElements}
+	return &object.Array{ElementType: arr.ElementType, Elements: newElements}
 }
 
 func arrayPrepend(arr *object.Array, element object.Object) object.Object {
 	newElements := make([]object.Object, len(arr.Elements)+1)
 	newElements[0] = element
 	copy(newElements[1:], arr.Elements)
-	return &object.Array{Elements: newElements}
+	return &object.Array{ElementType: arr.ElementType, Elements: newElements}
 }
 
 func arrayRemove(arr *object.Array, index int64) object.Object {
@@ -3353,7 +3353,7 @@ func arrayRemove(arr *object.Array, index int64) object.Object {
 	newElements := make([]object.Object, len(arr.Elements)-1)
 	copy(newElements, arr.Elements[:index])
 	copy(newElements[index:], arr.Elements[index+1:])
-	return &object.Array{Elements: newElements}
+	return &object.Array{ElementType: arr.ElementType, Elements: newElements}
 }
 
 func evalArrayInfixExpression(operator string, left, right object.Object) object.Object {

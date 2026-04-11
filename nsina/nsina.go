@@ -437,6 +437,24 @@ func evalAssignmentStatement(node *ast.AssignmentStatement, env *object.Environm
 				return newError(msg+".line:%d, column:%d", target.Value, target.Line(), target.Column())
 			}
 		}
+
+		val, ok := env.Get(target.Value)
+		if ok && val.Type() == object.ARRAY_OBJ {
+			v, o := value.(*object.Array)
+			if o && v.ElementType == "" {
+				v.ElementType = val.(*object.Array).ElementType
+			} else if o && v.ElementType != val.(*object.Array).ElementType {
+				return newError("Array type does not match. line:%d, column:%d", target.Line(), target.Column())
+			}
+		}
+		if ok && val.Type() == object.STRUCT_OBJ {
+			v, o := value.(*object.Struct)
+			if o && v.Name == "" {
+				v.Name = val.(*object.Struct).Name
+			} else if o && v.Name != val.(*object.Struct).Name {
+				return newError("Struct type does not match. line:%d, column:%d", target.Line(), target.Column())
+			}
+		}
 		res := env.Set(target.Value, value)
 		if res == object.NULL {
 			return newError("Invalid name '%s'. line:%d, column:%d", target.Value, target.Line(), target.Column())

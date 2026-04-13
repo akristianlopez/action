@@ -140,6 +140,11 @@ func (l *Lexer) NextToken() token.Token {
 			l.readChar()
 			tok = token.Token{Type: token.NOT_EQ, Literal: "!=", Line: l.line, Column: l.column}
 		}
+	case '?':
+		if l.peekChar() == '?' {
+			l.readChar()
+			tok = token.Token{Type: token.COALESCE, Literal: "??", Line: l.line, Column: l.column}
+		}
 	case ',':
 		tok = newToken(token.COMMA, l.ch, l.line, l.column)
 	case ';':

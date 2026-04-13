@@ -2818,7 +2818,12 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 			sa.addError("Operation '%s' requires booleans", node.Operator)
 		}
 		return &TypeInfo{Name: "boolean"}
-
+	case "??":
+		if !sa.areTypesCompatible(leftType, rightType) {
+			sa.addError("Type mismatch: %s et %s", leftType.ElementType.Name, rightType.ElementType.Name)
+			return &TypeInfo{Name: "void"}
+		}
+		return leftType
 	// case "like":
 	// 	// Opérations de comparaison de chaînes
 	// 	if leftType.Name != "string" || rightType.Name != "string" {

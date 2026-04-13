@@ -63,6 +63,9 @@ const (
 	LTE    = "<="
 	GTE    = ">="
 
+	// coalesce
+	COALESCE = "??"
+
 	// Délimiteurs
 	COMMA     = ","
 	SEMICOLON = ";"

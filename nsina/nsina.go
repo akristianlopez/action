@@ -316,6 +316,7 @@ func evalLetStatement(let *ast.LetStatement, env *object.Environment) object.Obj
 		if let.Type != nil {
 			value = getDefaultValue(let.Type.Type)
 			if let.Type.Type == "" && let.Type.ArrayType != nil {
+				// Bien vouloir pousser la reflexion pour la gestion des types recursifs des arrays
 				value = getDefaultValue(strings.ToLower("array of " + let.Type.ArrayType.ElementType.Type))
 			}
 			if env.IsParams(let.Name.Value) {
@@ -400,6 +401,10 @@ func evalLetStatement(let *ast.LetStatement, env *object.Environment) object.Obj
 			}
 			st.Name = objtype
 			value = st
+		}
+		// Bien vouloir pousser la reflexion pour la gestion des types recursifs des arrays
+		if arr, ok := value.(*object.Array); ok && arr.ElementType == "" && let.Type.ArrayType != nil {
+			arr.ElementType = strings.ToLower(let.Type.ArrayType.ElementType.Type)
 		}
 	}
 	if ok, msg := env.Valid(let.Name.Value, value); !ok {
@@ -1550,6 +1555,11 @@ func evalDBFieldInfixExpression(operator string, left, right object.Object) obje
 		roper = "="
 	case "!=":
 		roper = "<>"
+	case "??":
+		if right.Type() == object.STRING_OBJ {
+			return &object.DBField{Value: fmt.Sprintf("coalesce(%s, '%s')", fmt.Sprintf("'%s'", left.Inspect()), right.Inspect())}
+		}
+		return &object.DBField{Value: fmt.Sprintf("coalesce(%s, %s)", fmt.Sprintf("'%s'", left.Inspect()), right.Inspect())}
 	}
 	if left.Type() == object.STRING_OBJ {
 		return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", fmt.Sprintf("'%s'", left.Inspect()), roper, right.Inspect())}
@@ -3278,6 +3288,15 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		if isError(element) {
 			return element
 		}
+		if arr.ElementType == "" {
+			if element.Type() == object.STRUCT_OBJ {
+				arr.ElementType = element.(*object.Struct).Name
+			} else if element.Type() == object.ARRAY_OBJ {
+				arr.ElementType = element.(*object.Array).ElementType
+			} else {
+				arr.ElementType = strings.ToLower(string(element.Type()))
+			}
+		}
 		return arrayAppend(arr, element)
 	case "prepend":
 		if len(node.Arguments) != 1 {
@@ -3286,6 +3305,15 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		element := Eval(node.Arguments[0], env)
 		if isError(element) {
 			return element
+		}
+		if arr.ElementType == "" {
+			if element.Type() == object.STRUCT_OBJ {
+				arr.ElementType = element.(*object.Struct).Name
+			} else if element.Type() == object.ARRAY_OBJ {
+				arr.ElementType = element.(*object.Array).ElementType
+			} else {
+				arr.ElementType = strings.ToLower(string(element.Type()))
+			}
 		}
 		return arrayPrepend(arr, element)
 

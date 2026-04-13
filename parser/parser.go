@@ -136,6 +136,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerInfix(token.OR, p.parseInfixExpression)
 	p.registerInfix(token.LBRACKET, p.parseIndexOrSliceExpression)
 	p.registerInfix(token.IN, p.parseInExpression)
+	p.registerInfix(token.COALESCE, p.parseInfixExpression)
 
 	// p.registerInfix(token.AS, p.parseInfixExpression)
 	p.registerInfix(token.IS, p.parseIsExpression)
@@ -2252,11 +2253,12 @@ var precedences = map[token.TokenType]int{
 	token.MOD:      PRODUCT,
 	token.LBRACKET: INDEX,
 	// token.CONCAT:   SUM,
-	token.IN:      LESSGREATER,
-	token.NOT:     LESSGREATER,
-	token.IS:      EQUALS,
-	token.LIKE:    LESSGREATER,
-	token.BETWEEN: LESSGREATER,
+	token.IN:       LESSGREATER,
+	token.NOT:      LESSGREATER,
+	token.IS:       EQUALS,
+	token.LIKE:     LESSGREATER,
+	token.BETWEEN:  LESSGREATER,
+	token.COALESCE: EQUALS,
 	// token.AS:       EQUALS,
 	token.DOT: MEMBER,
 }

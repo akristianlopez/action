@@ -2820,7 +2820,7 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 		return &TypeInfo{Name: "boolean"}
 	case "??":
 		if !sa.areTypesCompatible(leftType, rightType) {
-			sa.addError("Type mismatch: %s et %s", leftType.ElementType.Name, rightType.ElementType.Name)
+			sa.addError("Type mismatch: %s and %s", leftType.ElementType.Name, rightType.ElementType.Name)
 			return &TypeInfo{Name: "void"}
 		}
 		return leftType
@@ -2835,7 +2835,7 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 	case "||":
 		if leftType.IsArray && rightType.IsArray {
 			if !sa.areTypesCompatible(leftType.ElementType, rightType.ElementType) {
-				sa.addError("Impossible to concat arrays because of type mismatch: %s et %s",
+				sa.addError("Impossible to concat arrays because of type mismatch: %s and %s",
 					leftType.ElementType.Name, rightType.ElementType.Name)
 				return &TypeInfo{Name: "void"}
 			}

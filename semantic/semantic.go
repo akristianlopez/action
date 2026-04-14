@@ -140,7 +140,8 @@ func NewSemanticAnalyzer(ctx *gin.Context, db *sql.DB, ch func(ctx *gin.Context,
 func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	oldScope := sa.CurrentScope
 
-	sa.registerSymbol("error", VariableSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "error"}, -1, 0)
+	sa.registerSymbol("error", VariableSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "error"})
+	sa.registerSymbol("rows_affected", VariableSymbol, &TypeInfo{Name: "integer"}, &ast.Identifier{Value: "integer"})
 
 	oldScope.Children = make([]*Scope, 0)
 	funScope := &Scope{

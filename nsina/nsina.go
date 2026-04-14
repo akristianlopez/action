@@ -283,6 +283,7 @@ func evalAction(program *ast.Action, env *object.Environment) object.Object {
 	var result object.Object
 	last_value = object.NULL
 	env.Set("error", &object.String{Value: ""})
+	env.Set("rows_affected", &object.Integer{Value: -1})
 	defer env.ClearTrans()
 	for _, statement := range program.Statements {
 		select {
@@ -1954,7 +1955,9 @@ func evalSQLAlterObject(stmt *ast.SQLAlterObjectStatement, env *object.Environme
 }
 
 func evalSQLInsert(stmt *ast.SQLInsertStatement, env *object.Environment) object.Object {
+	env.Set("rows_affected", &object.Integer{Value: -1})
 	if !env.IsUpdateAllowed() {
+
 		return newError("Insert not allowed on %s", stmt.ObjectName.Value)
 	}
 	rowsAffected := int64(0)
@@ -2003,6 +2006,7 @@ func evalSQLInsert(stmt *ast.SQLInsertStatement, env *object.Environment) object
 			}
 			rowsAffected = rowsAffected + i
 		}
+		env.Set("rows_affected", &object.Integer{Value: rowsAffected})
 		return &object.SQLResult{
 			Message:      fmt.Sprintf("%d rows added", rowsAffected),
 			RowsAffected: int64(rowsAffected),
@@ -2034,12 +2038,13 @@ func evalSQLInsert(stmt *ast.SQLInsertStatement, env *object.Environment) object
 		return newError("%s", err.Error())
 	}
 	if res != 0 {
+		env.Set("rows_affected", &object.Integer{Value: res})
 		return &object.SQLResult{
 			Message:      fmt.Sprintf("%d row(s) added", res),
 			RowsAffected: res,
 		}
 	}
-
+	env.Set("rows_affected", &object.Integer{Value: 0})
 	return &object.SQLResult{
 		Message:      fmt.Sprintf("%d row added", 0),
 		RowsAffected: 0,
@@ -2080,6 +2085,7 @@ func defineObjectFromUpdateDelete(exp ast.Expression, env *object.Environment) o
 }
 
 func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object.Object {
+	env.Set("rows_affected", &object.Integer{Value: -1})
 	if !env.IsUpdateAllowed() {
 		return newError("Update not allowed on %s", stmt.ObjectName.Value)
 	}
@@ -2147,6 +2153,7 @@ func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object
 			return newError("Nsina: %s", err.Error())
 		}
 		rowsAffected, _ := result.RowsAffected()
+		env.Set("rows_affected", &object.Integer{Value: rowsAffected})
 		return &object.SQLResult{
 			Message:      fmt.Sprintf("%d ligne(s) modifiée(s)", rowsAffected),
 			RowsAffected: int64(rowsAffected),
@@ -2156,6 +2163,7 @@ func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object
 }
 
 func evalSQLDelete(stmt *ast.SQLDeleteStatement, env *object.Environment) object.Object {
+	env.Set("rows_affected", &object.Integer{Value: -1})
 	if !env.IsUpdateAllowed() {
 		return newError("Delete not allowed on %s", stmt.From.Value)
 	}
@@ -2189,6 +2197,7 @@ func evalSQLDelete(stmt *ast.SQLDeleteStatement, env *object.Environment) object
 		result, err := scope.Exec(strSQL)
 		if err == nil {
 			rowsAffected, _ := result.RowsAffected()
+			env.Set("rows_affected", &object.Integer{Value: rowsAffected})
 			return &object.SQLResult{
 				Message:      fmt.Sprintf("%d row(s) deleted", rowsAffected),
 				RowsAffected: int64(rowsAffected),
@@ -2208,6 +2217,7 @@ func evalSQLDelete(stmt *ast.SQLDeleteStatement, env *object.Environment) object
 	result, err := scope.Exec(strSQL)
 	if err == nil {
 		rowsAffected, _ := result.RowsAffected()
+		env.Set("rows_affected", &object.Integer{Value: rowsAffected})
 		return &object.SQLResult{
 			Message:      fmt.Sprintf("%d row(s) deleted", rowsAffected),
 			RowsAffected: int64(rowsAffected),

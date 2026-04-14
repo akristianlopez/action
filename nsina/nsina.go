@@ -3243,7 +3243,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 			return &object.String{Value: ""}
 		}
 		return newError("Nsina: Invalid operation: %s", node.String())
-	case "errorexists":
+	case "iserrorraised":
 		return &object.Boolean{Value: isError(last_value)}
 	case "tostring":
 		//TODO: A definir

@@ -255,7 +255,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	}
 	oldScope.Children = append(oldScope.Children, funScope)
 	sa.CurrentScope = oldScope
-	sa.registerSymbol("errorexists", FunctionSymbol, &TypeInfo{Name: "boolean"}, &ast.Identifier{Value: "errorexists"}, 10)
+	sa.registerSymbol("iserrorraised", FunctionSymbol, &TypeInfo{Name: "boolean"}, &ast.Identifier{Value: "iserrorraised"}, 10)
 
 	funScope = &Scope{
 		Parent:  oldScope,

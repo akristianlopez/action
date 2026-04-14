@@ -214,7 +214,10 @@ func (uc *UnrichabledCode) check(stmts []ast.Statement) ([]ast.Statement, []ast.
 			optimized = append(optimized, st)
 			unreachable = append(unreachable, un...)
 		case *ast.IfStatement:
-			st := &ast.IfStatement{Token: stm.Token, Then: &ast.BlockStatement{}}
+			st := &ast.IfStatement{
+				Token:     stm.Token,
+				Condition: stm.Condition,
+				Then:      &ast.BlockStatement{}}
 			opThen, unThen := uc.check(stm.Then.Statements)
 			st.Then.Statements = opThen
 			st.Then.Token = stm.Then.Token

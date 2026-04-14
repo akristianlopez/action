@@ -17,6 +17,8 @@ type Node interface {
 type Statement interface {
 	Node
 	statementNode()
+	Line() int
+	Column() int
 }
 
 // Expression interface pour les expressions
@@ -89,6 +91,12 @@ func (ls *LetStatement) String() string {
 	out += ";"
 	return out
 }
+func (ls *LetStatement) Line() int {
+	return ls.Token.Line
+}
+func (ls *LetStatement) Column() int {
+	return ls.Token.Column
+}
 
 // Type liste de declarations exemple Let a:type1, b:type2
 type LetStatements []LetStatement
@@ -110,6 +118,12 @@ func (lm *LetStatements) String() string {
 	}
 	return strings.TrimRight(out, ", ")
 	// return fmt.Sprintf("Let %s", out)
+}
+func (lm *LetStatements) Line() int {
+	return -1
+}
+func (lm *LetStatements) Column() int {
+	return -1
 }
 
 // TypeConstraints - contraintes de type
@@ -166,8 +180,8 @@ type IntegerLiteral struct {
 }
 
 func (il *IntegerLiteral) expressionNode()      {}
-func (i *IntegerLiteral) Line() int             { return i.Token.Line }
-func (i *IntegerLiteral) Column() int           { return i.Token.Column }
+func (il *IntegerLiteral) Line() int            { return il.Token.Line }
+func (il *IntegerLiteral) Column() int          { return il.Token.Column }
 func (il *IntegerLiteral) TokenLiteral() string { return il.Token.Literal }
 func (il *IntegerLiteral) String() string       { return il.Token.Literal }
 
@@ -178,8 +192,8 @@ type FloatLiteral struct {
 }
 
 func (fl *FloatLiteral) expressionNode()      {}
-func (i *FloatLiteral) Line() int             { return i.Token.Line }
-func (i *FloatLiteral) Column() int           { return i.Token.Column }
+func (fl *FloatLiteral) Line() int            { return fl.Token.Line }
+func (fl *FloatLiteral) Column() int          { return fl.Token.Column }
 func (fl *FloatLiteral) TokenLiteral() string { return fl.Token.Literal }
 func (fl *FloatLiteral) String() string       { return fl.Token.Literal }
 
@@ -236,6 +250,12 @@ func (es *ExpressionStatement) String() string {
 		return es.Expression.String()
 	}
 	return ""
+}
+func (es *ExpressionStatement) Line() int {
+	return es.Token.Line
+}
+func (es *ExpressionStatement) Column() int {
+	return es.Token.Column
 }
 
 // PrefixExpression - expression préfixe
@@ -320,6 +340,12 @@ func (bs *BlockStatement) String() string {
 	}
 	return out
 }
+func (bs *BlockStatement) Line() int {
+	return bs.Token.Line
+}
+func (bs *BlockStatement) Column() int {
+	return bs.Token.Column
+}
 
 // ForStatement - boucle for
 type ForStatement struct {
@@ -349,6 +375,12 @@ func (fs *ForStatement) String() string {
 	out += " " + fs.Body.String()
 	return out
 }
+func (fs *ForStatement) Line() int {
+	return fs.Token.Line
+}
+func (fs *ForStatement) Column() int {
+	return fs.Token.Column
+}
 
 // ForStatement - If
 type IfStatement struct {
@@ -375,6 +407,12 @@ func (is *IfStatement) String() string {
 	}
 	return out
 }
+func (is *IfStatement) Line() int {
+	return is.Token.Line
+}
+func (is *IfStatement) Column() int {
+	return is.Token.Column
+}
 
 // ForStatement - While
 type WhileStatement struct {
@@ -396,6 +434,12 @@ func (ws *WhileStatement) String() string {
 		out += " " + ws.Body.String()
 	}
 	return out
+}
+func (ws *WhileStatement) Line() int {
+	return ws.Token.Line
+}
+func (ws *WhileStatement) Column() int {
+	return ws.Token.Column
 }
 
 // ForStatement - ForEach
@@ -419,6 +463,12 @@ func (fe *ForEachStatement) String() string {
 		out += " " + fe.Body.String()
 	}
 	return out
+}
+func (fe *ForEachStatement) Line() int {
+	return fe.Token.Line
+}
+func (fe *ForEachStatement) Column() int {
+	return fe.Token.Column
 }
 
 // FunctionStatement - déclaration de fonction
@@ -447,6 +497,12 @@ func (fs *FunctionStatement) String() string {
 	}
 	out += " " + fs.Body.String()
 	return out
+}
+func (fs *FunctionStatement) Line() int {
+	return fs.Token.Line
+}
+func (fs *FunctionStatement) Column() int {
+	return fs.Token.Column
 }
 
 // FunctionParameter - paramètre de fonction
@@ -483,6 +539,12 @@ func (ss *StructStatement) String() string {
 	}
 	out += " }"
 	return out
+}
+func (ss *StructStatement) Line() int {
+	return ss.Token.Line
+}
+func (ss *StructStatement) Column() int {
+	return ss.Token.Column
 }
 
 // StructField - champ de structure
@@ -525,6 +587,12 @@ func (sc *SQLCreateObjectStatement) String() string {
 	}
 	out += ")"
 	return out
+}
+func (sc *SQLCreateObjectStatement) Line() int {
+	return sc.Token.Line
+}
+func (sc *SQLCreateObjectStatement) Column() int {
+	return sc.Token.Column
 }
 
 // SQLColumnDefinition - Définition de colonne
@@ -666,6 +734,12 @@ func (sd *SQLDropObjectStatement) String() string {
 	}
 	return out
 }
+func (sd *SQLDropObjectStatement) Line() int {
+	return sd.Token.Line
+}
+func (sd *SQLDropObjectStatement) Column() int {
+	return sd.Token.Column
+}
 
 // SQLAlterObjectStatement - ALTER OBJECT
 type SQLAlterObjectStatement struct {
@@ -685,6 +759,12 @@ func (sa *SQLAlterObjectStatement) String() string {
 		out += " " + action.String()
 	}
 	return out
+}
+func (sa *SQLAlterObjectStatement) Line() int {
+	return sa.Token.Line
+}
+func (sa *SQLAlterObjectStatement) Column() int {
+	return sa.Token.Column
 }
 
 // SQLAlterAction - Action ALTER
@@ -865,6 +945,12 @@ func (si *SQLCreateIndexStatement) String() string {
 	out += ")"
 	return out
 }
+func (si *SQLCreateIndexStatement) Line() int {
+	return si.Token.Line
+}
+func (si *SQLCreateIndexStatement) Column() int {
+	return si.Token.Column
+}
 
 // SQLOrderBy - Clause ORDER BY
 type SQLOrderBy struct {
@@ -908,6 +994,12 @@ func (rs *ReturnStatement) String() string {
 	}
 	out += ";"
 	return out
+}
+func (rs *ReturnStatement) Line() int {
+	return rs.Token.Line
+}
+func (rs *ReturnStatement) Column() int {
+	return rs.Token.Column
 }
 
 // SQLWithStatement - Clause WITH pour les CTE
@@ -1428,6 +1520,12 @@ func (ss *SwitchStatement) String() string {
 	out += "}"
 	return out
 }
+func (ss *SwitchStatement) Line() int {
+	return ss.Token.Line
+}
+func (ss *SwitchStatement) Column() int {
+	return ss.Token.Column
+}
 
 // SwitchCase - Cas d'un switch
 type SwitchCase struct {
@@ -1461,6 +1559,12 @@ func (bs *BreakStatement) TokenLiteral() string { return bs.Token.Literal }
 func (bs *BreakStatement) String() string {
 	return "break;"
 }
+func (bs *BreakStatement) Line() int {
+	return bs.Token.Line
+}
+func (bs *BreakStatement) Column() int {
+	return bs.Token.Column
+}
 
 // BreakStatement - Instruction break
 type ContinueStatement struct {
@@ -1471,6 +1575,12 @@ func (bs *ContinueStatement) statementNode()       {}
 func (bs *ContinueStatement) TokenLiteral() string { return bs.Token.Literal }
 func (bs *ContinueStatement) String() string {
 	return "continue;"
+}
+func (bs *ContinueStatement) Line() int {
+	return bs.Token.Line
+}
+func (bs *ContinueStatement) Column() int {
+	return bs.Token.Column
 }
 
 // FallthroughStatement - Instruction fallthrough
@@ -1483,6 +1593,8 @@ func (fs *FallthroughStatement) TokenLiteral() string { return fs.Token.Literal 
 func (fs *FallthroughStatement) String() string {
 	return "fallthrough;"
 }
+func (fs *FallthroughStatement) Line() int   { return fs.Token.Line }
+func (fs *FallthroughStatement) Column() int { return fs.Token.Column }
 
 type StructLiteral struct {
 	Token  token.Token
@@ -1568,9 +1680,9 @@ type NullLiteral struct {
 
 func (nl *NullLiteral) TokenLiteral() string { return nl.Token.Literal }
 func (nl *NullLiteral) String() string       { return nl.Token.Literal }
-func (sa *NullLiteral) expressionNode()      {}
-func (sa *NullLiteral) Line() int            { return sa.Token.Line }
-func (sa *NullLiteral) Column() int          { return sa.Token.Column }
+func (nl *NullLiteral) expressionNode()      {}
+func (nl *NullLiteral) Line() int            { return nl.Token.Line }
+func (nl *NullLiteral) Column() int          { return nl.Token.Column }
 
 type DurationLiteral struct {
 	Token          token.Token
@@ -1631,6 +1743,12 @@ func (cs *CatchStatement) String() string {
 	}
 	return fmt.Sprintf("CATCH{\n\t%s\n}", cs.Statements.String())
 }
+func (cs *CatchStatement) Line() int {
+	return cs.Token.Line
+}
+func (cs *CatchStatement) Column() int {
+	return cs.Token.Column
+}
 
 type ProtectedStatement struct {
 	Token      token.Token
@@ -1644,6 +1762,12 @@ func (bs *ProtectedStatement) String() string {
 		return "BEGINTRANS{\n}"
 	}
 	return fmt.Sprintf("CATCH{\n\t%s\n}", bs.Statements.String())
+}
+func (bs *ProtectedStatement) Line() int {
+	return bs.Token.Line
+}
+func (bs *ProtectedStatement) Column() int {
+	return bs.Token.Column
 }
 
 type IsExpression struct {

@@ -20,6 +20,7 @@ type OptimizationStats struct {
 	DeadCodeRemovals  int
 	InlineExpansions  int
 	LoopOptimizations int
+	UnrichabledCode   int
 }
 
 type Optimization interface {
@@ -32,6 +33,7 @@ type ConstantFolding struct{}
 type DeadCodeElimination struct{}
 type FunctionInlining struct{}
 type LoopOptimization struct{}
+type UnrichabledCode struct{}
 
 func NewOptimizer() *Optimizer {
 	return &Optimizer{
@@ -40,6 +42,7 @@ func NewOptimizer() *Optimizer {
 			&DeadCodeElimination{},
 			&LoopOptimization{},
 			&FunctionInlining{},
+			&UnrichabledCode{},
 		},
 		Stats:    OptimizationStats{},
 		Warnings: make([]string, 0),
@@ -50,6 +53,8 @@ var Warnings func(format string, args ...interface{})
 var IncrementFolding func()
 var IncrementLoopOptimization func()
 var IncrementInlineExpansion func()
+
+// var IncrementUnreachibked func()
 
 func (o *Optimizer) IncrementConstantFolding() {
 	o.Stats.ConstantFolds++
@@ -132,6 +137,188 @@ func (cf *ConstantFolding) Apply(program *ast.Action) *ast.Action {
 		// 	optimized.Statements = append(optimized.Statements, foldConstantsInStatement(stmt))
 		// }
 		optimized.Statements = append(optimized.Statements, foldConstantsInStatement(stmt))
+	}
+	return optimized
+}
+func (uc *UnrichabledCode) Name() string { return "UnrichabledCode" }
+func (uc *UnrichabledCode) isTerminateStatement(stmt ast.Statement) bool {
+	switch s := stmt.(type) {
+	case *ast.ReturnStatement, *ast.BreakStatement, *ast.ContinueStatement:
+		return true
+	case *ast.IfStatement:
+		if s.Else == nil {
+			return false
+		}
+		return uc.isLastStatementTerminating(s.Then.Statements) &&
+			uc.isLastStatementTerminating(s.Else.Statements)
+	case *ast.SwitchStatement:
+		if s.DefaultCase == nil {
+			return false
+		}
+		if !uc.isLastStatementTerminating(s.DefaultCase.Statements) {
+			return false
+		}
+		for _, cases := range s.Cases {
+			if !uc.isLastStatementTerminating(cases.Body.Statements) {
+				return false
+			}
+		}
+		return true
+	case *ast.WhileStatement:
+		// Optionnel : si la condition est "true", c'est un terminateur (boucle infinie)
+		// if s.Condition.IsAlwaysTrue() { return true }
+		return false
+
+	default:
+		return false
+	}
+}
+func (uc *UnrichabledCode) isLastStatementTerminating(stmts []ast.Statement) bool {
+	if len(stmts) == 0 {
+		return false
+	}
+	return uc.isTerminateStatement(stmts[len(stmts)-1])
+}
+func (uc *UnrichabledCode) CanApply(program *ast.Action) bool {
+	return program != nil && len(program.Statements) > 0
+}
+
+func (uc *UnrichabledCode) check(stmts []ast.Statement) ([]ast.Statement, []ast.Statement) {
+	if len(stmts) == 0 {
+		return []ast.Statement{}, []ast.Statement{}
+	}
+	unreachable := []ast.Statement{}
+	optimized := []ast.Statement{}
+	isDead := false
+	for _, stmt := range stmts {
+		if isDead {
+			unreachable = append(unreachable, stmt)
+			continue
+		}
+		switch stm := stmt.(type) {
+		case *ast.BreakStatement:
+			optimized = append(optimized, stm)
+			isDead = true // Rien ne peut suivre un break dans le même bloc
+
+		case *ast.ContinueStatement:
+			optimized = append(optimized, stm)
+			isDead = true // Rien ne peut suivre un continue dans le même bloc
+
+		case *ast.ReturnStatement:
+			optimized = append(optimized, stm)
+			isDead = true
+		case *ast.BlockStatement:
+			st := &ast.BlockStatement{Token: stm.Token}
+			op, un := uc.check(stm.Statements)
+			st.Statements = op
+			optimized = append(optimized, st)
+			unreachable = append(unreachable, un...)
+		case *ast.IfStatement:
+			st := &ast.IfStatement{Token: stm.Token, Then: &ast.BlockStatement{}}
+			opThen, unThen := uc.check(stm.Then.Statements)
+			st.Then.Statements = opThen
+			st.Then.Token = stm.Then.Token
+			unreachable = append(unreachable, unThen...)
+			if stm.Else != nil {
+				st.Else = &ast.BlockStatement{Token: stm.Else.Token}
+				opElse, unElse := uc.check(stm.Else.Statements)
+				st.Else.Statements = opElse
+				unreachable = append(unreachable, unElse...)
+			}
+			optimized = append(optimized, st)
+		case *ast.ProtectedStatement:
+			st := &ast.ProtectedStatement{Token: stm.Token, Statements: &ast.BlockStatement{}}
+			op, un := uc.check(stm.Statements.Statements)
+			st.Statements.Statements = op
+			st.Statements.Token = stm.Statements.Token
+			optimized = append(optimized, st)
+			unreachable = append(unreachable, un...)
+		case *ast.CatchStatement:
+			st := &ast.CatchStatement{Token: stm.Token, Statements: &ast.BlockStatement{}}
+			op, un := uc.check(stm.Statements.Statements)
+			st.Statements.Statements = op
+			st.Statements.Token = stm.Statements.Token
+			optimized = append(optimized, st)
+			unreachable = append(unreachable, un...)
+		case *ast.ForEachStatement:
+			st := &ast.ForEachStatement{
+				Token:    stm.Token,
+				Variable: stm.Variable,
+				Iterator: stm.Iterator,
+				Body:     &ast.BlockStatement{Token: stm.Body.Token}}
+			op, un := uc.check(stm.Body.Statements)
+			st.Body.Statements = op
+			optimized = append(optimized, st)
+			unreachable = append(unreachable, un...)
+		case *ast.ForStatement:
+			st := &ast.ForStatement{
+				Token:     stm.Token,
+				Init:      stm.Init,
+				Condition: stm.Condition,
+				Update:    stm.Update,
+				Body:      &ast.BlockStatement{Token: stm.Body.Token}}
+			op, un := uc.check(stm.Body.Statements)
+			st.Body.Statements = op
+			optimized = append(optimized, st)
+			unreachable = append(unreachable, un...)
+		case *ast.WhileStatement:
+			st := &ast.WhileStatement{
+				Token:     stm.Token,
+				Condition: stm.Condition,
+				Body:      &ast.BlockStatement{Token: stm.Body.Token}}
+			op, un := uc.check(stm.Body.Statements)
+			st.Body.Statements = op
+			optimized = append(optimized, st)
+			unreachable = append(unreachable, un...)
+		case *ast.FunctionStatement:
+			st := &ast.FunctionStatement{
+				Token:      stm.Token,
+				Name:       stm.Name,
+				Parameters: stm.Parameters,
+				ReturnType: stm.ReturnType,
+				Body:       &ast.BlockStatement{Token: stm.Body.Token}}
+			op, un := uc.check(stm.Body.Statements)
+			st.Body.Statements = op
+			optimized = append(optimized, st)
+			unreachable = append(unreachable, un...)
+		case *ast.SwitchStatement:
+			st := &ast.SwitchStatement{Token: stm.Token, Expression: stm.Expression, Cases: []*ast.SwitchCase{}, DefaultCase: &ast.BlockStatement{}}
+			for _, cases := range stm.Cases {
+				cas := &ast.SwitchCase{Token: cases.Token, Expressions: cases.Expressions, Body: &ast.BlockStatement{}}
+				op, un := uc.check(cases.Body.Statements)
+				cas.Body.Statements = op
+				cas.Body.Token = cases.Body.Token
+				st.Cases = append(st.Cases, cas)
+				unreachable = append(unreachable, un...)
+			}
+			if stm.DefaultCase != nil {
+				bloc := &ast.BlockStatement{Token: stm.DefaultCase.Token, Statements: []ast.Statement{}}
+				op, un := uc.check(stm.DefaultCase.Statements)
+				bloc.Statements = op
+				st.DefaultCase = bloc
+				unreachable = append(unreachable, un...)
+			}
+			optimized = append(optimized, st)
+		default:
+			optimized = append(optimized, stm)
+		}
+		if !isDead && uc.isTerminateStatement(stmt) {
+			isDead = true
+		}
+	}
+	return optimized, unreachable
+}
+func (uc *UnrichabledCode) Apply(program *ast.Action) *ast.Action {
+	optimized := &ast.Action{
+		ActionName: program.ActionName,
+		Statements: []ast.Statement{},
+	}
+	op, un := uc.check(program.Statements)
+	optimized.Statements = append(optimized.Statements, op...)
+	if len(un) > 0 {
+		for _, st := range un {
+			Warnings("Unreachabled code. line:%d, column:%d", st.Line(), st.Column())
+		}
 	}
 	return optimized
 }

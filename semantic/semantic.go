@@ -1586,6 +1586,14 @@ func (sa *SemanticAnalyzer) visitFunctionStatement(node *ast.FunctionStatement) 
 		return
 	}
 
+	// Vérifier le type de retour
+	var returnType *TypeInfo
+	if node.ReturnType != nil {
+		returnType = sa.resolveTypeAnnotation(node.ReturnType)
+	} else {
+		returnType = &TypeInfo{Name: "void"}
+	}
+
 	// Créer un nouveau scope pour la fonction
 	funcScope := &Scope{
 		Parent:  sa.CurrentScope,
@@ -1593,6 +1601,10 @@ func (sa *SemanticAnalyzer) visitFunctionStatement(node *ast.FunctionStatement) 
 	}
 	sa.CurrentScope.Children = append(sa.CurrentScope.Children, funcScope)
 	pos := len(sa.CurrentScope.Children) - 1
+
+	// Enregistrer la fonction
+	sa.registerSymbol(node.Name.Value, FunctionSymbol, returnType, node, pos)
+
 	// Enregistrer les paramètres
 	oldScope := sa.CurrentScope
 	sa.CurrentScope = funcScope
@@ -1602,22 +1614,11 @@ func (sa *SemanticAnalyzer) visitFunctionStatement(node *ast.FunctionStatement) 
 		sa.registerSymbol(param.Name.Value, ParameterSymbol, paramType, param, -1, k)
 	}
 
-	// Vérifier le type de retour
-	var returnType *TypeInfo
-	if node.ReturnType != nil {
-		returnType = sa.resolveTypeAnnotation(node.ReturnType)
-	} else {
-		returnType = &TypeInfo{Name: "void"}
-	}
-
 	// Analyser le corps de la fonction
 	sa.visitBlockStatement(node.Body, returnType)
 
 	// Restaurer le scope
 	sa.CurrentScope = oldScope
-
-	// Enregistrer la fonction
-	sa.registerSymbol(node.Name.Value, FunctionSymbol, returnType, node, pos)
 }
 
 func (sa *SemanticAnalyzer) visitStructStatement(node *ast.StructStatement) {
@@ -2352,7 +2353,7 @@ func (sa *SemanticAnalyzer) visitTypeMember(node *ast.TypeMember, path string) *
 		if l.Type == DbObjectSymbol {
 			return &TypeInfo{Name: "any"}
 		}
-		if (l.Type == VariableSymbol || l.Type == StructSymbol) && l.DataType != nil && !l.DataType.IsArray &&
+		if (l.Type == VariableSymbol || l.Type == StructSymbol || l.Type == ParameterSymbol) && l.DataType != nil && !l.DataType.IsArray &&
 			len(l.DataType.Fields) > 0 {
 			switch node.Right.(type) {
 			case *ast.Identifier:

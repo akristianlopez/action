@@ -74,6 +74,26 @@ func (ti *TypeInfo) String() string {
 	}
 	return ti.oString()
 }
+func (ti *TypeInfo) clone() *TypeInfo {
+	retVal := &TypeInfo{Name: ti.Name, IsArray: ti.IsArray, ArraySize: ti.ArraySize}
+	if ti.ElementType != nil {
+		retVal.ElementType = ti.ElementType.clone()
+	}
+	if ti.Constraints != nil {
+		retVal.Constraints = ti.Constraints.clone()
+	}
+	if len(ti.Fields) > 0 {
+		retVal.Fields = map[string]*TypeInfo{}
+		for k, val := range ti.Fields {
+			if val == nil {
+				retVal.Fields[k] = nil
+				continue
+			}
+			retVal.Fields[k] = val.clone()
+		}
+	}
+	return retVal
+}
 
 type Constraint struct {
 	Length    int64
@@ -84,6 +104,14 @@ type Constraint struct {
 type RangeValue struct {
 	Min any
 	Max any
+}
+
+func (c *Constraint) clone() *Constraint {
+	retValue := &Constraint{Length: c.Length, Precision: c.Precision, Scale: c.Scale}
+	if c.Range != nil {
+		retValue.Range = &RangeValue{Min: c.Range.Min, Max: c.Range.Max}
+	}
+	return retValue
 }
 
 type SemanticAnalyzer struct {
@@ -3151,10 +3179,11 @@ func (sa *SemanticAnalyzer) resolveTypeAnnotation(ta *ast.TypeAnnotation) *TypeI
 
 	// Vérifier si c'est un type défini
 	if typeInfo, exists := sa.TypeTable[lower(ta.Type)]; exists {
+		ti := typeInfo.clone()
 		if ta.Constraints != nil {
-			typeInfo.Constraints = sa.resolveConstraints(ta.Constraints)
+			ti.Constraints = sa.resolveConstraints(ta.Constraints)
 		}
-		return typeInfo
+		return ti
 	}
 	if strings.EqualFold(ta.Token.Literal, "object") {
 		resultType := sa.lookupSymbol(ta.Type)

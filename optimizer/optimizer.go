@@ -958,12 +958,6 @@ func isDefinedStructDead(s *ast.StructStatement, actions *ast.Action) bool {
 	return true
 }
 
-//
-// Helpers: recherche récursive via reflection dans les champs dont le nom
-// suggère qu'ils représentent des types (Type, ReturnType, Parameters, Fields, etc.)
-// NOTE: this implementation requires importing "reflect".
-// importedReflectPlaceholder struct{} // placeholder to hint that reflect is used; remove if you add the import
-
 func isStructNameUsedAsType(node ast.Statement, name string) bool {
 	if node == nil {
 		return false

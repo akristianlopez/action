@@ -46,6 +46,7 @@ type TypeInfo struct {
 	ArraySize   int64
 	ElementType *TypeInfo
 	Constraints *Constraint
+	SetInfo     *SetInfo
 	Fields      map[string]*TypeInfo // Pour les structures
 }
 
@@ -92,6 +93,9 @@ func (ti *TypeInfo) clone() *TypeInfo {
 			retVal.Fields[k] = val.clone()
 		}
 	}
+	if ti.SetInfo != nil {
+		retVal.SetInfo = ti.SetInfo.clone()
+	}
 	return retVal
 }
 
@@ -110,6 +114,22 @@ func (c *Constraint) clone() *Constraint {
 	retValue := &Constraint{Length: c.Length, Precision: c.Precision, Scale: c.Scale}
 	if c.Range != nil {
 		retValue.Range = &RangeValue{Min: c.Range.Min, Max: c.Range.Max}
+	}
+	return retValue
+}
+
+type SetInfo struct {
+	Key   *TypeInfo
+	Value *TypeInfo
+}
+
+func (st *SetInfo) clone() *SetInfo {
+	retValue := &SetInfo{}
+	if st.Key != nil {
+		retValue.Key = st.Key.clone()
+	}
+	if st.Value != nil {
+		retValue.Key = st.Value.clone()
 	}
 	return retValue
 }

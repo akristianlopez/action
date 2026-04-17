@@ -151,6 +151,23 @@ func (tc *TypeConstraints) String() string {
 	return out
 }
 
+type SetType struct {
+	Token token.Token
+	Key   *TypeAnnotation
+	Value *TypeAnnotation
+}
+
+func (st *SetType) String() string {
+	out := ""
+	if st.Key != nil {
+		out = st.Key.String()
+	}
+	if st.Value != nil {
+		out = fmt.Sprintf("%s %s", out, st.Value.String())
+	}
+	return fmt.Sprintf("{%s}", out)
+}
+
 // RangeConstraint - contrainte de plage
 type RangeConstraint struct {
 	Min Expression
@@ -1483,6 +1500,7 @@ type TypeAnnotation struct {
 	Type        string
 	ArrayType   *ArrayType // Pour les tableaux
 	Constraints *TypeConstraints
+	SetType     *SetType
 }
 
 func (ta *TypeAnnotation) String() string {

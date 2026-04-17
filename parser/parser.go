@@ -727,6 +727,29 @@ func (p *Parser) parseFunctionParameters() ([]*ast.FunctionParameter, *ParserErr
 
 	return params, nil
 }
+func (p *Parser) parseSetType() *ast.SetType {
+	stmt := &ast.SetType{Token: p.curToken}
+	if !p.expectPeek(token.OF) {
+		return nil
+	}
+	if !p.expectPeek(token.LBRACE) {
+		return nil
+	}
+	p.nextToken()
+	if !p.curTokenIs(token.RBRACE) && !p.curTokenIs(token.EOF) {
+		stmt.Key = p.parseTypeAnnotation()
+		if p.peekTokenIs(token.COMMA) {
+			p.nextToken()
+		}
+	}
+	if !p.curTokenIs(token.RBRACE) && !p.curTokenIs(token.EOF) {
+		stmt.Value = p.parseTypeAnnotation()
+	}
+	if !p.expectPeek(token.RBRACE) {
+		return nil
+	}
+	return stmt
+}
 
 func (p *Parser) parseStructStatement() (*ast.StructStatement, *ParserError) {
 	stmt := &ast.StructStatement{Token: p.curToken}
@@ -737,6 +760,10 @@ func (p *Parser) parseStructStatement() (*ast.StructStatement, *ParserError) {
 
 	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
+	if !p.peekTokenIs(token.STRUCT) && p.peekTokenIs(token.SET) {
+		p.nextToken()
+
+	}
 	if !p.expectPeek(token.STRUCT) {
 		return nil, nil //Create("token 'struc' expected", p.peekToken.Line, p.peekToken.Column)
 	}
@@ -2979,7 +3006,9 @@ func (p *Parser) parseTypeAnnotation() *ast.TypeAnnotation {
 		ta.ArrayType = p.parseArrayType()
 		return ta
 	}
-
+	if p.curTokenIs(token.SET) {
+		ta.SetType = p.parseSetType()
+	}
 	if p.curTokenIs(token.OBJECT) {
 		if !p.expectPeek(token.IDENT) {
 			return nil

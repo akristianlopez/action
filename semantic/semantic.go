@@ -21,6 +21,7 @@ const (
 	DbObjectSymbol  SymbolType = "TABLE"
 	TypeSymbol      SymbolType = "TYPE"
 	ArraySymbol     SymbolType = "ARRAY"
+	SetSymbol       SymbolType = "SET"
 	ParameterSymbol SymbolType = "PARAMETER"
 )
 
@@ -282,28 +283,17 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	}
 	oldScope.Children = append(oldScope.Children, funScope)
 	sa.CurrentScope = funScope
-	sa.registerSymbol("arr", ParameterSymbol, &TypeInfo{Name: "array", IsArray: true, ElementType: &TypeInfo{Name: "any"}}, &ast.Identifier{Value: "arr"}, -1, 0)
-	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 1)
-	sa.CurrentScope = oldScope
-	sa.registerSymbol("contains", FunctionSymbol, &TypeInfo{Name: "array", IsArray: true, ElementType: &TypeInfo{Name: "any"}}, &ast.Identifier{Value: "contains"}, 8)
-
-	funScope = &Scope{
-		Parent:  oldScope,
-		Symbols: make(map[string]*Symbol),
-	}
-	oldScope.Children = append(oldScope.Children, funScope)
-	sa.CurrentScope = funScope
 	sa.registerSymbol("subject", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "subject"}, -1, 0)
 	sa.registerSymbol("data", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "data"}, -1, 1)
 	sa.CurrentScope = oldScope
-	sa.registerSymbol("emit", FunctionSymbol, &TypeInfo{Name: "boolean"}, &ast.Identifier{Value: "emit"}, 9)
+	sa.registerSymbol("emit", FunctionSymbol, &TypeInfo{Name: "boolean"}, &ast.Identifier{Value: "emit"}, 8)
 	funScope = &Scope{
 		Parent:  oldScope,
 		Symbols: make(map[string]*Symbol),
 	}
 	oldScope.Children = append(oldScope.Children, funScope)
 	sa.CurrentScope = oldScope
-	sa.registerSymbol("iserrorraised", FunctionSymbol, &TypeInfo{Name: "boolean"}, &ast.Identifier{Value: "iserrorraised"}, 10)
+	sa.registerSymbol("iserrorraised", FunctionSymbol, &TypeInfo{Name: "boolean"}, &ast.Identifier{Value: "iserrorraised"}, 9)
 
 	funScope = &Scope{
 		Parent:  oldScope,
@@ -314,17 +304,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 0)
 	sa.registerSymbol("value", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 1)
 	sa.CurrentScope = oldScope
-	sa.registerSymbol("coalesce", FunctionSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "coalesce"}, 11)
-
-	funScope = &Scope{
-		Parent:  oldScope,
-		Symbols: make(map[string]*Symbol),
-	}
-	oldScope.Children = append(oldScope.Children, funScope)
-	sa.CurrentScope = funScope
-	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "element"}, -1, 0)
-	sa.CurrentScope = oldScope
-	sa.registerSymbol("count", FunctionSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "count"}, 12)
+	sa.registerSymbol("coalesce", FunctionSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "coalesce"}, 10)
 
 	funScope = &Scope{
 		Parent:  oldScope,
@@ -334,7 +314,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.CurrentScope = funScope
 	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "$n_arguments"}, &ast.Identifier{Value: "element"}, -1, 0)
 	sa.CurrentScope = oldScope
-	sa.registerSymbol("sum", FunctionSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "sum"}, 13)
+	sa.registerSymbol("sum", FunctionSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "sum"}, 11)
 
 	funScope = &Scope{
 		Parent:  oldScope,
@@ -344,7 +324,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.CurrentScope = funScope
 	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "$n_arguments"}, &ast.Identifier{Value: "element"}, -1, 0)
 	sa.CurrentScope = oldScope
-	sa.registerSymbol("min", FunctionSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "min"}, 14)
+	sa.registerSymbol("min", FunctionSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "min"}, 12)
 
 	funScope = &Scope{
 		Parent:  oldScope,
@@ -354,7 +334,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.CurrentScope = funScope
 	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "$n_arguments"}, &ast.Identifier{Value: "element"}, -1, 0)
 	sa.CurrentScope = oldScope
-	sa.registerSymbol("max", FunctionSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "max"}, 15)
+	sa.registerSymbol("max", FunctionSymbol, &TypeInfo{Name: "any"}, &ast.Identifier{Value: "max"}, 13)
 
 	funScope = &Scope{
 		Parent:  oldScope,
@@ -366,7 +346,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.registerSymbol("pos", ParameterSymbol, &TypeInfo{Name: "integer"}, &ast.Identifier{Value: "pos"}, -1, 1)
 	sa.registerSymbol("count", ParameterSymbol, &TypeInfo{Name: "integer"}, &ast.Identifier{Value: "count"}, -1, 2)
 	sa.CurrentScope = oldScope
-	sa.registerSymbol("substr", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "substr"}, 16)
+	sa.registerSymbol("substr", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "substr"}, 14)
 
 	funScope = &Scope{
 		Parent:  oldScope,
@@ -376,7 +356,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.CurrentScope = funScope
 	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "element"}, -1, 0)
 	sa.CurrentScope = oldScope
-	sa.registerSymbol("upper", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "upper"}, 17)
+	sa.registerSymbol("upper", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "upper"}, 15)
 
 	funScope = &Scope{
 		Parent:  oldScope,
@@ -386,7 +366,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.CurrentScope = funScope
 	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "element"}, -1, 0)
 	sa.CurrentScope = oldScope
-	sa.registerSymbol("lower", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "lower"}, 18)
+	sa.registerSymbol("lower", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "lower"}, 16)
 
 	funScope = &Scope{
 		Parent:  oldScope,
@@ -396,7 +376,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.CurrentScope = funScope
 	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "element"}, -1, 0)
 	sa.CurrentScope = oldScope
-	sa.registerSymbol("trim", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "trim"}, 19)
+	sa.registerSymbol("trim", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "trim"}, 17)
 
 	funScope = &Scope{
 		Parent:  oldScope,
@@ -406,7 +386,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.CurrentScope = funScope
 	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "element"}, -1, 0)
 	sa.CurrentScope = oldScope
-	sa.registerSymbol("idpcreaterole", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "idpcreaterole"}, 20)
+	sa.registerSymbol("idpcreaterole", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "idpcreaterole"}, 18)
 
 	funScope = &Scope{
 		Parent:  oldScope,
@@ -416,7 +396,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.CurrentScope = funScope
 	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "element"}, -1, 0)
 	sa.CurrentScope = oldScope
-	sa.registerSymbol("idpcreateuser", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "idpcreateuser"}, 21)
+	sa.registerSymbol("idpcreateuser", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "idpcreateuser"}, 19)
 
 	funScope = &Scope{
 		Parent:  oldScope,
@@ -426,7 +406,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.CurrentScope = funScope
 	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "element"}, -1, 0)
 	sa.CurrentScope = oldScope
-	sa.registerSymbol("idpdeleterole", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "idpdeleterole"}, 22)
+	sa.registerSymbol("idpdeleterole", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "idpdeleterole"}, 20)
 
 	funScope = &Scope{
 		Parent:  oldScope,
@@ -436,7 +416,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.CurrentScope = funScope
 	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "element"}, -1, 0)
 	sa.CurrentScope = oldScope
-	sa.registerSymbol("idpdeleteuser", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "idpdeleteuser"}, 23)
+	sa.registerSymbol("idpdeleteuser", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "idpdeleteuser"}, 21)
 
 	funScope = &Scope{
 		Parent:  oldScope,
@@ -446,7 +426,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.CurrentScope = funScope
 	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "$_arguments"}, &ast.Identifier{Value: "element"}, -1, 0)
 	sa.CurrentScope = oldScope
-	sa.registerSymbol("idprevokerole", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "idprevokerole"}, 24)
+	sa.registerSymbol("idprevokerole", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "idprevokerole"}, 22)
 
 	funScope = &Scope{
 		Parent:  oldScope,
@@ -456,7 +436,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.CurrentScope = funScope
 	sa.registerSymbol("element", ParameterSymbol, &TypeInfo{Name: "$_arguments"}, &ast.Identifier{Value: "element"}, -1, 0)
 	sa.CurrentScope = oldScope
-	sa.registerSymbol("idpassignerole", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "idpassignrole"}, 25)
+	sa.registerSymbol("idpassignerole", FunctionSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "idpassignrole"}, 23)
 
 }
 
@@ -2908,13 +2888,22 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 func (sa *SemanticAnalyzer) visitIndexExpression(node *ast.IndexExpression) *TypeInfo {
 	leftType := sa.visitExpression(node.Left)
 	indexType := sa.visitExpression(node.Index)
-	if indexType.Name != "integer" {
-		sa.addError("Index must be an integer. line:%d, column:%d", node.Index.Line(), node.Index.Column())
-		return &TypeInfo{Name: "void"}
-	}
 	if leftType == nil {
 		sa.addError("Non declared variable '%s'. line:%d, column:%d", node.Left.String(),
 			node.Left.Line(), node.Left.Column())
+		return &TypeInfo{Name: "void"}
+	}
+	if leftType.SetInfo != nil {
+		if !sa.areTypesCompatible(leftType.SetInfo.Key, indexType) {
+			sa.addError("Type mismatch: expected %s, got %s. line:%d, column:%d",
+				leftType.SetInfo.Key.Name, indexType.Name, node.Token.Line, node.Token.Column)
+			return &TypeInfo{Name: "void"}
+		}
+		return leftType.SetInfo.Value
+	}
+
+	if indexType.Name != "integer" {
+		sa.addError("Index must be an integer. line:%d, column:%d", node.Index.Line(), node.Index.Column())
 		return &TypeInfo{Name: "void"}
 	}
 	if !leftType.IsArray {
@@ -3197,6 +3186,35 @@ func (sa *SemanticAnalyzer) resolveTypeAnnotation(ta *ast.TypeAnnotation) *TypeI
 			ElementType: elementType,
 		}
 	}
+	if ta.SetType != nil {
+		if ta.SetType.Key == nil || ta.SetType.Value == nil {
+			sa.addError("Invalid Set declaration %s. line:%d, column:%d", ta.SetType.Token,
+				ta.SetType.Token.Line, ta.SetType.Token.Column)
+			return nil
+		}
+		set := &SetInfo{}
+		set.Key = sa.resolveTypeAnnotation(ta.SetType.Key)
+		if set.Key == nil {
+			sa.addError("Invalid Key type %s. line:%d, column:%d", ta.SetType.Key.String(),
+				ta.SetType.Key.Token.Line, ta.SetType.Key.Token.Column)
+			return nil
+		}
+		if _, ok := sa.TypeTable[lower(set.Key.Name)]; !ok || strings.EqualFold(set.Key.Name, "any") {
+			sa.addError("Invalid Key type %s. line:%d, column:%d", set.Key.Name, ta.SetType.Key.Token.Line, ta.SetType.Key.Token.Column)
+			return nil
+		}
+
+		set.Value = sa.resolveTypeAnnotation(ta.SetType.Value)
+		if set.Value == nil {
+			sa.addError("Invalid Value type %s", ta.Type)
+			return nil
+		}
+
+		return &TypeInfo{
+			Name:    "set",
+			SetInfo: set,
+		}
+	}
 
 	// Vérifier si c'est un type défini
 	if typeInfo, exists := sa.TypeTable[lower(ta.Type)]; exists {
@@ -3273,6 +3291,14 @@ func (sa *SemanticAnalyzer) areTypesCompatible(t1, t2 *TypeInfo) bool {
 	if t1.Name == "any" || t2.Name == "any" {
 		return true
 	}
+	if t1.Name == "base" {
+		_, ok := sa.TypeTable[lower(t2.Name)]
+		return ok && !strings.EqualFold(t2.Name, "any")
+	}
+	if t2.Name == "base" {
+		_, ok := sa.TypeTable[lower(t1.Name)]
+		return ok && !strings.EqualFold(t1.Name, "any")
+	}
 
 	if t1.Name == "null" || t2.Name == "null" {
 		return true
@@ -3312,6 +3338,14 @@ func (sa *SemanticAnalyzer) areTypesCompatible(t1, t2 *TypeInfo) bool {
 func (sa *SemanticAnalyzer) areTypesCompatibleEx(t1, t2 *TypeInfo) bool {
 	if t1.Name == "any" || t2.Name == "any" {
 		return true
+	}
+	if t1.Name == "base" {
+		_, ok := sa.TypeTable[lower(t2.Name)]
+		return ok && !strings.EqualFold(t2.Name, "any")
+	}
+	if t2.Name == "base" {
+		_, ok := sa.TypeTable[lower(t1.Name)]
+		return ok && !strings.EqualFold(t1.Name, "any")
 	}
 
 	if t1.Name == "null" || t2.Name == "null" {

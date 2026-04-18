@@ -316,6 +316,9 @@ func evalLetStatement(let *ast.LetStatement, env *object.Environment) object.Obj
 		// Valeur par défaut selon le type
 		if let.Type != nil {
 			value = getDefaultValue(let.Type.Type)
+			if let.Type.Type == "" && let.Type.SetType != nil {
+				value = &object.Set{Key: let.Type.SetType.Key.Type, Elements: map[any]object.Object{}}
+			}
 			if let.Type.Type == "" && let.Type.ArrayType != nil {
 				// Bien vouloir pousser la reflexion pour la gestion des types recursifs des arrays
 				value = getDefaultValue(strings.ToLower("array of " + let.Type.ArrayType.ElementType.Type))
@@ -403,6 +406,10 @@ func evalLetStatement(let *ast.LetStatement, env *object.Environment) object.Obj
 			st.Name = objtype
 			value = st
 		}
+		if set, ok := value.(*object.Set); ok && (set.Key == "" || set.Value == "") && let.Type.SetType != nil {
+			set.Key = strings.ToLower(let.Type.SetType.Key.Type)
+			set.Value = strings.ToLower(let.Type.SetType.Value.Type)
+		}
 		// Bien vouloir pousser la reflexion pour la gestion des types recursifs des arrays
 		if arr, ok := value.(*object.Array); ok && arr.ElementType == "" && let.Type.ArrayType != nil {
 			arr.ElementType = strings.ToLower(let.Type.ArrayType.ElementType.Type)
@@ -451,6 +458,20 @@ func evalAssignmentStatement(node *ast.AssignmentStatement, env *object.Environm
 				v.ElementType = val.(*object.Array).ElementType
 			} else if o && v.ElementType != val.(*object.Array).ElementType {
 				return newError("Array type does not match. line:%d, column:%d", target.Line(), target.Column())
+			}
+		}
+		if ok && val.Type() == object.SET_OBJ {
+			v, o := value.(*object.Set)
+			if o && v.Key == "" || v.Value == "" {
+				v.Key = val.(*object.Set).Key
+				v.Value = val.(*object.Set).Value
+			} else if o {
+				if !strings.EqualFold(v.Key, val.(*object.Set).Key) {
+					return newError("Key type does not match. line:%d, column:%d", target.Line(), target.Column())
+				}
+				if !strings.EqualFold(v.Value, val.(*object.Set).Value) {
+					return newError("Value type does not match. line:%d, column:%d", target.Line(), target.Column())
+				}
 			}
 		}
 		if ok && val.Type() == object.STRUCT_OBJ {
@@ -513,7 +534,10 @@ func evalAssignmentStatement(node *ast.AssignmentStatement, env *object.Environm
 		if isError(indexObj) {
 			return indexObj
 		}
-
+		if set, ok := leftObj.(*object.Set); ok {
+			set.Elements[getObjectValue(indexObj)] = value
+			return value
+		}
 		// Supporter les tableaux
 		if arr, ok := leftObj.(*object.Array); ok {
 			if indexObj.Type() != object.INTEGER_OBJ {
@@ -2449,285 +2473,285 @@ func evalCommonTableExpression(cte *ast.SQLCommonTableExpression, env *object.En
 	return newError("Le CTE doit retourner un résultat SQL")
 }
 
-func evalRecursiveCTE(cte *ast.SQLRecursiveCTE, env *object.Environment) object.Object {
-	// Évaluer la partie anchor
-	anchorResult := Eval(cte.Anchor, env)
-	if isError(anchorResult) {
-		return anchorResult
-	}
+// func evalRecursiveCTE(cte *ast.SQLRecursiveCTE, env *object.Environment) object.Object {
+// 	// Évaluer la partie anchor
+// 	anchorResult := Eval(cte.Anchor, env)
+// 	if isError(anchorResult) {
+// 		return anchorResult
+// 	}
 
-	anchorTable, ok := anchorResult.(*object.SQLTable)
-	if !ok {
-		return newError("L'anchor doit retourner une table")
-	}
+// 	anchorTable, ok := anchorResult.(*object.SQLTable)
+// 	if !ok {
+// 		return newError("L'anchor doit retourner une table")
+// 	}
 
-	// Créer la table de résultat
-	resultTable := &object.SQLTable{
-		Name:    cte.Name.Value,
-		Columns: anchorTable.Columns,
-		Data:    make([]map[string]object.Object, 0),
-	}
+// 	// Créer la table de résultat
+// 	resultTable := &object.SQLTable{
+// 		Name:    cte.Name.Value,
+// 		Columns: anchorTable.Columns,
+// 		Data:    make([]map[string]object.Object, 0),
+// 	}
 
-	// Ajouter les données anchor
-	resultTable.Data = append(resultTable.Data, anchorTable.Data...)
+// 	// Ajouter les données anchor
+// 	resultTable.Data = append(resultTable.Data, anchorTable.Data...)
 
-	// Itération récursive
-	maxIterations := 1000 // Limite de sécurité
-	iteration := 0
-	previousCount := 0
+// 	// Itération récursive
+// 	maxIterations := 1000 // Limite de sécurité
+// 	iteration := 0
+// 	previousCount := 0
 
-	for iteration < maxIterations {
-		// Créer un environnement avec les données actuelles
-		recursiveEnv := object.NewEnclosedEnvironment(env)
-		recursiveEnv.Set(cte.Name.Value, resultTable)
+// 	for iteration < maxIterations {
+// 		// Créer un environnement avec les données actuelles
+// 		recursiveEnv := object.NewEnclosedEnvironment(env)
+// 		recursiveEnv.Set(cte.Name.Value, resultTable)
 
-		// Évaluer la partie récursive
-		recursiveResult := Eval(cte.Recursive, recursiveEnv)
-		if isError(recursiveResult) {
-			return recursiveResult
-		}
+// 		// Évaluer la partie récursive
+// 		recursiveResult := Eval(cte.Recursive, recursiveEnv)
+// 		if isError(recursiveResult) {
+// 			return recursiveResult
+// 		}
 
-		recursiveTable, ok := recursiveResult.(*object.SQLTable)
-		if !ok {
-			return newError("La partie récursive doit retourner une table")
-		}
+// 		recursiveTable, ok := recursiveResult.(*object.SQLTable)
+// 		if !ok {
+// 			return newError("La partie récursive doit retourner une table")
+// 		}
 
-		// Vérifier si on a de nouvelles données
-		if len(recursiveTable.Data) == 0 {
-			break // Point fixe atteint
-		}
+// 		// Vérifier si on a de nouvelles données
+// 		if len(recursiveTable.Data) == 0 {
+// 			break // Point fixe atteint
+// 		}
 
-		// Ajouter les nouvelles données (éviter les doublons)
-		for _, newRow := range recursiveTable.Data {
-			if !containsRow(resultTable.Data, newRow) {
-				resultTable.Data = append(resultTable.Data, newRow)
-			}
-		}
+// 		// Ajouter les nouvelles données (éviter les doublons)
+// 		for _, newRow := range recursiveTable.Data {
+// 			if !containsRow(resultTable.Data, newRow) {
+// 				resultTable.Data = append(resultTable.Data, newRow)
+// 			}
+// 		}
 
-		// Vérifier la convergence
-		if len(resultTable.Data) == previousCount {
-			break // Aucun nouveau row ajouté
-		}
+// 		// Vérifier la convergence
+// 		if len(resultTable.Data) == previousCount {
+// 			break // Aucun nouveau row ajouté
+// 		}
 
-		previousCount = len(resultTable.Data)
-		iteration++
-	}
+// 		previousCount = len(resultTable.Data)
+// 		iteration++
+// 	}
 
-	if iteration >= maxIterations {
-		return newError("Limite d'itérations récursives atteinte")
-	}
+// 	if iteration >= maxIterations {
+// 		return newError("Limite d'itérations récursives atteinte")
+// 	}
 
-	return &object.SQLResult{
-		Columns:      getColumnNames(resultTable),
-		Rows:         nil, //resultTable.Data,
-		RowsAffected: int64(len(resultTable.Data)),
-	}
-}
+// 	return &object.SQLResult{
+// 		Columns:      getColumnNames(resultTable),
+// 		Rows:         nil, //resultTable.Data,
+// 		RowsAffected: int64(len(resultTable.Data)),
+// 	}
+// }
 
-func evalHierarchicalQuery(selectStmt *ast.SQLSelectStatement, env *object.Environment) object.Object {
-	// Récupérer la table source
-	fromResult := Eval(selectStmt.From, env)
-	if isError(fromResult) {
-		return fromResult
-	}
+// func evalHierarchicalQuery(selectStmt *ast.SQLSelectStatement, env *object.Environment) object.Object {
+// 	// Récupérer la table source
+// 	fromResult := Eval(selectStmt.From, env)
+// 	if isError(fromResult) {
+// 		return fromResult
+// 	}
 
-	sourceTable, ok := fromResult.(*object.SQLTable)
-	if !ok {
-		return newError("La source doit être une table")
-	}
+// 	sourceTable, ok := fromResult.(*object.SQLTable)
+// 	if !ok {
+// 		return newError("La source doit être une table")
+// 	}
 
-	// Construire l'arbre hiérarchique
-	tree := buildHierarchicalTree(sourceTable, selectStmt.Hierarchical, env)
-	if isError(tree) {
-		return tree
-	}
+// 	// Construire l'arbre hiérarchique
+// 	tree := buildHierarchicalTree(sourceTable, selectStmt.Hierarchical, env)
+// 	if isError(tree) {
+// 		return tree
+// 	}
 
-	// Parcourir l'arbre et construire le résultat
-	resultRows := traverseHierarchicalTree(tree, selectStmt, env)
+// 	// Parcourir l'arbre et construire le résultat
+// 	resultRows := traverseHierarchicalTree(tree, selectStmt, env)
 
-	return &object.SQLResult{
-		Columns:      getColumnNames(sourceTable),
-		Rows:         nil, //resultRows,
-		RowsAffected: int64(len(resultRows)),
-	}
-}
+// 	return &object.SQLResult{
+// 		Columns:      getColumnNames(sourceTable),
+// 		Rows:         nil, //resultRows,
+// 		RowsAffected: int64(len(resultRows)),
+// 	}
+// }
 
-func buildHierarchicalTree(table *object.SQLTable, hierarchical *ast.SQLHierarchicalQuery, env *object.Environment) object.Object {
-	// Implémentation simplifiée de la construction d'arbre
-	// Dans une implémentation réelle, cela utiliserait les clauses
-	// START WITH et CONNECT BY pour construire la hiérarchie
+// func buildHierarchicalTree(table *object.SQLTable, hierarchical *ast.SQLHierarchicalQuery, env *object.Environment) object.Object {
+// 	// Implémentation simplifiée de la construction d'arbre
+// 	// Dans une implémentation réelle, cela utiliserait les clauses
+// 	// START WITH et CONNECT BY pour construire la hiérarchie
 
-	tree := &object.HierarchicalTree{
-		Nodes: make(map[string]*object.HierarchicalNode),
-	}
+// 	tree := &object.HierarchicalTree{
+// 		Nodes: make(map[string]*object.HierarchicalNode),
+// 	}
 
-	// Identifier la colonne clé et parent
-	keyColumn := "id"
-	parentColumn := "parent_id"
+// 	// Identifier la colonne clé et parent
+// 	keyColumn := "id"
+// 	parentColumn := "parent_id"
 
-	// Construire les nœuds
-	for i, row := range table.Data {
-		node := &object.HierarchicalNode{
-			Data:     row,
-			Level:    0,
-			Children: []*object.HierarchicalNode{},
-		}
+// 	// Construire les nœuds
+// 	for i, row := range table.Data {
+// 		node := &object.HierarchicalNode{
+// 			Data:     row,
+// 			Level:    0,
+// 			Children: []*object.HierarchicalNode{},
+// 		}
 
-		if id, ok := row[keyColumn]; ok {
-			node.ID = id.Inspect()
-		} else {
-			node.ID = fmt.Sprintf("node_%d", i)
-		}
+// 		if id, ok := row[keyColumn]; ok {
+// 			node.ID = id.Inspect()
+// 		} else {
+// 			node.ID = fmt.Sprintf("node_%d", i)
+// 		}
 
-		tree.Nodes[node.ID] = node
-	}
+// 		tree.Nodes[node.ID] = node
+// 	}
 
-	// Construire les relations parent-enfant
-	for _, node := range tree.Nodes {
-		if parentID, ok := node.Data[parentColumn]; ok {
-			if parentNode, exists := tree.Nodes[parentID.Inspect()]; exists {
-				parentNode.Children = append(parentNode.Children, node)
-				node.Parent = parentNode
-			}
-		} else {
-			// Nœud racine
-			tree.Roots = append(tree.Roots, node)
-		}
-	}
+// 	// Construire les relations parent-enfant
+// 	for _, node := range tree.Nodes {
+// 		if parentID, ok := node.Data[parentColumn]; ok {
+// 			if parentNode, exists := tree.Nodes[parentID.Inspect()]; exists {
+// 				parentNode.Children = append(parentNode.Children, node)
+// 				node.Parent = parentNode
+// 			}
+// 		} else {
+// 			// Nœud racine
+// 			tree.Roots = append(tree.Roots, node)
+// 		}
+// 	}
 
-	// Calculer les niveaux
-	for _, root := range tree.Roots {
-		calculateLevels(root, 0)
-	}
+// 	// Calculer les niveaux
+// 	for _, root := range tree.Roots {
+// 		calculateLevels(root, 0)
+// 	}
 
-	return tree
-}
+// 	return tree
+// }
 
-func calculateLevels(node *object.HierarchicalNode, level int) {
-	node.Level = level
-	for _, child := range node.Children {
-		calculateLevels(child, level+1)
-	}
-}
+// func calculateLevels(node *object.HierarchicalNode, level int) {
+// 	node.Level = level
+// 	for _, child := range node.Children {
+// 		calculateLevels(child, level+1)
+// 	}
+// }
 
-func traverseHierarchicalTree(treeObj object.Object, selectStmt *ast.SQLSelectStatement, env *object.Environment) []map[string]object.Object {
-	tree, ok := treeObj.(*object.HierarchicalTree)
-	if !ok {
-		return []map[string]object.Object{}
-	}
+// func traverseHierarchicalTree(treeObj object.Object, selectStmt *ast.SQLSelectStatement, env *object.Environment) []map[string]object.Object {
+// 	tree, ok := treeObj.(*object.HierarchicalTree)
+// 	if !ok {
+// 		return []map[string]object.Object{}
+// 	}
 
-	var result []map[string]object.Object
+// 	var result []map[string]object.Object
 
-	// Parcours en profondeur d'abord
-	for _, root := range tree.Roots {
-		traverseNode(root, &result, selectStmt, env)
-	}
+// 	// Parcours en profondeur d'abord
+// 	for _, root := range tree.Roots {
+// 		traverseNode(root, &result, selectStmt, env)
+// 	}
 
-	return result
-}
+// 	return result
+// }
 
-func traverseNode(node *object.HierarchicalNode, result *[]map[string]object.Object, selectStmt *ast.SQLSelectStatement, env *object.Environment) {
-	// Ajouter le nœud courant
-	row := make(map[string]object.Object)
-	for k, v := range node.Data {
-		row[k] = v
-	}
+// func traverseNode(node *object.HierarchicalNode, result *[]map[string]object.Object, selectStmt *ast.SQLSelectStatement, env *object.Environment) {
+// 	// Ajouter le nœud courant
+// 	row := make(map[string]object.Object)
+// 	for k, v := range node.Data {
+// 		row[k] = v
+// 	}
 
-	// Ajouter les colonnes hiérarchiques
-	row["level"] = &object.Integer{Value: int64(node.Level)}
-	if node.Parent != nil {
-		if parentID, ok := node.Parent.Data["id"]; ok {
-			row["parent_id"] = parentID
-		}
-	}
+// 	// Ajouter les colonnes hiérarchiques
+// 	row["level"] = &object.Integer{Value: int64(node.Level)}
+// 	if node.Parent != nil {
+// 		if parentID, ok := node.Parent.Data["id"]; ok {
+// 			row["parent_id"] = parentID
+// 		}
+// 	}
 
-	*result = append(*result, row)
+// 	*result = append(*result, row)
 
-	// Parcourir les enfants
-	for _, child := range node.Children {
-		traverseNode(child, result, selectStmt, env)
-	}
-}
+// 	// Parcourir les enfants
+// 	for _, child := range node.Children {
+// 		traverseNode(child, result, selectStmt, env)
+// 	}
+// }
 
-func evalWindowFunction(function *ast.SQLWindowFunction, env *object.Environment) object.Object {
-	// Implémentation simplifiée des fonctions de fenêtrage
-	switch function.Name {
-	case "ROW_NUMBER":
-		return evalRowNumber(function, env)
-	case "RANK":
-		return evalRank(function, env)
-	case "DENSE_RANK":
-		return evalDenseRank(function, env)
-	case "LAG":
-		return evalLag(function, env)
-	case "LEAD":
-		return evalLead(function, env)
-	default:
-		return newError("Fonction de fenêtrage non supportée: %s", function.Name)
-	}
-}
+// func evalWindowFunction(function *ast.SQLWindowFunction, env *object.Environment) object.Object {
+// 	// Implémentation simplifiée des fonctions de fenêtrage
+// 	switch function.Name {
+// 	case "ROW_NUMBER":
+// 		return evalRowNumber(function, env)
+// 	case "RANK":
+// 		return evalRank(function, env)
+// 	case "DENSE_RANK":
+// 		return evalDenseRank(function, env)
+// 	case "LAG":
+// 		return evalLag(function, env)
+// 	case "LEAD":
+// 		return evalLead(function, env)
+// 	default:
+// 		return newError("Fonction de fenêtrage non supportée: %s", function.Name)
+// 	}
+// }
 
-func evalRowNumber(function *ast.SQLWindowFunction, env *object.Environment) object.Object {
-	// Dans une implémentation réelle, cela calculerait le numéro de ligne
-	// dans la partition et l'ordre définis
-	return &object.Integer{Value: 1}
-}
+// func evalRowNumber(function *ast.SQLWindowFunction, env *object.Environment) object.Object {
+// 	// Dans une implémentation réelle, cela calculerait le numéro de ligne
+// 	// dans la partition et l'ordre définis
+// 	return &object.Integer{Value: 1}
+// }
 
-func evalRank(function *ast.SQLWindowFunction, env *object.Environment) object.Object {
-	// Dans une implémentation réelle, cela calculerait le rank
-	// dans la partition et l'ordre définis
-	return &object.Integer{Value: 1}
-}
+// func evalRank(function *ast.SQLWindowFunction, env *object.Environment) object.Object {
+// 	// Dans une implémentation réelle, cela calculerait le rank
+// 	// dans la partition et l'ordre définis
+// 	return &object.Integer{Value: 1}
+// }
 
-func evalDenseRank(function *ast.SQLWindowFunction, env *object.Environment) object.Object {
-	// Dans une implémentation réelle, cela calculerait le rank
-	// dans la partition et l'ordre définis
-	return &object.Integer{Value: 1}
-}
+// func evalDenseRank(function *ast.SQLWindowFunction, env *object.Environment) object.Object {
+// 	// Dans une implémentation réelle, cela calculerait le rank
+// 	// dans la partition et l'ordre définis
+// 	return &object.Integer{Value: 1}
+// }
 
-func evalLag(function *ast.SQLWindowFunction, env *object.Environment) object.Object {
-	// Dans une implémentation réelle, cela calculerait le rank
-	// dans la partition et l'ordre définis
-	return &object.Integer{Value: 1}
-}
+// func evalLag(function *ast.SQLWindowFunction, env *object.Environment) object.Object {
+// 	// Dans une implémentation réelle, cela calculerait le rank
+// 	// dans la partition et l'ordre définis
+// 	return &object.Integer{Value: 1}
+// }
 
-func evalLead(function *ast.SQLWindowFunction, env *object.Environment) object.Object {
-	// Dans une implémentation réelle, cela calculerait le rank
-	// dans la partition et l'ordre définis
-	return &object.Integer{Value: 1}
-}
+// func evalLead(function *ast.SQLWindowFunction, env *object.Environment) object.Object {
+// 	// Dans une implémentation réelle, cela calculerait le rank
+// 	// dans la partition et l'ordre définis
+// 	return &object.Integer{Value: 1}
+// }
 
-// Fonctions utilitaires
-func containsRow(rows []map[string]object.Object, row map[string]object.Object) bool {
-	for _, existingRow := range rows {
-		if rowsEqual(existingRow, row) {
-			return true
-		}
-	}
-	return false
-}
+// // Fonctions utilitaires
+// func containsRow(rows []map[string]object.Object, row map[string]object.Object) bool {
+// 	for _, existingRow := range rows {
+// 		if rowsEqual(existingRow, row) {
+// 			return true
+// 		}
+// 	}
+// 	return false
+// }
 
-func rowsEqual(row1, row2 map[string]object.Object) bool {
-	if len(row1) != len(row2) {
-		return false
-	}
+// func rowsEqual(row1, row2 map[string]object.Object) bool {
+// 	if len(row1) != len(row2) {
+// 		return false
+// 	}
 
-	for k, v1 := range row1 {
-		if v2, exists := row2[k]; !exists || v1.Inspect() != v2.Inspect() {
-			return false
-		}
-	}
+// 	for k, v1 := range row1 {
+// 		if v2, exists := row2[k]; !exists || v1.Inspect() != v2.Inspect() {
+// 			return false
+// 		}
+// 	}
 
-	return true
-}
+// 	return true
+// }
 
-func getColumnNames(table *object.SQLTable) []string {
-	var columns []string
-	for colName := range table.Columns {
-		columns = append(columns, colName)
-	}
-	return columns
-}
+// func getColumnNames(table *object.SQLTable) []string {
+// 	var columns []string
+// 	for colName := range table.Columns {
+// 		columns = append(columns, colName)
+// 	}
+// 	return columns
+// }
 
 func evalArrayLiteral(node *ast.ArrayLiteral, env *object.Environment) object.Object {
 	elements := make([]object.Object, len(node.Elements))
@@ -2759,6 +2783,8 @@ func evalIndexExpression(node *ast.IndexExpression, env *object.Environment) obj
 	}
 
 	switch {
+	case left.Type() == object.SET_OBJ:
+		return evalSetIndexExpression(left, index)
 	case left.Type() == object.ARRAY_OBJ && index.Type() == object.INTEGER_OBJ:
 		return evalArrayIndexExpression(left, index)
 	case left.Type() == object.STRING_OBJ && index.Type() == object.INTEGER_OBJ:
@@ -2780,7 +2806,16 @@ func evalArrayIndexExpression(array, index object.Object) object.Object {
 
 	return arrayObject.Elements[idx]
 }
-
+func evalSetIndexExpression(setObject, index object.Object) object.Object {
+	set := setObject.(*object.Set)
+	if !strings.EqualFold(set.Key, string(index.Type())) {
+		return object.NULL
+	}
+	if val, ok := set.Elements[getObjectValue(index)]; ok {
+		return val
+	}
+	return object.NULL
+}
 func evalStringIndexExpression(str, index object.Object) object.Object {
 	strObject := str.(*object.String)
 	idx := index.(*object.Integer).Value
@@ -2960,8 +2995,17 @@ func evalInExpression(node *ast.InExpression, env *object.Environment) object.Ob
 		return &object.Boolean{Value: contains}
 	case *object.DBField:
 		return &object.DBField{Value: fmt.Sprintf("%s IN (%s)", left.Inspect(), right.Inspect())}
+	case *object.Set:
+		if left.Type() != object.DBFIELD_OBJ {
+			return newError("%s does not support in", right.Type())
+		}
+		_, ok := right.Elements[getObjectValue(left)]
+		if node.Not {
+			return &object.Boolean{Value: !ok}
+		}
+		return &object.Boolean{Value: ok}
 	default:
-		return newError("L'opérande droit de IN doit être un tableau ou une chaîne, got %s", right.Type())
+		return newError("IN must be used with array, string or set, got %s", right.Type())
 	}
 }
 

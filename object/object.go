@@ -33,11 +33,12 @@ const (
 	DBOBJECT_OBJ     = "TABLE"
 	SQL_RESULT_OBJ   = "SQL_RESULT"
 	ARRAY_OBJ        = "ARRAY"
-	ROWS_OBJ         = "ROWS"
-	BREAK_OBJ        = "BREAK"
-	FALLTHROUGH_OBJ  = "FALLTHROUGH"
-	CONTINUE_OBJ     = "CONTINUE"
-	DURATION_OBJ     = "DURATION"
+	SET_OBJ          = "SET"
+	// ROWS_OBJ         = "ROWS"
+	BREAK_OBJ       = "BREAK"
+	FALLTHROUGH_OBJ = "FALLTHROUGH"
+	CONTINUE_OBJ    = "CONTINUE"
+	DURATION_OBJ    = "DURATION"
 )
 
 type Object interface {
@@ -793,32 +794,32 @@ func (sr *SQLResult) Inspect() string {
 	return fmt.Sprintf("SQLResult(%d ligne(s) affectée(s))", sr.RowsAffected)
 }
 
-// HierarchicalTree - Arbre hiérarchique
-type HierarchicalTree struct {
-	Roots []*HierarchicalNode
-	Nodes map[string]*HierarchicalNode
-}
+// // HierarchicalTree - Arbre hiérarchique
+// type HierarchicalTree struct {
+// 	Roots []*HierarchicalNode
+// 	Nodes map[string]*HierarchicalNode
+// }
 
-func (ht *HierarchicalTree) Type() ObjectType { return "HIERARCHICAL_TREE" }
-func (ht *HierarchicalTree) Inspect() string {
-	return fmt.Sprintf("HierarchicalTree(%d racines, %d nœuds)", len(ht.Roots), len(ht.Nodes))
-}
+// func (ht *HierarchicalTree) Type() ObjectType { return "HIERARCHICAL_TREE" }
+// func (ht *HierarchicalTree) Inspect() string {
+// 	return fmt.Sprintf("HierarchicalTree(%d racines, %d nœuds)", len(ht.Roots), len(ht.Nodes))
+// }
 
-// HierarchicalNode - Nœud dans un arbre hiérarchique
-type HierarchicalNode struct {
-	ID       string
-	Data     map[string]Object
-	Level    int
-	Parent   *HierarchicalNode
-	Children []*HierarchicalNode
-}
+// // HierarchicalNode - Nœud dans un arbre hiérarchique
+// type HierarchicalNode struct {
+// 	ID       string
+// 	Data     map[string]Object
+// 	Level    int
+// 	Parent   *HierarchicalNode
+// 	Children []*HierarchicalNode
+// }
 
-// WindowState - État pour le calcul des fonctions de fenêtrage
-type WindowState struct {
-	Partition  []map[string]Object
-	CurrentRow int
-	OrderBy    []string
-}
+// // WindowState - État pour le calcul des fonctions de fenêtrage
+// type WindowState struct {
+// 	Partition  []map[string]Object
+// 	CurrentRow int
+// 	OrderBy    []string
+// }
 
 // Array - Type tableau
 type Array struct {
@@ -840,6 +841,29 @@ func (a *Array) Inspect() string {
 		out.WriteString(element.Inspect())
 	}
 
+	out.WriteString("]")
+	return out.String()
+}
+
+// Set - Type tableau
+type Set struct {
+	Key      string
+	Value    string
+	Elements map[any]Object
+}
+
+func (a *Set) Type() ObjectType { return SET_OBJ }
+func (a *Set) Inspect() string {
+	var out strings.Builder
+	out.WriteString("[")
+	i := 0
+	for key, element := range a.Elements {
+		if i > 0 {
+			out.WriteString(", ")
+		}
+		fmt.Fprintf(&out, "{%s, %s}", key, element.Inspect())
+		i++
+	}
 	out.WriteString("]")
 	return out.String()
 }

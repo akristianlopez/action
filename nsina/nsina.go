@@ -3069,6 +3069,7 @@ func Sum[T Number](slice []T) T {
 
 func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment) object.Object {
 	//How to save the context before running the function
+
 	f, ok := env.Get(node.Function.Value)
 	if ok && f.Type() == object.FUNCTION_OBJ {
 		//run the function
@@ -3092,7 +3093,10 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		if val == nil {
 			return nil
 		}
-		return val.(*object.ReturnValue).Value
+		if val, ok := val.(*object.ReturnValue); ok {
+			return val.Value
+		}
+		return val
 	}
 	fn := strings.ToLower(node.Function.Value)
 	switch fn {

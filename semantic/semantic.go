@@ -1923,8 +1923,8 @@ func (sa *SemanticAnalyzer) visitExpression(expr ast.Expression) *TypeInfo {
 	case *ast.Identifier:
 		return sa.visitIdentifier(e)
 	case *ast.IntegerLiteral:
-		return &TypeInfo{Name: "integer", Constraints: &Constraint{Length: -1,
-			Precision: int64(len(e.String())), Scale: -1, Range: nil}}
+		return &TypeInfo{Name: "integer", Constraints: &Constraint{Length: int64(len(e.String())),
+			Precision: -1, Scale: -1, Range: nil}}
 	case *ast.TypeMember:
 		return sa.visitTypeMember(e, "")
 	case *ast.LikeExpression:

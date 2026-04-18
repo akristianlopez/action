@@ -141,6 +141,7 @@ type SemanticAnalyzer struct {
 	Errors        []string
 	Warnings      []string
 	TypeTable     map[string]*TypeInfo
+	TypFunct      map[string]string
 	TypeSql       map[string]*TypeInfo
 	inType        int
 	db            *sql.DB
@@ -167,6 +168,7 @@ func NewSemanticAnalyzer(ctx *gin.Context, db *sql.DB, ch func(ctx *gin.Context,
 		Errors:       []string{},
 		Warnings:     []string{},
 		TypeTable:    make(map[string]*TypeInfo),
+		TypFunct:     map[string]string{},
 		// TypeSql:       make(map[string]*TypeInfo),
 		inType:        1,
 		db:            db,
@@ -451,6 +453,11 @@ func (sa *SemanticAnalyzer) registerBuiltinTypes() {
 	sa.TypeTable["any"] = &TypeInfo{Name: "any"} // Type générique
 	sa.TypeTable["duration"] = &TypeInfo{Name: "duration"}
 	sa.TypeTable["datetime"] = &TypeInfo{Name: "datetime"}
+
+	sa.TypFunct["max"] = ""
+	sa.TypFunct["min"] = ""
+	sa.TypFunct["sum"] = ""
+	sa.TypFunct["coalesce"] = ""
 
 	// penser a supprimer ces types pour n'utiliser que les types du haut
 	// sa.TypeSql["integer"] = &TypeInfo{Name: "integer"}
@@ -2344,6 +2351,9 @@ func (sa *SemanticAnalyzer) visitArrayFunctionCall(e *ast.ArrayFunctionCall) *Ty
 		}
 	}
 	sa.CurrentScope = oldScope
+	if _, ok := sa.TypFunct[lower(symbol.Name)]; ok {
+		return currentType
+	}
 	return symbol.DataType
 }
 

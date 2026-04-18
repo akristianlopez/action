@@ -512,9 +512,13 @@ func (sa *SemanticAnalyzer) visitProgram(node *ast.Action) {
 		sa.addError("Then action must start by 'action <nom>'")
 	}
 	returnType := &TypeInfo{Name: "any"}
+	isVoid := false
+
 	if node.ReturnType != nil {
 		returnType = sa.resolveTypeAnnotation(node.ReturnType)
+		isVoid = (returnType.Name == "void")
 	}
+
 	// Visiter toutes les déclarations
 	for _, stmt := range node.Statements {
 		select {
@@ -525,6 +529,13 @@ func (sa *SemanticAnalyzer) visitProgram(node *ast.Action) {
 			if _, o := stmt.(*ast.StructStatement); !o {
 				sa.visitStatement(stmt, returnType)
 			}
+		}
+	}
+	if !isVoid {
+		// On vérifie si le flux de contrôle est terminé par un return
+		// dans la liste des statements de l'Action.
+		if !sa.isControlFlowTerminated(node.Statements) {
+			sa.addError("Action '%s' must return a value of type %s", node.ActionName, returnType.Name)
 		}
 	}
 }
@@ -1568,12 +1579,13 @@ func (sa *SemanticAnalyzer) visitFunctionStatement(node *ast.FunctionStatement) 
 
 	// Vérifier le type de retour
 	var returnType *TypeInfo
+	isVoid := true
 	if node.ReturnType != nil {
 		returnType = sa.resolveTypeAnnotation(node.ReturnType)
+		isVoid = returnType.Name == "void"
 	} else {
 		returnType = &TypeInfo{Name: "void"}
 	}
-
 	// Créer un nouveau scope pour la fonction
 	funcScope := &Scope{
 		Parent:  sa.CurrentScope,
@@ -1596,11 +1608,56 @@ func (sa *SemanticAnalyzer) visitFunctionStatement(node *ast.FunctionStatement) 
 
 	// Analyser le corps de la fonction
 	sa.visitBlockStatement(node.Body, returnType)
-
+	if !isVoid {
+		// On utilise la logique de ton UnreachableCode/isLastStatementTerminating
+		// pour s'assurer que le flux ne peut pas "sortir" de la fonction sans return
+		if !sa.isControlFlowTerminated(node.Body.Statements) {
+			sa.addError("Function '%s' must return a value of type %s", node.Name.Value, returnType.Name)
+		}
+	}
 	// Restaurer le scope
 	sa.CurrentScope = oldScope
 }
+func (sa *SemanticAnalyzer) isControlFlowTerminated(stmts []ast.Statement) bool {
+	if len(stmts) == 0 {
+		return false
+	}
 
+	// On récupère le dernier statement
+	lastStmt := stmts[len(stmts)-1]
+
+	// On utilise une version adaptée de ton isTerminateStatement
+	return sa.checkTerminating(lastStmt)
+}
+
+func (sa *SemanticAnalyzer) checkTerminating(stmt ast.Statement) bool {
+	switch s := stmt.(type) {
+	case *ast.ReturnStatement:
+		return true
+	case *ast.IfStatement:
+		// Un IF ne termine le flux que si les deux branches sont présentes et se terminent
+		if s.Else == nil {
+			return false
+		}
+		return sa.isControlFlowTerminated(s.Then.Statements) &&
+			sa.isControlFlowTerminated(s.Else.Statements)
+	case *ast.BlockStatement:
+		return sa.isControlFlowTerminated(s.Statements)
+	case *ast.SwitchStatement:
+		// Doit avoir un default et toutes les cases terminantes
+		if s.DefaultCase == nil {
+			return false
+		}
+		for _, c := range s.Cases {
+			if !sa.isControlFlowTerminated(c.Body.Statements) {
+				return false
+			}
+		}
+		return sa.isControlFlowTerminated(s.DefaultCase.Statements)
+	default:
+		return false
+	}
+}
 func (sa *SemanticAnalyzer) visitStructStatement(node *ast.StructStatement) {
 	// Vérifier si la structure est déjà déclarée
 	if sa.lookupSymbol(node.Name.Value) != nil {

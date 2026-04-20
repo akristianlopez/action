@@ -3092,14 +3092,14 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		ob.Env = object.NewEnclosedEnvironment(env)
 		for k, field := range ob.Parameters {
 			if k == 0 {
-				val := Eval(node.Array, env)
+				val := Eval(node.Array, ob.Env)
 				if isError(val) {
 					return val
 				}
 				ob.Env.Set(field.Name.Value, val)
 				continue
 			}
-			val := Eval(node.Arguments[k-1], env)
+			val := Eval(node.Arguments[k-1], ob.Env)
 			if isError(val) {
 				return val
 			}

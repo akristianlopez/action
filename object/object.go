@@ -387,7 +387,7 @@ func (e *Error) Inspect() string  { return "ERROR: " + e.Message }
 type Function struct {
 	Parameters []*ast.FunctionParameter
 	Body       *ast.BlockStatement
-	Maxcall	int64
+	Maxcall    int64
 	Env        *Environment
 }
 

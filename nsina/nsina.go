@@ -3331,6 +3331,114 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		}
 		b := env.Emit(sub.(*object.String).Value, data)
 		return &object.Boolean{Value: b}
+	case "parseinteger", "toint":
+		if len(node.Arguments) != 0 {
+			return newError("%s requires only one argument", node.Function.Value)
+		}
+		val := Eval(node.Array, env)
+		if isError(val) {
+			return val
+		}
+		switch val.Type() {
+		case object.STRING_OBJ:
+			v, e := toInt64(val.(*object.String).Value)
+			if e != nil {
+				return newError("Invalid integer value: %s", val.(*object.String).Value)
+			}
+			return &object.Integer{Value: v}
+		case object.INTEGER_OBJ:
+			v, e := toInt64(val.(*object.Integer).Value)
+			if e != nil {
+				return newError("Invalid integer value: %v", val.(*object.Integer).Value)
+			}
+			return &object.Integer{Value: v}
+		case object.FLOAT_OBJ:
+			v, e := toInt64(val.(*object.Float).Value)
+			if e != nil {
+				return newError("Invalid integer value: %v", val.(*object.Float).Value)
+			}
+			return &object.Integer{Value: v}
+		default:
+			return newError("Invalid type for toInt: %s", val.Type())
+		}
+	case "parsefloat", "tofloat":
+		if len(node.Arguments) != 0 {
+			return newError("%s requires only one argument", node.Function.Value)
+		}
+		val := Eval(node.Array, env)
+		if isError(val) {
+			return val
+		}
+		switch val.Type() {
+		case object.STRING_OBJ:
+			v, e := toFloat64(val.(*object.String).Value)
+			if e != nil {
+				return newError("Invalid float value: %s", val.(*object.String).Value)
+			}
+			return &object.Float{Value: v}
+		case object.INTEGER_OBJ:
+			v, e := toFloat64(val.(*object.Integer).Value)
+			if e != nil {
+				return newError("Invalid float value: %v", val.(*object.Integer).Value)
+			}
+			return &object.Float{Value: v}
+		case object.FLOAT_OBJ:
+			v, e := toFloat64(val.(*object.Float).Value)
+			if e != nil {
+				return newError("Invalid float value: %v", val.(*object.Float).Value)
+			}
+			return &object.Float{Value: v}
+		default:
+			return newError("Invalid type for toFloat: %s", val.Type())
+		}
+	case "parsedate", "parsetime", "parsedatetime":
+		if len(node.Arguments) != 0 {
+			return newError("%s requires only one argument", node.Function.Value)
+		}
+		val := Eval(node.Array, env)
+		if isError(val) {
+			return val
+		}
+		switch val.Type() {
+		case object.STRING_OBJ:
+			v, e := toTime(val.(*object.String).Value)
+			if e != nil {
+				return newError("Invalid date/time value: %s", val.(*object.String).Value)
+			}
+			return &object.Time{Value: v}
+		default:
+			return newError("Invalid type for %s: %s", node.Function.Value, val.Type())
+		}
+	case "parseduration":
+		if len(node.Arguments) != 0 {
+			return newError("%s requires only one argument", node.Function.Value)
+		}
+		val := Eval(node.Array, env)
+		if isError(val) {
+			return val
+		}
+		switch val.Type() {
+		case object.STRING_OBJ:
+			v, e := toDuration(val.(*object.String).Value)
+			if e != nil {
+				return newError("Invalid duration value: %s", val.(*object.String).Value)
+			}
+			return &object.Duration{Nanoseconds: v.Nanoseconds, Original: val.(*object.String).Value}
+		default:
+			return newError("Invalid type for parseduration: %s", val.Type())
+		}
+	case "now":
+		if len(node.Arguments) != 0 || node.Array != nil {
+			return newError("now requires no arguments")
+		}
+		return &object.Time{Value: time.Now()}
+	case "today":
+		if len(node.Arguments) != 0 || node.Array != nil {
+			return newError("today requires no arguments")
+		}
+		now := time.Now()
+		today := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		return &object.Time{Value: today}
 	}
 	array := Eval(node.Array, env)
 	if isError(array) {
@@ -4010,6 +4118,35 @@ func toFloat64(val any) (float64, error) {
 	default:
 		return 0, fmt.Errorf("type %T non convertible en float64", v)
 	}
+}
+
+func toTime(val string) (time.Time, error) {
+	formats := []string{
+		"2006-01-02",
+		"02/01/2006",
+		"01/02/2006",
+		"2006-01-02 15:04:05",
+		"02/01/2006 15:04:05",
+		"01/02/2006 15:04:05",
+		"15:04:05",
+		"15:04",
+	}
+	for _, format := range formats {
+		if t, err := time.Parse(format, val); err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("unable to parse time: %s", val)
+}
+
+func toDuration(val string) (*object.Duration, error) {
+	// Remove the # delimiters if present
+	// val = strings.Trim(val, "#")
+	// d, err := time.ParseDuration(val)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	return object.ParseDuration(val)
 }
 
 /* Fonctions utilitaires supplémentaires

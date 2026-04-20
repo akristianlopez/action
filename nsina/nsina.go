@@ -17,6 +17,7 @@ import (
 
 var struct_id int = 0
 var last_value object.Object
+var MAX_CALL int64 = 100
 
 func Eval(node ast.Node, env *object.Environment) object.Object {
 	if node == nil {
@@ -770,7 +771,8 @@ func evalFunctionStatement(fn *ast.FunctionStatement, env *object.Environment) o
 	function := &object.Function{
 		Parameters: fn.Parameters,
 		Body:       fn.Body,
-		Env:        object.NewEnclosedEnvironment(env),
+		Env:        nil,
+		Maxcall:    MAX_CALL,
 	}
 	if fn.ReturnType != nil {
 		env.Limit(fn.Name.Value, defConstraints(fn.ReturnType, env))
@@ -3074,6 +3076,20 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 	if ok && f.Type() == object.FUNCTION_OBJ {
 		//run the function
 		ob := f.(*object.Function)
+		if ob.Maxcall == 0 {
+			return newError("Nsina: %s", "Maximum recursive call limit reached for function "+node.Function.Value)
+		}
+		if ob.Maxcall > 0 {
+			ob.Maxcall = ob.Maxcall - 1
+		}
+		oldEnv := ob.Env
+		defer func() {
+			if ob.Maxcall >= 0 {
+				ob.Maxcall = ob.Maxcall + 1
+				ob.Env = oldEnv
+			}
+		}()
+		ob.Env = object.NewEnclosedEnvironment(env)
 		for k, field := range ob.Parameters {
 			if k == 0 {
 				val := Eval(node.Array, env)

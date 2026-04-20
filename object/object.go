@@ -664,7 +664,10 @@ func (e *Environment) Set(name string, val Object) Object {
 	e.store[strings.ToLower(name)] = val
 	return val
 }
-
+func (e *Environment) Declare(name string, val Object) Object {
+	e.store[strings.ToLower(name)] = val
+	return val
+}
 func (e *Environment) Clear() {
 	e.store = make(map[string]Object)
 }

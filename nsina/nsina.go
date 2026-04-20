@@ -419,7 +419,7 @@ func evalLetStatement(let *ast.LetStatement, env *object.Environment) object.Obj
 	if ok, msg := env.Valid(let.Name.Value, value); !ok {
 		return &object.Error{Message: msg}
 	}
-	return env.Set(let.Name.Value, value)
+	return env.Declare(let.Name.Value, value)
 }
 
 func defType(objtype string, value object.Object, env *object.Environment) {
@@ -3101,7 +3101,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 			if isError(val) {
 				return val
 			}
-			callEnv.Set(field.Name.Value, val)
+			callEnv.Declare(field.Name.Value, val)
 		}
 		val := Eval(ob.Body, callEnv)
 		if val == nil {

@@ -3082,30 +3082,28 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		if ob.Maxcall > 0 {
 			ob.Maxcall = ob.Maxcall - 1
 		}
-		oldEnv := ob.Env
 		defer func() {
 			if ob.Maxcall >= 0 {
 				ob.Maxcall = ob.Maxcall + 1
-				ob.Env = oldEnv
 			}
 		}()
-		ob.Env = object.NewEnclosedEnvironment(env)
+		callEnv := object.NewEnclosedEnvironment(env)
 		for k, field := range ob.Parameters {
 			if k == 0 {
-				val := Eval(node.Array, ob.Env)
+				val := Eval(node.Array, env)
 				if isError(val) {
 					return val
 				}
 				ob.Env.Set(field.Name.Value, val)
 				continue
 			}
-			val := Eval(node.Arguments[k-1], ob.Env)
+			val := Eval(node.Arguments[k-1], env)
 			if isError(val) {
 				return val
 			}
-			ob.Env.Set(field.Name.Value, val)
+			callEnv.Set(field.Name.Value, val)
 		}
-		val := Eval(ob.Body, ob.Env)
+		val := Eval(ob.Body, callEnv)
 		if val == nil {
 			return nil
 		}

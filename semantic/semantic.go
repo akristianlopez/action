@@ -142,6 +142,7 @@ type SemanticAnalyzer struct {
 	Warnings      []string
 	TypeTable     map[string]*TypeInfo
 	TypFunct      map[string]string
+	TypCast       map[string]string
 	TypeSql       map[string]*TypeInfo
 	inType        int
 	db            *sql.DB
@@ -169,6 +170,8 @@ func NewSemanticAnalyzer(ctx *gin.Context, db *sql.DB, ch func(ctx *gin.Context,
 		Warnings:     []string{},
 		TypeTable:    make(map[string]*TypeInfo),
 		TypFunct:     map[string]string{},
+		TypCast:      map[string]string{},
+
 		// TypeSql:       make(map[string]*TypeInfo),
 		inType:        1,
 		db:            db,
@@ -447,6 +450,7 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	oldScope.Children = append(oldScope.Children, funScope)
 	sa.CurrentScope = funScope
 	sa.registerSymbol("val", ParameterSymbol, &TypeInfo{Name: "string"}, &ast.Identifier{Value: "string"}, -1, 0)
+	sa.registerSymbol("sz", ParameterSymbol, &TypeInfo{Name: "integer"}, &ast.Identifier{Value: "integer"}, -1, 1)
 	sa.CurrentScope = oldScope
 	sa.registerSymbol("parseinteger", FunctionSymbol, &TypeInfo{Name: "integer"}, &ast.Identifier{Value: "parseinteger"}, 23)
 
@@ -563,6 +567,8 @@ func (sa *SemanticAnalyzer) registerBuiltinTypes() {
 	sa.TypFunct["max"] = ""
 	sa.TypFunct["min"] = ""
 	sa.TypFunct["sum"] = ""
+
+	sa.TypCast["parseinteger"] = ""
 	// sa.TypFunct["coalesce"] = ""
 
 	// penser a supprimer ces types pour n'utiliser que les types du haut
@@ -2459,6 +2465,15 @@ func (sa *SemanticAnalyzer) visitArrayFunctionCall(e *ast.ArrayFunctionCall) *Ty
 	sa.CurrentScope = oldScope
 	if _, ok := sa.TypFunct[lower(symbol.Name)]; ok {
 		return currentType
+	}
+	if _, ok := sa.TypCast[lower(symbol.Name)]; ok {
+		if len(e.Arguments) > 1 && strings.EqualFold(symbol.Name, "parseinteger") {
+			dt := symbol.DataType.clone()
+			if v, k := e.Arguments[1].(*ast.IntegerLiteral); k {
+				dt.Constraints = &Constraint{Length: v.Value, Precision: -1, Scale: -1}
+			}
+			return dt
+		}
 	}
 	return symbol.DataType
 }

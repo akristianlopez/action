@@ -3329,7 +3329,8 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		}
 		b := env.Emit(sub.(*object.String).Value, data)
 		return &object.Boolean{Value: b}
-	case "parseinteger", "toint":
+	case "toint":
+
 		if len(node.Arguments) != 0 {
 			return newError("%s requires only one argument", node.Function.Value)
 		}
@@ -3341,13 +3342,13 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		case object.STRING_OBJ:
 			v, e := toInt64(val.(*object.String).Value)
 			if e != nil {
-				return newError("Invalid integer value: %s", val.(*object.String).Value)
+				return newError("Invalid integer value: %s. line:%d, column:%d", val.(*object.String).Value, node.Line(), node.Column())
 			}
 			return &object.Integer{Value: v}
 		case object.INTEGER_OBJ:
 			v, e := toInt64(val.(*object.Integer).Value)
 			if e != nil {
-				return newError("Invalid integer value: %v", val.(*object.Integer).Value)
+				return newError("Invalid integer value: %v. line:%d, column:%d", val.(*object.Integer).Value, node.Line(), node.Column())
 			}
 			return &object.Integer{Value: v}
 		case object.FLOAT_OBJ:
@@ -3356,6 +3357,50 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 				return newError("Invalid integer value: %v", val.(*object.Float).Value)
 			}
 			return &object.Integer{Value: v}
+		default:
+			return newError("Invalid type for toInt: %s", val.Type())
+		}
+	case "parseinteger":
+
+		if len(node.Arguments) != 1 {
+			return newError("%s requires only two arguments", node.Function.Value)
+		}
+		val := Eval(node.Array, env)
+		ln := Eval(node.Arguments[0], env)
+		if isError(ln) {
+			return ln
+		}
+		if isError(val) {
+			return val
+		}
+		switch val.Type() {
+		case object.STRING_OBJ:
+			v, e := toInt64(val.(*object.String).Value)
+			if e != nil {
+				return newError("Invalid integer value: %s. line:%d, column:%d", val.(*object.String).Value, node.Line(), node.Column())
+			}
+			if l, o := ln.(*object.Integer); o && len(strconv.FormatInt(v, 10)) <= len(l.Inspect()) {
+				return &object.Integer{Value: v}
+			}
+			return newError("Integer value exced limit: %v. line:%d, column:%d", v, node.Line(), node.Column())
+		case object.INTEGER_OBJ:
+			v, e := toInt64(val.(*object.Integer).Value)
+			if e != nil {
+				return newError("Invalid integer value: %v. line:%d, column:%d", val.(*object.Integer).Value, node.Line(), node.Column())
+			}
+			if l, o := ln.(*object.Integer); o && len(strconv.FormatInt(v, 10)) <= len(l.Inspect()) {
+				return &object.Integer{Value: v}
+			}
+			return newError("Integer value exced limit: %v. line:%d, column:%d", v, node.Line(), node.Column())
+		case object.FLOAT_OBJ:
+			v, e := toInt64(val.(*object.Float).Value)
+			if e != nil {
+				return newError("Invalid integer value: %v", val.(*object.Float).Value)
+			}
+			if l, o := ln.(*object.Integer); o && len(strconv.FormatInt(v, 10)) <= len(l.Inspect()) {
+				return &object.Integer{Value: v}
+			}
+			return newError("Integer value exced limit: %v. line:%d, column:%d", v, node.Line(), node.Column())
 		default:
 			return newError("Invalid type for toInt: %s", val.Type())
 		}

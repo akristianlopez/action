@@ -2467,9 +2467,9 @@ func (sa *SemanticAnalyzer) visitArrayFunctionCall(e *ast.ArrayFunctionCall) *Ty
 		return currentType
 	}
 	if _, ok := sa.TypCast[lower(symbol.Name)]; ok {
-		if len(e.Arguments) > 1 && strings.EqualFold(symbol.Name, "parseinteger") {
+		if len(e.Arguments) > 0 && strings.EqualFold(symbol.Name, "parseinteger") {
 			dt := symbol.DataType.clone()
-			if v, k := e.Arguments[1].(*ast.IntegerLiteral); k {
+			if v, k := e.Arguments[0].(*ast.IntegerLiteral); k {
 				dt.Constraints = &Constraint{Length: v.Value, Precision: -1, Scale: -1}
 			}
 			return dt

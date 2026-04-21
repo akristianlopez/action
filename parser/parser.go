@@ -580,7 +580,7 @@ func (p *Parser) parseTypeConstraints() (*ast.TypeConstraints, *ParserError) {
 		p.nextToken()
 		switch p.curToken.Type {
 		case token.LPAREN:
-			if p.peekTokenIs(token.INT_LIT) && tok != token.STRING {
+			if p.peekTokenIs(token.INT_LIT) && tok != token.STRING && tok != token.INTEGER {
 				p.nextToken()
 				maxDigits := &ast.IntegerLiteral{Token: p.curToken}
 				val, _ := strconv.ParseInt(p.curToken.Literal, 10, 64)

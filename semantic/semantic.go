@@ -3454,9 +3454,12 @@ func (sa *SemanticAnalyzer) areTypesConstraintsCompatible(t1, t2 *TypeInfo) bool
 		if c2.Range == nil {
 			return res
 		}
+		if c1.Range == nil {
+			return res
+		}
 	}
 	if !res && c1.Range == nil {
-		return !res
+		return res
 	}
 	if _, ok := c1.Range.Max.(float64); ok {
 		mc1, _ := toFloat64(c1.Range.Max)
@@ -3546,13 +3549,16 @@ func (sa *SemanticAnalyzer) areTypesCompatibleEx(t1, t2 *TypeInfo) bool {
 
 	// Conversion implicite integer -> float
 	if t1.Name == "integer" && t2.Name == "integer" {
-		return sa.areTypesConstraintsCompatible(t1, t2)
+		// return sa.areTypesConstraintsCompatible(t1, t2)
+		return true
 	}
 	if t1.Name == "float" && t2.Name == "float" {
-		return sa.areTypesConstraintsCompatible(t1, t2)
+		// return sa.areTypesConstraintsCompatible(t1, t2)
+		return true
 	}
 	if t1.Name == "string" && t2.Name == "string" {
-		return sa.areTypesConstraintsCompatible(t1, t2)
+		// return sa.areTypesConstraintsCompatible(t1, t2)
+		return true
 	}
 	if t1.Name == "integer" && t2.Name == "float" {
 		return true

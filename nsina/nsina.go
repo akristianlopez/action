@@ -4039,7 +4039,7 @@ func evalForEachStatement(n ast.Node, env *object.Environment) object.Object {
 				row.Fields[coll.Columns[k]] = getValueFromRealType(cols[k].DatabaseTypeName(), val)
 			}
 			//Traiter la lecture de l'enregistrement
-			loopEnv.Set(node.Variable.Value, row) //el
+			loopEnv.Declare(node.Variable.Value, row) //el
 			// Évaluer le corps avec l'environnement local
 			result := evalForBody(node.Body, loopEnv)
 			if result != nil {
@@ -4074,7 +4074,7 @@ func evalForEachStatement(n ast.Node, env *object.Environment) object.Object {
 			// if node.Value != nil {
 			// 	loopEnv.Set(node.Value.Value, el)
 			// }
-			loopEnv.Set(node.Variable.Value, el)
+			loopEnv.Declare(node.Variable.Value, el)
 			// Évaluer le corps avec l'environnement local
 			result := evalForBody(node.Body, loopEnv)
 			if result != nil {
@@ -4101,7 +4101,7 @@ func evalForEachStatement(n ast.Node, env *object.Environment) object.Object {
 			loopEnv := object.NewEnclosedEnvironment(env)
 
 			// Définir la variable valeur avec le champ actuel
-			loopEnv.Set(node.Variable.Value, field)
+			loopEnv.Declare(node.Variable.Value, field)
 
 			// Évaluer le corps avec l'environnement local
 			result := evalForBody(node.Body, loopEnv)

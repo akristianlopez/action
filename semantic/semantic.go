@@ -3546,13 +3546,13 @@ func (sa *SemanticAnalyzer) areTypesCompatibleEx(t1, t2 *TypeInfo) bool {
 
 	// Conversion implicite integer -> float
 	if t1.Name == "integer" && t2.Name == "integer" {
-		return true
+		return sa.areTypesConstraintsCompatible(t1, t2)
 	}
 	if t1.Name == "float" && t2.Name == "float" {
-		return true
+		return sa.areTypesConstraintsCompatible(t1, t2)
 	}
 	if t1.Name == "string" && t2.Name == "string" {
-		return true
+		return sa.areTypesConstraintsCompatible(t1, t2)
 	}
 	if t1.Name == "integer" && t2.Name == "float" {
 		return true

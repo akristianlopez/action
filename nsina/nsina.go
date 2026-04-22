@@ -3094,7 +3094,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 				if isError(val) {
 					return val
 				}
-				ob.Env.Set(field.Name.Value, val)
+				callEnv.Set(field.Name.Value, val)
 				continue
 			}
 			val := Eval(node.Arguments[k-1], env)
@@ -4136,6 +4136,7 @@ func toInt64(val any) (int64, error) {
 	}
 	return int64(v), nil
 }
+
 func toFloat64(val any) (float64, error) {
 	switch v := val.(type) {
 	case float64:

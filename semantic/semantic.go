@@ -3450,17 +3450,16 @@ func (sa *SemanticAnalyzer) areTypesConstraintsCompatible(t1, t2 *TypeInfo) bool
 		return false
 	}
 	res := c1.Length >= c2.Length && c1.Precision >= c2.Precision
-	if res {
-		if c2.Range == nil {
-			return res
-		}
-		if c1.Range == nil {
-			return res
-		}
-	}
-	if !res && c1.Range == nil {
+	if !res {
 		return res
 	}
+	if c1.Range == nil  {
+		return true
+	}
+	if c2.Range == nil  {
+		return false
+	}
+
 	if _, ok := c1.Range.Max.(float64); ok {
 		mc1, _ := toFloat64(c1.Range.Max)
 		mc2, _ := toFloat64(c2.Range.Max)

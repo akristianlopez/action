@@ -760,10 +760,6 @@ func (p *Parser) parseStructStatement() (*ast.StructStatement, *ParserError) {
 
 	stmt.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
 
-	if !p.peekTokenIs(token.STRUCT) && p.peekTokenIs(token.SET) {
-		p.nextToken()
-
-	}
 	if !p.expectPeek(token.STRUCT) {
 		return nil, nil //Create("token 'struc' expected", p.peekToken.Line, p.peekToken.Column)
 	}

@@ -567,6 +567,8 @@ func (sa *SemanticAnalyzer) registerBuiltinTypes() {
 	sa.TypFunct["max"] = ""
 	sa.TypFunct["min"] = ""
 	sa.TypFunct["sum"] = ""
+	sa.TypFunct["lower"] = ""
+	sa.TypFunct["upper"] = ""
 
 	sa.TypCast["parseinteger"] = ""
 	// sa.TypFunct["coalesce"] = ""

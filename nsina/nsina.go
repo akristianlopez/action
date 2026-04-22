@@ -3094,7 +3094,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 				if isError(val) {
 					return val
 				}
-				callEnv.Set(field.Name.Value, val)
+				callEnv.Declare(field.Name.Value, val)
 				continue
 			}
 			val := Eval(node.Arguments[k-1], env)

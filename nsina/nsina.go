@@ -3379,7 +3379,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 			if e != nil {
 				return newError("Invalid integer value: %s. line:%d, column:%d", val.(*object.String).Value, node.Line(), node.Column())
 			}
-			if l, o := ln.(*object.Integer); o && len(strconv.FormatInt(v, 10)) <= len(l.Inspect()) {
+			if l, o := ln.(*object.Integer); o && len(fmt.Sprintf("%d", v)) <= int(l.Value) {
 				return &object.Integer{Value: v}
 			}
 			return newError("Integer value exced limit: %v. line:%d, column:%d", v, node.Line(), node.Column())
@@ -3388,7 +3388,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 			if e != nil {
 				return newError("Invalid integer value: %v. line:%d, column:%d", val.(*object.Integer).Value, node.Line(), node.Column())
 			}
-			if l, o := ln.(*object.Integer); o && len(strconv.FormatInt(v, 10)) <= len(l.Inspect()) {
+			if l, o := ln.(*object.Integer); o && len(fmt.Sprintf("%d", v)) <= int(l.Value) {
 				return &object.Integer{Value: v}
 			}
 			return newError("Integer value exced limit: %v. line:%d, column:%d", v, node.Line(), node.Column())
@@ -3397,7 +3397,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 			if e != nil {
 				return newError("Invalid integer value: %v", val.(*object.Float).Value)
 			}
-			if l, o := ln.(*object.Integer); o && len(strconv.FormatInt(v, 10)) <= len(l.Inspect()) {
+			if l, o := ln.(*object.Integer); o && len(fmt.Sprintf("%d", v)) <= int(l.Value) {
 				return &object.Integer{Value: v}
 			}
 			return newError("Integer value exced limit: %v. line:%d, column:%d", v, node.Line(), node.Column())

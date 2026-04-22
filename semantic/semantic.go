@@ -3120,7 +3120,7 @@ func (sa *SemanticAnalyzer) visitInExpression(node *ast.InExpression) *TypeInfo 
 	if _, ok := node.Right.(*ast.SQLSelectStatement); ok {
 		isSelect = true
 	}
-	if rightType.Name == "string" && sa.areTypesCompatible(leftType, rightType) {
+	if rightType.Name == "string" && sa.areTypesCompatibleEx(leftType, rightType) {
 		return &TypeInfo{Name: "boolean"}
 	}
 
@@ -3455,10 +3455,10 @@ func (sa *SemanticAnalyzer) areTypesConstraintsCompatible(t1, t2 *TypeInfo) bool
 	if !res {
 		return res
 	}
-	if c1.Range == nil  {
+	if c1.Range == nil {
 		return true
 	}
-	if c2.Range == nil  {
+	if c2.Range == nil {
 		return false
 	}
 

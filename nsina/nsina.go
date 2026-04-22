@@ -4130,21 +4130,12 @@ func evalForEachStatement(n ast.Node, env *object.Environment) object.Object {
 }
 
 func toInt64(val any) (int64, error) {
-	switch v := val.(type) {
-	case int:
-		return int64(v), nil
-	case int64:
-		return v, nil
-	case float64:
-		return int64(v), nil
-	case string:
-		// Utilisation de strconv pour les chaînes
-		return strconv.ParseInt(v, 10, 64)
-	default:
-		return 0, fmt.Errorf("type non supporté")
+	v, e := toFloat64(val)
+	if e != nil {
+		return 0, e
 	}
+	return int64(v), nil
 }
-
 func toFloat64(val any) (float64, error) {
 	switch v := val.(type) {
 	case float64:

@@ -718,7 +718,7 @@ func (sa *SemanticAnalyzer) visitSQLTruncateStatement(s *ast.SQLTruncateStatemen
 }
 
 func (sa *SemanticAnalyzer) visitSQLDropObjectStatement(s *ast.SQLDropObjectStatement) {
-	if ok, msg := sa.canHandle(sa.ctx, s.ObjectName.Value, "", "ddl_delete", sa.mode); !ok {
+	if ok, msg := sa.canHandle(sa.ctx, "system", "", "ddl_delete", sa.mode); !ok {
 		sa.addError("%s", msg)
 		return
 	}
@@ -745,7 +745,7 @@ func (sa *SemanticAnalyzer) visitSQLAlterObjectStatement(s *ast.SQLAlterObjectSt
 			sa.addError("Unknown action '%s' in ALTER OBJECT statement. line:%d, column:%d", action.Type, s.Token.Line, s.Token.Column)
 			continue
 		}
-		if ok, msg := sa.canHandle(sa.ctx, s.ObjectName.Value, action.Type, "ddl_update", sa.mode); !ok {
+		if ok, msg := sa.canHandle(sa.ctx, "system", action.Type, "ddl_update", sa.mode); !ok {
 			sa.addError("%s", msg)
 			return
 		}
@@ -1097,7 +1097,7 @@ func (sa *SemanticAnalyzer) visitSQLCreateObjectStatement(s *ast.SQLCreateObject
 		sa.addError("Define at least one column. line:%d, column:%d", s.Token.Line, s.Token.Column)
 		return
 	}
-	if ok, msg := sa.canHandle(sa.ctx, s.ObjectName.Value, "", "ddl_insert", sa.mode); !ok {
+	if ok, msg := sa.canHandle(sa.ctx, "system", "", "ddl_insert", sa.mode); !ok {
 		sa.addError("%s", msg)
 		return
 	}
@@ -2882,9 +2882,9 @@ func (sa *SemanticAnalyzer) getConstraint(leftType *TypeInfo, rightType *TypeInf
 	switch lower(leftType.Name) {
 	case "integer":
 		ok := false
-		if rc.Precision > lc.Precision {
+		if rc.Length > lc.Length {
 			// return rightType
-			resultType.Constraints.Precision = rc.Precision
+			resultType.Constraints.Length = rc.Length
 			ok = true
 		}
 		if lc.Range == nil && rc.Range == nil {
@@ -3031,7 +3031,6 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 			return &TypeInfo{Name: "void"}
 		}
 		return &TypeInfo{Name: "boolean"}
-
 	case "and", "or":
 		// Opérations booléennes
 		if leftType.Name != "boolean" || rightType.Name != "boolean" {
@@ -3040,7 +3039,10 @@ func (sa *SemanticAnalyzer) visitInfixExpression(node *ast.InfixExpression) *Typ
 		return &TypeInfo{Name: "boolean"}
 	case "??":
 		if !sa.areTypesCompatible(leftType, rightType) {
-			sa.addError("Type mismatch: %s and %s", leftType.ElementType.Name, rightType.ElementType.Name)
+			if strings.EqualFold(leftType.Name, rightType.Name) {
+				return rightType
+			}
+			sa.addError("Type mismatch: %s and %s", leftType.String(), rightType.String())
 			return &TypeInfo{Name: "void"}
 		}
 		return leftType
@@ -3142,7 +3144,7 @@ func (sa *SemanticAnalyzer) visitInExpression(node *ast.InExpression) *TypeInfo 
 		}
 		return &TypeInfo{Name: "boolean"}
 	}
-	if !sa.areTypesCompatible(leftType, rightType.ElementType) {
+	if !sa.areTypesCompatibleEx(leftType, rightType.ElementType) {
 		sa.addError("Type '%s' mismatch for IN. line:%d, column:%d",
 			leftType.Name, node.Left.Line(), node.Left.Column())
 		return &TypeInfo{Name: "void"}

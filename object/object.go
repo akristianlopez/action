@@ -629,11 +629,11 @@ func NewEnclosedEnvironment(outer *Environment) *Environment {
 	env.limits = nil
 	return env
 }
-func (e *Environment) IsUpdateAllowed() bool {
+func (e *Environment) IsUpdateDisabled() bool {
 	return e.disableUpdate
 }
-func (e *Environment) IsDDLAllowed() bool {
-	return !e.disabledDDL
+func (e *Environment) IsDDLDisabled() bool {
+	return e.disabledDDL
 }
 
 func (e *Environment) Get(name string) (Object, bool) {

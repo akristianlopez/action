@@ -1666,8 +1666,8 @@ func isError(obj object.Object) bool {
 }
 
 func evalSQLCreateObject(stmt *ast.SQLCreateObjectStatement, env *object.Environment) object.Object {
-	if !env.IsDDLAllowed() {
-		return object.NULL
+	if env.IsDDLDisabled() {
+		return newError("Create object '%s' not allowed", stmt.ObjectName.Value)
 	}
 
 	fields := make([]string, 0)
@@ -1802,9 +1802,10 @@ func evalSQLCreateObject(stmt *ast.SQLCreateObjectStatement, env *object.Environ
 
 func evalSQLDropObject(stmt *ast.SQLDropObjectStatement, env *object.Environment) object.Object {
 	// Vérifier si l'objet existe
-	if !env.IsDDLAllowed() {
-		return object.NULL
+	if env.IsDDLDisabled() {
+		return newError("Drop object '%s' not allowed", stmt.ObjectName.Value)
 	}
+
 	if _, ok := env.Get(stmt.ObjectName.Value); !ok {
 		strSQ := stmt.String()
 		result, err := env.Exec(strSQ)
@@ -1941,9 +1942,10 @@ func stringCol(col *ast.SQLColumnDefinition, name, dbname string) (string, objec
 }
 
 func evalSQLAlterObject(stmt *ast.SQLAlterObjectStatement, env *object.Environment) object.Object {
-	if !env.IsDDLAllowed() {
-		return object.NULL
+	if env.IsDDLDisabled() {
+		return newError("Alter object '%s' not allowed", stmt.ObjectName.Value)
 	}
+
 	rows := int64(0)
 	for _, ac := range stmt.Actions {
 		if ac.Column == nil {
@@ -1982,8 +1984,7 @@ func evalSQLAlterObject(stmt *ast.SQLAlterObjectStatement, env *object.Environme
 
 func evalSQLInsert(stmt *ast.SQLInsertStatement, env *object.Environment) object.Object {
 	env.Set("rows_affected", &object.Integer{Value: -1})
-	if !env.IsUpdateAllowed() {
-
+	if env.IsUpdateDisabled() {
 		return newError("Insert not allowed on %s", stmt.ObjectName.Value)
 	}
 	rowsAffected := int64(0)
@@ -2112,7 +2113,7 @@ func defineObjectFromUpdateDelete(exp ast.Expression, env *object.Environment) o
 
 func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object.Object {
 	env.Set("rows_affected", &object.Integer{Value: -1})
-	if !env.IsUpdateAllowed() {
+	if env.IsUpdateDisabled() {
 		return newError("Update not allowed on %s", stmt.ObjectName.Value)
 	}
 	// trait objectname
@@ -2190,7 +2191,7 @@ func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object
 
 func evalSQLDelete(stmt *ast.SQLDeleteStatement, env *object.Environment) object.Object {
 	env.Set("rows_affected", &object.Integer{Value: -1})
-	if !env.IsUpdateAllowed() {
+	if env.IsUpdateDisabled() {
 		return newError("Delete not allowed on %s", stmt.From.Value)
 	}
 	scope := object.NewEnclosedEnvironment(env)
@@ -2253,7 +2254,7 @@ func evalSQLDelete(stmt *ast.SQLDeleteStatement, env *object.Environment) object
 }
 
 func evalSQLTruncate(stmt *ast.SQLTruncateStatement, env *object.Environment) object.Object {
-	if !env.IsUpdateAllowed() {
+	if env.IsUpdateDisabled() {
 		// return object.NULL
 		return newError("Truncate not allowed on %s", stmt.ObjectName.Value)
 	}
@@ -2277,9 +2278,10 @@ func evalSQLTruncate(stmt *ast.SQLTruncateStatement, env *object.Environment) ob
 }
 
 func evalSQLCreateIndex(stmt *ast.SQLCreateIndexStatement, env *object.Environment) object.Object {
-	if !env.IsDDLAllowed() {
-		return object.NULL
+	if env.IsDDLDisabled() {
+		return newError("Create index '%s' on '%s' not allowed", stmt.IndexName.Value, stmt.ObjectName.Value)
 	}
+
 	strSQL := ""
 	for _, fld := range stmt.Columns {
 		if strSQL == "" {

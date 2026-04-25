@@ -326,60 +326,60 @@ func evalLetStatement(let *ast.LetStatement, env *object.Environment) object.Obj
 			}
 			if env.IsParams(let.Name.Value) {
 				value = env.Params(let.Name.Value)
-				switch strings.ToLower(let.Type.Type) {
-				case "string":
-					v, ok := value.(*object.String)
-					if !ok {
-						return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
-					}
-					let.Value = &ast.StringLiteral{Value: v.Value}
-				case "integer":
-					v, ok := value.(*object.Integer)
-					if !ok {
-						return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
-					}
-					let.Value = &ast.IntegerLiteral{Value: v.Value}
-				case "float":
-					v, ok := value.(*object.Float)
-					if !ok {
-						return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
-					}
-					let.Value = &ast.FloatLiteral{Value: v.Value}
-				case "boolean":
-					v, ok := value.(*object.Boolean)
-					if !ok {
-						return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
-					}
-					let.Value = &ast.BooleanLiteral{Value: v.Value}
-				case "time":
-					v, ok := value.(*object.Time)
-					if !ok {
-						return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
-					}
-					// return &object.Time{Value: v.Value}
-					let.Value = &ast.DateTimeLiteral{Value: fmt.Sprintf("#%s#", v.Inspect())}
-				case "date":
-					v, ok := value.(*object.Date)
-					if !ok {
-						return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
-					}
-					// return &object.Date{Value: v.Value}
-					let.Value = &ast.DateTimeLiteral{Value: fmt.Sprintf("#%s#", v.Inspect())}
-				case "datetime":
-					v, ok := value.(*object.Date)
-					if !ok {
-						return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
-					}
-					// return &object.Date{Value: v.Value}
-					let.Value = &ast.DateTimeLiteral{Value: fmt.Sprintf("#%s#", v.Inspect())}
-				case "duration":
-					v, ok := value.(*object.Duration)
-					if !ok {
-						return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
-					}
-					let.Value = &ast.DurationLiteral{Value: fmt.Sprintf("#%s#", v.Inspect())}
-					// return &object.Duration{Nanoseconds: v.Nanoseconds}
-				}
+				// switch strings.ToLower(let.Type.Type) {
+				// case "string":
+				// 	v, ok := value.(*object.String)
+				// 	if !ok {
+				// 		return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
+				// 	}
+				// 	let.Value = &ast.StringLiteral{Value: v.Value}
+				// case "integer":
+				// 	v, ok := value.(*object.Integer)
+				// 	if !ok {
+				// 		return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
+				// 	}
+				// 	let.Value = &ast.IntegerLiteral{Value: v.Value}
+				// case "float":
+				// 	v, ok := value.(*object.Float)
+				// 	if !ok {
+				// 		return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
+				// 	}
+				// 	let.Value = &ast.FloatLiteral{Value: v.Value}
+				// case "boolean":
+				// 	v, ok := value.(*object.Boolean)
+				// 	if !ok {
+				// 		return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
+				// 	}
+				// 	let.Value = &ast.BooleanLiteral{Value: v.Value}
+				// case "time":
+				// 	v, ok := value.(*object.Time)
+				// 	if !ok {
+				// 		return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
+				// 	}
+				// 	// return &object.Time{Value: v.Value}
+				// 	let.Value = &ast.DateTimeLiteral{Value: fmt.Sprintf("#%s#", v.Inspect())}
+				// case "date":
+				// 	v, ok := value.(*object.Date)
+				// 	if !ok {
+				// 		return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
+				// 	}
+				// 	// return &object.Date{Value: v.Value}
+				// 	let.Value = &ast.DateTimeLiteral{Value: fmt.Sprintf("#%s#", v.Inspect())}
+				// case "datetime":
+				// 	v, ok := value.(*object.Date)
+				// 	if !ok {
+				// 		return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
+				// 	}
+				// 	// return &object.Date{Value: v.Value}
+				// 	let.Value = &ast.DateTimeLiteral{Value: fmt.Sprintf("#%s#", v.Inspect())}
+				// case "duration":
+				// 	v, ok := value.(*object.Duration)
+				// 	if !ok {
+				// 		return newError("Invalid data type. Expected 'Integer' got (params:%s, value:%s)", let.Name.Value, value.Inspect())
+				// 	}
+				// 	let.Value = &ast.DurationLiteral{Value: fmt.Sprintf("#%s#", v.Inspect())}
+				// 	// return &object.Duration{Nanoseconds: v.Nanoseconds}
+				// }
 			}
 		} else {
 			value = object.NULL

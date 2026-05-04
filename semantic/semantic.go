@@ -1021,7 +1021,7 @@ func (sa *SemanticAnalyzer) visitSQLColumnConstraints(names []string, v *ast.SQL
 		}
 		t := sa.resolveTypeFromTableName(v.References.TableName.Value)
 		if t == nil {
-			if ok, _ := sa.canHandle(sa.ctx, v.References.TableName.Value, "", "", sa.mode); ok {
+			if ok, _ := sa.canHandle(sa.ctx, "system", "", "ddl_update", sa.mode); ok {
 				// We are in the creation mode
 				if sym := sa.lookupSymbol(v.References.TableName.Value); sym != nil && sym.Type == DbObjectSymbol {
 					t = sym.DataType

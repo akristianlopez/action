@@ -3258,13 +3258,13 @@ func (sa *SemanticAnalyzer) formType(col *sql.ColumnType) *TypeInfo {
 	return result
 }
 func (sa *SemanticAnalyzer) resolveTypeFromTableName(name string) *TypeInfo {
-	if f, m := sa.canHandle(sa.ctx, name, "", "read", sa.mode); !f {
-		sa.addError("%s", m)
-		return nil
-	}
 	sym := sa.lookupSymbol(name)
 	if sym != nil {
 		return sym.DataType
+	}
+	if f, m := sa.canHandle(sa.ctx, name, "", "read", sa.mode); !f {
+		sa.addError("%s", m)
+		return nil
 	}
 	strSQL := fmt.Sprintf("SELECT * FROM %s LIMIT 1", name)
 	var (

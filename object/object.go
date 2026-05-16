@@ -904,6 +904,101 @@ func (d *Duration) Inspect() string {
 	return formatDuration(d.Nanoseconds)
 }
 
+// --- NOUVELLES MÉTHODES D'EXTRACTION DES RUBRIQUES ---
+
+// Years retourne le nombre d'années entières contenues dans la durée
+func (d *Duration) Years() int64 {
+	nanosPerYear := int64(365.25 * 24 * 60 * 60 * 1e9)
+	return d.Nanoseconds / nanosPerYear
+}
+
+// Months retourne le nombre de mois restants (après déduction des années)
+func (d *Duration) Months() int64 {
+	nanosPerYear := int64(365.25 * 24 * 60 * 60 * 1e9)
+	nanosPerMonth := int64(30.44 * 24 * 60 * 60 * 1e9)
+
+	remainder := d.Nanoseconds % nanosPerYear
+	return remainder / nanosPerMonth
+}
+
+// Days retourne le nombre de jours restants (après déduction des années et mois)
+func (d *Duration) Days() int64 {
+	nanosPerYear := int64(365.25 * 24 * 60 * 60 * 1e9)
+	nanosPerMonth := int64(30.44 * 24 * 60 * 60 * 1e9)
+	nanosPerDay := int64(24 * 60 * 60 * 1e9)
+
+	remainder := (d.Nanoseconds % nanosPerYear) % nanosPerMonth
+	return remainder / nanosPerDay
+}
+
+// Hours retourne le nombre d'heures restantes
+func (d *Duration) Hours() int64 {
+	nanosPerYear := int64(365.25 * 24 * 60 * 60 * 1e9)
+	nanosPerMonth := int64(30.44 * 24 * 60 * 60 * 1e9)
+	nanosPerDay := int64(24 * 60 * 60 * 1e9)
+	nanosPerHour := int64(60 * 60 * 1e9)
+
+	remainder := ((d.Nanoseconds % nanosPerYear) % nanosPerMonth) % nanosPerDay
+	return remainder / nanosPerHour
+}
+
+// Minutes retourne le nombre de minutes restantes
+func (d *Duration) Minutes() int64 {
+	nanosPerYear := int64(365.25 * 24 * 60 * 60 * 1e9)
+	nanosPerMonth := int64(30.44 * 24 * 60 * 60 * 1e9)
+	nanosPerDay := int64(24 * 60 * 60 * 1e9)
+	nanosPerHour := int64(60 * 60 * 1e9)
+	nanosPerMin := int64(60 * 1e9)
+
+	remainder := (((d.Nanoseconds % nanosPerYear) % nanosPerMonth) % nanosPerDay) % nanosPerHour
+	return remainder / nanosPerMin
+}
+
+// Seconds retourne le nombre de secondes restantes
+func (d *Duration) Seconds() int64 {
+	nanosPerYear := int64(365.25 * 24 * 60 * 60 * 1e9)
+	nanosPerMonth := int64(30.44 * 24 * 60 * 60 * 1e9)
+	nanosPerDay := int64(24 * 60 * 60 * 1e9)
+	nanosPerHour := int64(60 * 60 * 1e9)
+	nanosPerMin := int64(60 * 1e9)
+	nanosPerSec := int64(1e9)
+
+	remainder := ((((d.Nanoseconds % nanosPerYear) % nanosPerMonth) % nanosPerDay) % nanosPerHour) % nanosPerMin
+	return remainder / nanosPerSec
+}
+
+// ComponentValues renvoie toutes les rubriques d'un seul coup sous forme de map
+// Très pratique pour sérialiser ou inspecter l'objet proprement
+func (d *Duration) ComponentValues() map[string]int64 {
+	nanos := d.Nanoseconds
+	components := make(map[string]int64)
+
+	units := []struct {
+		name  string
+		value int64
+	}{
+		{"years", int64(365.25 * 24 * 60 * 60 * 1e9)},
+		{"months", int64(30.44 * 24 * 60 * 60 * 1e9)},
+		{"days", int64(24 * 60 * 60 * 1e9)},
+		{"hours", int64(60 * 60 * 1e9)},
+		{"minutes", int64(60 * 1e9)},
+		{"seconds", int64(1e9)},
+		{"milliseconds", int64(1e6)},
+		{"microseconds", int64(1e3)},
+		{"nanoseconds", int64(1)},
+	}
+
+	for _, u := range units {
+		if nanos >= u.value {
+			components[u.name] = nanos / u.value
+			nanos %= u.value
+		} else {
+			components[u.name] = 0
+		}
+	}
+	return components
+}
+
 func formatDuration(nanos int64) string {
 	if nanos == 0 {
 		return "#0s#"

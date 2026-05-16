@@ -10,6 +10,7 @@ import (
 
 	"github.com/akristianlopez/action/ast"
 	"github.com/akristianlopez/action/object"
+	"github.com/uniplaces/carbon"
 	// _ "github.com/go-sql-driver/mysql" // Import du driver MySQL/MariaDB
 	// _ "github.com/lib/pq"              // Driver PostgreSQL
 	// _ "github.com/mattn/go-sqlite3"    // Import du driver SQLite
@@ -18,6 +19,7 @@ import (
 var struct_id int = 0
 var last_value object.Object
 var MAX_CALL int64 = 100
+var MAX_YEAR_DAYS = 0
 
 func Eval(node ast.Node, env *object.Environment) object.Object {
 	if node == nil {
@@ -1476,11 +1478,280 @@ func evalInfixExpression(operator string, left, right object.Object) object.Obje
 		return evalDurationInfixExpression(operator, left, right)
 	case (left.Type() == object.INTEGER_OBJ || left.Type() == object.FLOAT_OBJ) && right.Type() == object.DURATION_OBJ:
 		return evalDurationInfixExpression(operator, left, right)
+	case (left.Type() == object.DATE_OBJ || right.Type() == object.DATE_OBJ):
+		return evalDateInfixExpression(operator, left, right)
 	default:
 		return newError("Type mismatch: %s %s %s", left.Type(), operator, right.Type())
 	}
 }
+func NewDurationFromCarbon(debut, fin *carbon.Carbon) *object.Duration {
+	// 1. Si la date de début est après la fin, on peut inverser ou gérer le négatif
+	// Pour l'instant, on assume que fin >= debut.
+	if debut.GreaterThan(fin) {
+		debut, fin = fin, debut // Inversion amicale si nécessaire
+	}
 
+	// 2. Extraction des rubriques exactes via la méthode des paliers successifs de Carbon
+	// On duplique 'debut' pour ne pas modifier l'objet d'origine pendant les calculs
+	temp := carbon.NewCarbon(debut.Time)
+
+	years := fin.DiffInYears(temp, true)
+	temp.AddYears(int(years))
+
+	months := fin.DiffInMonths(temp, true)
+	temp.AddMonths(int(months))
+
+	days := fin.DiffInDays(temp, true)
+	temp.AddDays(int(days))
+
+	hours := fin.DiffInHours(temp, true)
+	temp.AddHours(int(hours))
+
+	minutes := fin.DiffInMinutes(temp, true)
+	temp.AddMinutes(int(minutes))
+
+	seconds := fin.DiffInSeconds(temp, true)
+	// temp.AddSeconds(int(seconds)) // Optionnel si on s'arrête aux secondes
+
+	// 3. Conversion de ces rubriques au format Nanosecondes selon TES constantes internes
+	var totalNanos int64
+	totalNanos += years * int64(365.25*24*60*60*1e9)
+	totalNanos += months * int64(30.44*24*60*60*1e9)
+	totalNanos += days * (24 * 60 * 60 * 1e9)
+	totalNanos += hours * (60 * 60 * 1e9)
+	totalNanos += minutes * (60 * 1e9)
+	totalNanos += seconds * 1e9
+
+	// 4. Retourne ton objet personnalisé
+	return &object.Duration{
+		Nanoseconds: totalNanos,
+		Original:    "", // Laissera Inspect() appeler formatDuration automatiquement
+	}
+}
+func NewDuration30360(debut, fin time.Time) *object.Duration {
+	if debut.After(fin) {
+		debut, fin = fin, debut
+	}
+
+	// 1. Extraction et ajustement initial 30/360 pour les jours
+	d1, m1, y1 := debut.Day(), int(debut.Month()), debut.Year()
+	d2, m2, y2 := fin.Day(), int(fin.Month()), fin.Year()
+
+	if d1 == 31 {
+		d1 = 30
+	}
+	if d2 == 31 && d1 >= 30 {
+		d2 = 30
+	}
+
+	// Extraction de la partie horaire
+	h1, min1, s1, n1 := debut.Hour(), debut.Minute(), debut.Second(), debut.Nanosecond()
+	h2, min2, s2, n2 := fin.Hour(), fin.Minute(), fin.Second(), fin.Nanosecond()
+
+	// 2. CASCADES DES RETENUES (Du plus petit au plus grand)
+
+	// A. Retenue des Nanosecondes
+	if n2 < n1 {
+		n2 += 1e9
+		s2 -= 1
+	}
+	nanosRemainder := int64(n2 - n1)
+
+	// B. Retenue des Secondes
+	if s2 < s1 {
+		s2 += 60
+		min2 -= 1
+	}
+	seconds := int64(s2 - s1)
+
+	// C. Retenue des Minutes (Résout ton problème)
+	if min2 < min1 {
+		min2 += 60
+		h2 -= 1
+	}
+	minutes := int64(min2 - min1)
+
+	// D. Retenue des Heures
+	if h2 < h1 {
+		h2 += 24
+		d2 -= 1
+	}
+	hours := int64(h2 - h1)
+
+	// E. Retenue des Jours (Standard 30 jours)
+	if d2 < d1 {
+		d2 += 30
+		m2 -= 1
+	}
+	jours := int64(d2 - d1)
+
+	// F. Retenue des Mois (Standard 12 mois)
+	if m2 < m1 {
+		m2 += 12
+		y2 -= 1
+	}
+	months := int64(m2 - m1)
+	years := int64(y2 - y1)
+
+	// 3. CONVERSION FINALE EN NANOSECONDES (Basée sur tes constantes fixes)
+	nanosPerDay := int64(24 * 60 * 60 * 1e9)
+	nanosPerMonth := int64(30.44 * 24 * 60 * 60 * 1e9)
+	nanosPerYear := int64(365.25 * 24 * 60 * 60 * 1e9)
+
+	var totalNanos int64
+	totalNanos += years * nanosPerYear
+	totalNanos += months * nanosPerMonth
+	totalNanos += jours * nanosPerDay
+	totalNanos += hours * (60 * 60 * 1e9)
+	totalNanos += minutes * (60 * 1e9)
+	totalNanos += seconds * 1e9
+	totalNanos += nanosRemainder
+
+	return &object.Duration{
+		Nanoseconds: totalNanos,
+		Original:    "",
+	}
+}
+func AddDurationUsingCarbon(baseTime time.Time, d *object.Duration) *object.Date {
+	// 1. Initialisation de Carbon avec la date de base
+	c := carbon.NewCarbon(baseTime)
+
+	// 2. Décomposition de la durée en nanosecondes vers les rubriques exactes
+	nanos := d.Nanoseconds
+
+	// Constantes de conversion basées sur TES spécifications dans NewDurationFromCarbon
+	nanosPerYear := int64(365.25 * 24 * 60 * 60 * 1e9)
+	nanosPerMonth := int64(30.44 * 24 * 60 * 60 * 1e9)
+	nanosPerDay := int64(24 * 60 * 60 * 1e9)
+	nanosPerHour := int64(60 * 60 * 1e9)
+	nanosPerMin := int64(60 * 1e9)
+	nanosPerSec := int64(1e9)
+
+	years := nanos / nanosPerYear
+	nanos %= nanosPerYear
+
+	months := nanos / nanosPerMonth
+	nanos %= nanosPerMonth
+
+	days := nanos / nanosPerDay
+	nanos %= nanosPerDay
+
+	hours := nanos / nanosPerHour
+	nanos %= nanosPerHour
+
+	minutes := nanos / nanosPerMin
+	nanos %= nanosPerMin
+
+	seconds := nanos / nanosPerSec
+	nanos %= nanosPerSec
+
+	// 3. Application des ajouts en cascade via Carbon
+	c.AddYears(int(years))
+	c.AddMonths(int(months))
+	c.AddDays(int(days))
+	c.AddHours(int(hours))
+	c.AddMinutes(int(minutes))
+	c.AddSeconds(int(seconds))
+
+	// Ajout du résidu strict de nanosecondes s'il y en a
+	if nanos > 0 {
+		c.Time = c.Time.Add(time.Duration(nanos))
+	}
+
+	return &object.Date{Value: c.Time}
+}
+
+// SubDurationUsingCarbon prend une date de base, extrait les rubriques de ta
+// structure Duration et les soustrait via Carbon, puis retourne la nouvelle date.
+func SubDurationUsingCarbon(baseTime time.Time, d *object.Duration) *object.Date {
+	// 1. Initialisation de Carbon avec la date de base
+	c := carbon.NewCarbon(baseTime)
+
+	// 2. Décomposition de la durée en nanosecondes (Identique à l'encodage)
+	nanos := d.Nanoseconds
+
+	nanosPerYear := int64(365.25 * 24 * 60 * 60 * 1e9)
+	nanosPerMonth := int64(30.44 * 24 * 60 * 60 * 1e9)
+	nanosPerDay := int64(24 * 60 * 60 * 1e9)
+	nanosPerHour := int64(60 * 60 * 1e9)
+	nanosPerMin := int64(60 * 1e9)
+	nanosPerSec := int64(1e9)
+
+	years := nanos / nanosPerYear
+	nanos %= nanosPerYear
+
+	months := nanos / nanosPerMonth
+	nanos %= nanosPerMonth
+
+	days := nanos / nanosPerDay
+	nanos %= nanosPerDay
+
+	hours := nanos / nanosPerHour
+	nanos %= nanosPerHour
+
+	minutes := nanos / nanosPerMin
+	nanos %= nanosPerMin
+
+	seconds := nanos / nanosPerSec
+	nanos %= nanosPerSec
+
+	// 3. Application des soustractions en cascade via Carbon
+	c.SubYears(int(years))
+	c.SubMonths(int(months))
+	c.SubDays(int(days))
+	c.SubHours(int(hours))
+	c.SubMinutes(int(minutes))
+	c.SubSeconds(int(seconds))
+
+	// Soustraction du résidu strict de nanosecondes s'il y en a
+	if nanos > 0 {
+		c.Time = c.Time.Add(-time.Duration(nanos))
+	}
+
+	return &object.Date{Value: c.Time}
+}
+
+func evalDateInfixExpression(operator string, left, right object.Object) object.Object {
+	switch operator {
+	case "-":
+		leftVal, o := left.(*object.Date)
+		rightVal, k := right.(*object.Date)
+		if o && k {
+			switch MAX_YEAR_DAYS {
+			case 0:
+				return NewDurationFromCarbon(carbon.NewCarbon(leftVal.Value), carbon.NewCarbon(rightVal.Value))
+			default:
+				return NewDuration30360(leftVal.Value, rightVal.Value)
+			}
+		}
+		if o {
+			rightVal, k := right.(*object.Duration)
+			if !k {
+				return newError("Invalid duration value %s", right.Inspect())
+			}
+			return SubDurationUsingCarbon(leftVal.Value, rightVal)
+		}
+	case "+":
+		leftVal, o := left.(*object.Date)
+		rightVal, k := right.(*object.Date)
+		if o && k {
+			return newError("Can not apply operator '+' to dates")
+		}
+		if o {
+			rightVal, k := right.(*object.Duration)
+			if !k {
+				return newError("Invalid duration value %s", right.Inspect())
+			}
+			return AddDurationUsingCarbon(leftVal.Value, rightVal)
+		}
+		leftV, o := left.(*object.Duration)
+		if !o {
+			return newError("Invalid duration value %s", left.Inspect())
+		}
+		return AddDurationUsingCarbon(rightVal.Value, leftV)
+	}
+	return newError("Unknown operator: %s %s %s", left.Type(), operator, right.Type())
+}
 func evalIntegerInfixExpression(operator string, left, right object.Object) object.Object {
 	leftVal := left.(*object.Integer).Value
 	rightVal := right.(*object.Integer).Value
@@ -1509,7 +1780,7 @@ func evalIntegerInfixExpression(operator string, left, right object.Object) obje
 	case "!=":
 		return &object.Boolean{Value: leftVal != rightVal}
 	default:
-		return newError("Opérateur inconnu: %s %s %s", left.Type(), operator, right.Type())
+		return newError("Unknown operator: %s %s %s", left.Type(), operator, right.Type())
 	}
 }
 
@@ -1638,7 +1909,6 @@ func evalIdentifier(node *ast.Identifier, env *object.Environment) object.Object
 	if val, ok := env.Get(node.Value); ok {
 		return val
 	}
-
 	return newError("%s", "Identifiant non trouvé: "+node.Value)
 }
 
@@ -3144,6 +3414,117 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 			return newError("%s", err.Error())
 		}
 		return object.TRUE
+	case "year":
+		if len(node.Arguments) > 0 {
+			return newError("%s requires only one argument", node.Function.Value)
+		}
+		arg := Eval(node.Array, env)
+		if arg.Type() == object.DBFIELD_OBJ {
+			switch strings.ToLower(env.DBName()) {
+			case "postgres":
+				return &object.DBField{Value: fmt.Sprintf("EXTRACT(YEAR FROM TIMESTAMP '%s')", arg.Inspect())}
+			default:
+				return &object.DBField{Value: fmt.Sprintf("YEAR(%s)", arg.Inspect())}
+			}
+		}
+		if arg.Type() == object.DURATION_OBJ {
+			return &object.Integer{Value: int64(arg.(*object.Duration).Years())}
+		}
+		if arg.Type() == object.DATE_OBJ {
+			return &object.Integer{Value: int64(arg.(*object.Date).Value.Year())}
+		}
+		return newError("%s Invalid date value", arg.Inspect())
+	case "month":
+		if len(node.Arguments) > 0 {
+			return newError("%s requires only one argument", node.Function.Value)
+		}
+		arg := Eval(node.Array, env)
+		if arg.Type() == object.DBFIELD_OBJ {
+			switch strings.ToLower(env.DBName()) {
+			case "postgres":
+				return &object.DBField{Value: fmt.Sprintf("EXTRACT(MONTH FROM TIMESTAMP '%s')", arg.Inspect())}
+			default:
+				return &object.DBField{Value: fmt.Sprintf("MONTH(%s)", arg.Inspect())}
+			}
+		}
+		if arg.Type() == object.DURATION_OBJ {
+			return &object.Integer{Value: int64(arg.(*object.Duration).Months())}
+		}
+		if arg.Type() == object.DATE_OBJ {
+			return &object.Integer{Value: int64(arg.(*object.Date).Value.Month())}
+		}
+		return newError("%s Invalid date value", arg.Inspect())
+	case "day":
+		if len(node.Arguments) > 0 {
+			return newError("%s requires only one argument", node.Function.Value)
+		}
+		arg := Eval(node.Array, env)
+		if arg.Type() == object.DBFIELD_OBJ {
+			switch strings.ToLower(env.DBName()) {
+			case "postgres":
+				return &object.DBField{Value: fmt.Sprintf("EXTRACT(DAY FROM TIMESTAMP '%s')", arg.Inspect())}
+			default:
+				return &object.DBField{Value: fmt.Sprintf("Day(%s)", arg.Inspect())}
+			}
+		}
+		if arg.Type() == object.DURATION_OBJ {
+			return &object.Integer{Value: int64(arg.(*object.Duration).Days())}
+		}
+		if arg.Type() == object.DATE_OBJ {
+			return &object.Integer{Value: int64(arg.(*object.Date).Value.Day())}
+		}
+		return newError("%s Invalid date value", arg.Inspect())
+	case "hour":
+		if len(node.Arguments) > 0 {
+			return newError("%s requires only one argument", node.Function.Value)
+		}
+		arg := Eval(node.Array, env)
+		if arg.Type() == object.DBFIELD_OBJ {
+			switch strings.ToLower(env.DBName()) {
+			case "postgres":
+				return &object.DBField{Value: fmt.Sprintf("EXTRACT(HOUR FROM INTERVAL '%s')", arg.Inspect())}
+			default:
+				return &object.DBField{Value: fmt.Sprintf("HOUR(%s)", arg.Inspect())}
+			}
+		}
+		if arg.Type() == object.DURATION_OBJ {
+			return &object.Integer{Value: arg.(*object.Duration).Hours()}
+		}
+		return newError("%s Invalid value", arg.Inspect())
+	case "minute":
+		if len(node.Arguments) > 0 {
+			return newError("%s requires only one argument", node.Function.Value)
+		}
+		arg := Eval(node.Array, env)
+		if arg.Type() == object.DBFIELD_OBJ {
+			switch strings.ToLower(env.DBName()) {
+			case "postgres":
+				return &object.DBField{Value: fmt.Sprintf("EXTRACT(MINUTE FROM INTERVAL '%s')", arg.Inspect())}
+			default:
+				return &object.DBField{Value: fmt.Sprintf("MINUTE(%s)", arg.Inspect())}
+			}
+		}
+		if arg.Type() == object.DURATION_OBJ {
+			return &object.Integer{Value: arg.(*object.Duration).Minutes()}
+		}
+		return newError("%s Invalid value", arg.Inspect())
+	case "seconde":
+		if len(node.Arguments) > 0 {
+			return newError("%s requires only one argument", node.Function.Value)
+		}
+		arg := Eval(node.Array, env)
+		if arg.Type() == object.DBFIELD_OBJ {
+			switch strings.ToLower(env.DBName()) {
+			case "postgres":
+				return &object.DBField{Value: fmt.Sprintf("EXTRACT(SECOND FROM INTERVAL '%s')", arg.Inspect())}
+			default:
+				return &object.DBField{Value: fmt.Sprintf("SECOND(%s)", arg.Inspect())}
+			}
+		}
+		if arg.Type() == object.DURATION_OBJ {
+			return &object.Integer{Value: arg.(*object.Duration).Seconds()}
+		}
+		return newError("%s Invalid value", arg.Inspect())
 	case "coalesce":
 		if len(node.Arguments) != 1 {
 			return newError("coalesce requires only two arguments")

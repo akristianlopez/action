@@ -550,6 +550,36 @@ func (sa *SemanticAnalyzer) registerBuiltinFunctions() {
 	sa.CurrentScope = oldScope
 	sa.registerSymbol("today", FunctionSymbol, &TypeInfo{Name: "date"}, &ast.Identifier{Value: "today"}, 33)
 
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("val", ParameterSymbol, &TypeInfo{Name: "date"}, &ast.Identifier{Value: "date"}, -1, 0)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("year", FunctionSymbol, &TypeInfo{Name: "integer"}, &ast.Identifier{Value: "year"}, 34)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("val", ParameterSymbol, &TypeInfo{Name: "date"}, &ast.Identifier{Value: "date"}, -1, 0)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("month", FunctionSymbol, &TypeInfo{Name: "integer"}, &ast.Identifier{Value: "month"}, 35)
+
+	funScope = &Scope{
+		Parent:  oldScope,
+		Symbols: make(map[string]*Symbol),
+	}
+	oldScope.Children = append(oldScope.Children, funScope)
+	sa.CurrentScope = funScope
+	sa.registerSymbol("val", ParameterSymbol, &TypeInfo{Name: "date"}, &ast.Identifier{Value: "date"}, -1, 0)
+	sa.CurrentScope = oldScope
+	sa.registerSymbol("day", FunctionSymbol, &TypeInfo{Name: "integer"}, &ast.Identifier{Value: "day"}, 36)
+
 }
 
 func (sa *SemanticAnalyzer) registerBuiltinTypes() {

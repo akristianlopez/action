@@ -2707,10 +2707,10 @@ func (p *Parser) parseSQLSelectStatement() (*ast.SQLSelectStatement, *ParserErro
 	}
 
 	// WINDOW optionnel (définitions de fenêtres nommées)
-	if p.peekTokenIs(token.WINDOW) {
-		p.nextToken()
-		selectStmt.WindowClauses = p.parseWindowDefinitions()
-	}
+	// if p.peekTokenIs(token.WINDOW) {
+	// 	p.nextToken()
+	// 	selectStmt.WindowClauses = p.parseWindowDefinitions()
+	// }
 
 	// ORDER BY optionnel
 	if p.peekTokenIs(token.ORDER) {
@@ -2753,25 +2753,25 @@ func (p *Parser) parseSQLSelectStatement() (*ast.SQLSelectStatement, *ParserErro
 	return selectStmt, pe
 }
 
-func (p *Parser) parseWindowDefinitions() []*ast.SQLWindowClause {
-	var windows []*ast.SQLWindowClause
+// func (p *Parser) parseWindowDefinitions() []*ast.SQLWindowClause {
+// 	var windows []*ast.SQLWindowClause
 
-	window := p.parseWindowClause()
-	if window != nil {
-		windows = append(windows, window)
-	}
+// 	window := p.parseWindowClause()
+// 	if window != nil {
+// 		windows = append(windows, window)
+// 	}
 
-	for p.peekTokenIs(token.COMMA) {
-		p.nextToken()
-		p.nextToken()
-		window = p.parseWindowClause()
-		if window != nil {
-			windows = append(windows, window)
-		}
-	}
+// 	for p.peekTokenIs(token.COMMA) {
+// 		p.nextToken()
+// 		p.nextToken()
+// 		window = p.parseWindowClause()
+// 		if window != nil {
+// 			windows = append(windows, window)
+// 		}
+// 	}
 
-	return windows
-}
+// 	return windows
+// }
 
 func (p *Parser) parseArrayLiteral() ast.Expression {
 	array := &ast.ArrayLiteral{Token: p.curToken}

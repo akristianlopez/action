@@ -153,31 +153,31 @@ const (
 	// JSON = "JSON"
 
 	// SQL récursif
-	WITH        = "WITH"
-	RECURSIVE   = "RECURSIVE"
-	WINDOW      = "WINDOW"
-	OVER        = "OVER"
-	PARTITION   = "PARTITION"
-	ROW         = "ROW"
-	ROWS        = "ROWS"
-	RANGE       = "RANGE"
-	PRECEDING   = "PRECEDING"
-	FOLLOWING   = "FOLLOWING"
-	CURRENT     = "CURRENT"
-	UNBOUNDED   = "UNBOUNDED"
-	LAG         = "LAG"
-	LEAD        = "LEAD"
-	FIRST_VALUE = "FIRST_VALUE"
-	LAST_VALUE  = "LAST_VALUE"
-	RANK        = "RANK"
-	DENSE_RANK  = "DENSE_RANK"
-	ROW_NUMBER  = "ROW_NUMBER"
-	NTILE       = "NTILE"
-	CONNECT     = "CONNECT"
-	PRIOR       = "PRIOR"
-	NOCYCLE     = "NOCYCLE"
-	SIBLINGS    = "SIBLINGS"
-	CASCADE     = "CASCADE"
+	WITH      = "WITH"
+	RECURSIVE = "RECURSIVE"
+	WINDOW    = "WINDOW"
+	OVER      = "OVER"
+	PARTITION = "PARTITION"
+	ROW       = "ROW"
+	ROWS      = "ROWS"
+	RANGE     = "RANGE"
+	PRECEDING = "PRECEDING"
+	FOLLOWING = "FOLLOWING"
+	CURRENT   = "CURRENT"
+	UNBOUNDED = "UNBOUNDED"
+	// LAG         = "LAG"
+	// LEAD        = "LEAD"
+	// FIRST_VALUE = "FIRST_VALUE"
+	// LAST_VALUE  = "LAST_VALUE"
+	// RANK        = "RANK"
+	// DENSE_RANK  = "DENSE_RANK"
+	// ROW_NUMBER  = "ROW_NUMBER"
+	// NTILE       = "NTILE"
+	CONNECT  = "CONNECT"
+	PRIOR    = "PRIOR"
+	NOCYCLE  = "NOCYCLE"
+	SIBLINGS = "SIBLINGS"
+	CASCADE  = "CASCADE"
 
 	// Tableaux
 	ARRAY = "ARRAY"
@@ -287,29 +287,29 @@ var keywords = map[string]TokenType{
 	// "json": JSON,
 
 	// SQL récursif et analytique
-	"with":        WITH,
-	"recursive":   RECURSIVE,
-	"window":      WINDOW,
-	"over":        OVER,
-	"partition":   PARTITION,
-	"row":         ROW,
-	"rows":        ROWS,
-	"range":       RANGE,
-	"preceding":   PRECEDING,
-	"following":   FOLLOWING,
-	"current":     CURRENT,
-	"unbounded":   UNBOUNDED,
-	"lag":         LAG,
-	"lead":        LEAD,
-	"first_value": FIRST_VALUE,
-	"last_value":  LAST_VALUE,
-	"rank":        RANK,
-	"dense_rank":  DENSE_RANK,
-	"row_number":  ROW_NUMBER,
-	"ntile":       NTILE,
-	"array":       ARRAY,
-	"of":          OF,
-	"duration":    DURATION,
+	"with":      WITH,
+	"recursive": RECURSIVE,
+	"window":    WINDOW,
+	"over":      OVER,
+	"partition": PARTITION,
+	"row":       ROW,
+	"rows":      ROWS,
+	"range":     RANGE,
+	"preceding": PRECEDING,
+	"following": FOLLOWING,
+	"current":   CURRENT,
+	"unbounded": UNBOUNDED,
+	// "lag":         LAG,
+	// "lead":        LEAD,
+	// "first_value": FIRST_VALUE,
+	// "last_value":  LAST_VALUE,
+	// "rank":        RANK,
+	// "dense_rank":  DENSE_RANK,
+	// "row_number":  ROW_NUMBER,
+	// "ntile":       NTILE,
+	"array":    ARRAY,
+	"of":       OF,
+	"duration": DURATION,
 
 	// Switch statement
 	"switch":      SWITCH,

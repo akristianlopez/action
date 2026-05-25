@@ -1859,10 +1859,10 @@ func evalDBFieldInfixExpression(operator string, left, right object.Object) obje
 		}
 		return &object.DBField{Value: fmt.Sprintf("coalesce(%s, %s)", left.Inspect(), right.Inspect())}
 	}
-	if left.Type() == object.STRING_OBJ {
+	if left.Type() == object.STRING_OBJ || left.Type() == object.DATE_OBJ || left.Type() == object.TIME_OBJ {
 		return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", fmt.Sprintf("'%s'", left.Inspect()), roper, right.Inspect())}
 	}
-	if right.Type() == object.STRING_OBJ {
+	if right.Type() == object.STRING_OBJ || right.Type() == object.DATE_OBJ || right.Type() == object.TIME_OBJ {
 		return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), roper, fmt.Sprintf("'%s'", right.Inspect()))}
 	}
 	return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), roper, right.Inspect())}

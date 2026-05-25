@@ -179,12 +179,14 @@ func (p *Parser) nextToken() {
 func (p *Parser) ParseAction() *ast.Action {
 	program := &ast.Action{}
 
+	if p.curTokenIs(token.EOF) {
+		p.errors = append(p.errors, *Create("Unexpected end of action. 'action' keyword is missing.", p.curToken.Line, p.curToken.Column))
+	}
 	// Vérifier que le programme commence par 'action'
 	if !p.curTokenIs(token.ACTION) {
 		p.errors = append(p.errors, *Create("The action must start with the word 'action'", p.curToken.Line, p.curToken.Column))
 		return program
 	}
-
 	p.nextToken() //move to name
 
 	// Lire le nom de l'action
@@ -197,6 +199,9 @@ func (p *Parser) ParseAction() *ast.Action {
 		return program
 	}
 	p.nextToken() //move to name
+	if p.curTokenIs(token.EOF) {
+		p.errors = append(p.errors, *Create("Unexpected end of action. 'action name' is missing.", p.curToken.Line, p.curToken.Column))
+	}
 
 	//Parser les arguments de l'action
 	for !p.curTokenIs(token.START, token.EOF, token.RPAREN) {

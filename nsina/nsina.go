@@ -1884,6 +1884,12 @@ func evalDBFieldInfixExpression(operator string, left, right object.Object) obje
 	if right.Type() == object.STRING_OBJ || right.Type() == object.DATE_OBJ || right.Type() == object.TIME_OBJ {
 		return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), roper, fmt.Sprintf("'%s'", right.Inspect()))}
 	}
+	if roper=='+' && left.Type() == object.STRING_OBJ  {
+		return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", fmt.Sprintf("'%s'", left.Inspect()), "||", right.Inspect())}
+	}
+	if roper=='+' && right.Type() == object.STRING_OBJ || right.Type() == object.DATE_OBJ || right.Type() == object.TIME_OBJ {
+		return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), "||", fmt.Sprintf("'%s'", right.Inspect()))}
+	}
 	return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), roper, right.Inspect())}
 }
 

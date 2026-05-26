@@ -2966,6 +2966,7 @@ func (p *Parser) parseLikeExpression(left ast.Expression) ast.Expression {
 }
 func (p *Parser) parseIifExpression() ast.Expression {
 	exp := &ast.IifExpression{Token: p.curToken}
+	p.nextToken()
 	exp.Condition = p.parseExpression(LOWEST)
 	if !p.expectPeek(token.COMMA) {
 		return nil

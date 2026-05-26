@@ -177,7 +177,7 @@ func evalIifExpression(node *ast.IifExpression, env *object.Environment) object.
 	if condition.Type() == object.DBFIELD_OBJ {
 		TrueExpr := Eval(node.TrueExpr, env)
 		FalseExpr := Eval(node.FalseExpr, env)
-		return &object.DBField{Value: fmt.Sprintf("CASE WHEN %s THEN %s ELSE %s END", condition.Inspect(), TrueExpr.Inspect(), FalseExpr.Inspect())}
+		return &object.DBField{OType: "", Value: fmt.Sprintf("CASE WHEN %s THEN %s ELSE %s END", condition.Inspect(), TrueExpr.Inspect(), FalseExpr.Inspect())}
 	}
 	return newError("Invalid condition type: %s", condition.Type())
 }
@@ -265,7 +265,17 @@ func evalTypeMember(node *ast.TypeMember, env *object.Environment) object.Object
 		return newError("Invalid structure name '%s'", node.Left.String())
 	}
 	if obj.Type() == object.DBOBJECT_OBJ { //DBOBJECT_OBJ
-		return &object.DBField{Value: node.String()}
+		dbo := obj.(*object.DBStruct)
+		right, ok := node.Right.(*ast.Identifier)
+		if !ok {
+			return newError("Invalid right-hand side type '%s'. line:%d, column:%d", node.Right.String(), node.Right.Line(), node.Right.Column())
+		}
+		val, ok := dbo.Fields[strings.ToLower(right.Value)]
+		if !ok {
+			return newError("Invalid field name '%s'. line:%d, column:%d", right.Value, right.Line(), right.Column())
+		}
+		res := &object.DBField{OType: string(val.Type()), Value: node.String()}
+		return res
 	}
 	key := node.Right
 	for val, ok := key.(*ast.TypeMember); ok; {
@@ -1307,13 +1317,18 @@ func evalIsExpression(node *ast.IsExpression, env *object.Environment) object.Ob
 		if node.Not {
 			op = "Is Not"
 		}
+		res := &object.DBField{}
+		res.SetType(string(object.BOOLEAN_OBJ))
 		if left.Type() == object.STRING_OBJ {
-			return &object.DBField{Value: fmt.Sprintf("(%s %s '%s')", left.Inspect(), op, right.Inspect())}
+			res.Value = fmt.Sprintf("(%s %s '%s')", left.Inspect(), op, right.Inspect())
+			return res
 		}
 		if right.Type() == object.STRING_OBJ {
-			return &object.DBField{Value: fmt.Sprintf("(%s %s '%s')", left.Inspect(), op, right.Inspect())}
+			res.Value = fmt.Sprintf("(%s %s '%s')", left.Inspect(), op, right.Inspect())
+			return res
 		}
-		return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), op, right.Inspect())}
+		res.Value = fmt.Sprintf("(%s %s %s)", left.Inspect(), op, right.Inspect())
+		return res
 	}
 
 	eq := objectsEqual(left, right)
@@ -1437,7 +1452,7 @@ func evalProtectedStatement(node *ast.ProtectedStatement, env *object.Environmen
 }
 func evalPrefixExpression(operator string, right object.Object) object.Object {
 	if right.Type() == object.DBFIELD_OBJ {
-		return &object.DBField{Value: fmt.Sprintf("%s %s", operator, right.Inspect())}
+		return &object.DBField{OType: right.(*object.DBField).OType, Value: fmt.Sprintf("%s %s", operator, right.Inspect())}
 	}
 	switch strings.ToLower(operator) {
 	case "not":
@@ -1874,23 +1889,33 @@ func evalDBFieldInfixExpression(operator string, left, right object.Object) obje
 		roper = "<>"
 	case "??":
 		if right.Type() == object.STRING_OBJ {
-			return &object.DBField{Value: fmt.Sprintf("coalesce(%s, '%s')", left.Inspect(), right.Inspect())}
+			return &object.DBField{OType: left.(*object.DBField).OType, Value: fmt.Sprintf("coalesce(%s, '%s')", left.Inspect(), right.Inspect())}
 		}
-		return &object.DBField{Value: fmt.Sprintf("coalesce(%s, %s)", left.Inspect(), right.Inspect())}
+		return &object.DBField{OType: right.(*object.DBField).OType, Value: fmt.Sprintf("coalesce(%s, %s)", left.Inspect(), right.Inspect())}
 	}
-	if roper=='+' && left.Type() == object.STRING_OBJ  {
-		return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", fmt.Sprintf("'%s'", left.Inspect()), "||", right.Inspect())}
+	if v, o := left.(*object.DBField); o && v.OType == string(object.DBFIELD_OBJ) && roper == "+" {
+		return &object.DBField{OType: left.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", fmt.Sprintf("'%s'", left.Inspect()), "||", right.Inspect())}
 	}
-	if roper=='+' && right.Type() == object.STRING_OBJ || right.Type() == object.DATE_OBJ || right.Type() == object.TIME_OBJ {
-		return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), "||", fmt.Sprintf("'%s'", right.Inspect()))}
+	if v, o := right.(*object.DBField); o && v.OType == string(object.DBFIELD_OBJ) && roper == "+" {
+		return &object.DBField{OType: right.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), "||", fmt.Sprintf("'%s'", right.Inspect()))}
 	}
+
+	// if roper == "+" && left.Type() == object.STRING_OBJ {
+	// 	return &object.DBField{OType: left.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", fmt.Sprintf("'%s'", left.Inspect()), "||", right.Inspect())}
+	// }
+	// if roper == "+" && right.Type() == object.STRING_OBJ || right.Type() == object.DATE_OBJ || right.Type() == object.TIME_OBJ {
+	// 	return &object.DBField{OType: right.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), "||", fmt.Sprintf("'%s'", right.Inspect()))}
+	// }
 	if left.Type() == object.STRING_OBJ || left.Type() == object.DATE_OBJ || left.Type() == object.TIME_OBJ {
-		return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", fmt.Sprintf("'%s'", left.Inspect()), roper, right.Inspect())}
+		return &object.DBField{OType: left.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", fmt.Sprintf("'%s'", left.Inspect()), roper, right.Inspect())}
 	}
 	if right.Type() == object.STRING_OBJ || right.Type() == object.DATE_OBJ || right.Type() == object.TIME_OBJ {
-		return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), roper, fmt.Sprintf("'%s'", right.Inspect()))}
+		return &object.DBField{OType: right.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), roper, fmt.Sprintf("'%s'", right.Inspect()))}
 	}
-	return &object.DBField{Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), roper, right.Inspect())}
+	if left.Type() == object.DBFIELD_OBJ {
+		return &object.DBField{OType: left.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), roper, right.Inspect())}
+	}
+	return &object.DBField{OType: left.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), roper, right.Inspect())}
 }
 
 func evalBangOperatorExpression(right object.Object) object.Object {
@@ -2621,11 +2646,11 @@ func evalSQLCreateIndex(stmt *ast.SQLCreateIndexStatement, env *object.Environme
 
 func getDefaultSQLValue(dataType string) object.Object {
 	switch strings.ToLower(dataType) {
-	case "integer", "int":
+	case "integer2", "integer4", "integer8", "integer", "int", "int2", "int4", "int8", "smallint", "mediumint", "bigint":
 		return &object.Integer{Value: 0}
-	case "float", "numeric", "decimal":
+	case "float", "numeric", "decimal", "double", "foat8", "float8", "double precision":
 		return &object.Float{Value: 0.0}
-	case "varchar", "char", "text":
+	case "varchar", "char", "text", "nvarchar2", "varchar2", "mediumtext", "longtext":
 		return &object.String{Value: ""}
 	case "boolean", "bool":
 		return object.FALSE
@@ -3239,7 +3264,7 @@ func evalInExpression(node *ast.InExpression, env *object.Environment) object.Ob
 	var right object.Object
 
 	if val, ok := node.Right.(*ast.SQLSelectStatement); ok {
-		right = &object.DBField{Value: toString(val, env).Inspect()}
+		right = &object.DBField{OType: string(object.DBOBJECT_OBJ), Value: toString(val, env).Inspect()}
 	} else {
 		right = Eval(node.Right, env)
 	}
@@ -3280,7 +3305,7 @@ func evalInExpression(node *ast.InExpression, env *object.Environment) object.Ob
 				strVal = fmt.Sprintf("%s, %s", strVal, v.Inspect())
 			}
 		}
-		return &object.DBField{Value: fmt.Sprintf("%s %s (%s)", left.Inspect(), strOper, strVal)}
+		return &object.DBField{OType: string(object.BOOLEAN_OBJ), Value: fmt.Sprintf("%s %s (%s)", left.Inspect(), strOper, strVal)}
 	case *object.String:
 		if left.Type() != object.STRING_OBJ {
 			return newError("L'opérateur IN sur les chaînes nécessite une chaîne à gauche")
@@ -3293,7 +3318,7 @@ func evalInExpression(node *ast.InExpression, env *object.Environment) object.Ob
 		}
 		return &object.Boolean{Value: contains}
 	case *object.DBField:
-		return &object.DBField{Value: fmt.Sprintf("%s IN (%s)", left.Inspect(), right.Inspect())}
+		return &object.DBField{OType: string(object.BOOLEAN_OBJ), Value: fmt.Sprintf("%s IN (%s)", left.Inspect(), right.Inspect())}
 	case *object.Set:
 		if left.Type() != object.DBFIELD_OBJ {
 			return newError("%s does not support in", right.Type())
@@ -3447,9 +3472,9 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		if arg.Type() == object.DBFIELD_OBJ {
 			switch strings.ToLower(env.DBName()) {
 			case "postgres":
-				return &object.DBField{Value: fmt.Sprintf("EXTRACT(YEAR FROM TIMESTAMP '%s')", arg.Inspect())}
+				return &object.DBField{OType: string(object.INTEGER_OBJ), Value: fmt.Sprintf("EXTRACT(YEAR FROM TIMESTAMP '%s')", arg.Inspect())}
 			default:
-				return &object.DBField{Value: fmt.Sprintf("YEAR(%s)", arg.Inspect())}
+				return &object.DBField{OType: string(object.INTEGER_OBJ), Value: fmt.Sprintf("YEAR(%s)", arg.Inspect())}
 			}
 		}
 		if arg.Type() == object.DURATION_OBJ {
@@ -3467,9 +3492,9 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		if arg.Type() == object.DBFIELD_OBJ {
 			switch strings.ToLower(env.DBName()) {
 			case "postgres":
-				return &object.DBField{Value: fmt.Sprintf("EXTRACT(MONTH FROM TIMESTAMP '%s')", arg.Inspect())}
+				return &object.DBField{OType: string(object.INTEGER_OBJ), Value: fmt.Sprintf("EXTRACT(MONTH FROM TIMESTAMP '%s')", arg.Inspect())}
 			default:
-				return &object.DBField{Value: fmt.Sprintf("MONTH(%s)", arg.Inspect())}
+				return &object.DBField{OType: string(object.INTEGER_OBJ), Value: fmt.Sprintf("MONTH(%s)", arg.Inspect())}
 			}
 		}
 		if arg.Type() == object.DURATION_OBJ {
@@ -3487,9 +3512,9 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		if arg.Type() == object.DBFIELD_OBJ {
 			switch strings.ToLower(env.DBName()) {
 			case "postgres":
-				return &object.DBField{Value: fmt.Sprintf("EXTRACT(DAY FROM TIMESTAMP '%s')", arg.Inspect())}
+				return &object.DBField{OType: string(object.INTEGER_OBJ), Value: fmt.Sprintf("EXTRACT(DAY FROM TIMESTAMP '%s')", arg.Inspect())}
 			default:
-				return &object.DBField{Value: fmt.Sprintf("Day(%s)", arg.Inspect())}
+				return &object.DBField{OType: string(object.INTEGER_OBJ), Value: fmt.Sprintf("Day(%s)", arg.Inspect())}
 			}
 		}
 		if arg.Type() == object.DURATION_OBJ {
@@ -3507,9 +3532,9 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		if arg.Type() == object.DBFIELD_OBJ {
 			switch strings.ToLower(env.DBName()) {
 			case "postgres":
-				return &object.DBField{Value: fmt.Sprintf("EXTRACT(HOUR FROM INTERVAL '%s')", arg.Inspect())}
+				return &object.DBField{OType: string(object.INTEGER_OBJ), Value: fmt.Sprintf("EXTRACT(HOUR FROM INTERVAL '%s')", arg.Inspect())}
 			default:
-				return &object.DBField{Value: fmt.Sprintf("HOUR(%s)", arg.Inspect())}
+				return &object.DBField{OType: string(object.INTEGER_OBJ), Value: fmt.Sprintf("HOUR(%s)", arg.Inspect())}
 			}
 		}
 		if arg.Type() == object.DURATION_OBJ {
@@ -3524,9 +3549,9 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		if arg.Type() == object.DBFIELD_OBJ {
 			switch strings.ToLower(env.DBName()) {
 			case "postgres":
-				return &object.DBField{Value: fmt.Sprintf("EXTRACT(MINUTE FROM INTERVAL '%s')", arg.Inspect())}
+				return &object.DBField{OType: string(object.INTEGER_OBJ), Value: fmt.Sprintf("EXTRACT(MINUTE FROM INTERVAL '%s')", arg.Inspect())}
 			default:
-				return &object.DBField{Value: fmt.Sprintf("MINUTE(%s)", arg.Inspect())}
+				return &object.DBField{OType: string(object.INTEGER_OBJ), Value: fmt.Sprintf("MINUTE(%s)", arg.Inspect())}
 			}
 		}
 		if arg.Type() == object.DURATION_OBJ {
@@ -3541,9 +3566,9 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		if arg.Type() == object.DBFIELD_OBJ {
 			switch strings.ToLower(env.DBName()) {
 			case "postgres":
-				return &object.DBField{Value: fmt.Sprintf("EXTRACT(SECOND FROM INTERVAL '%s')", arg.Inspect())}
+				return &object.DBField{OType: string(object.INTEGER_OBJ), Value: fmt.Sprintf("EXTRACT(SECOND FROM INTERVAL '%s')", arg.Inspect())}
 			default:
-				return &object.DBField{Value: fmt.Sprintf("SECOND(%s)", arg.Inspect())}
+				return &object.DBField{OType: string(object.INTEGER_OBJ), Value: fmt.Sprintf("SECOND(%s)", arg.Inspect())}
 			}
 		}
 		if arg.Type() == object.DURATION_OBJ {
@@ -3558,9 +3583,9 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		val := Eval(node.Arguments[0], env)
 		if arg.Type() == object.DBFIELD_OBJ {
 			if val.Type() == object.STRING_OBJ {
-				return &object.DBField{Value: fmt.Sprintf("coalesce(%s,%s)", arg.Inspect(), fmt.Sprintf("'%s'", val.Inspect()))}
+				return &object.DBField{OType: string(object.STRING_OBJ), Value: fmt.Sprintf("coalesce(%s,%s)", arg.Inspect(), fmt.Sprintf("'%s'", val.Inspect()))}
 			}
-			return &object.DBField{Value: fmt.Sprintf("coalesce(%s,%s)", arg.Inspect(), val.Inspect())}
+			return &object.DBField{OType: string(arg.Type()), Value: fmt.Sprintf("coalesce(%s,%s)", arg.Inspect(), val.Inspect())}
 		}
 		if arg.Type() == object.NULL.Type() {
 			return Eval(node.Arguments[0], env)
@@ -3572,7 +3597,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		}
 		arg := Eval(node.Array, env)
 		if arg.Type() == object.DBFIELD_OBJ {
-			return &object.DBField{Value: fmt.Sprintf("Trim(%s)", arg.Inspect())}
+			return &object.DBField{OType: string(object.STRING_OBJ), Value: fmt.Sprintf("Trim(%s)", arg.Inspect())}
 		}
 		if arg.Type() == object.STRING_OBJ {
 			return &object.String{Value: strings.TrimSpace(arg.Inspect())}
@@ -3584,7 +3609,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		}
 		arg := Eval(node.Array, env)
 		if arg.Type() == object.DBFIELD_OBJ {
-			return &object.DBField{Value: fmt.Sprintf("Upper(%s)", arg.Inspect())}
+			return &object.DBField{OType: string(object.STRING_OBJ), Value: fmt.Sprintf("Upper(%s)", arg.Inspect())}
 		}
 		if arg.Type() == object.STRING_OBJ {
 			return &object.String{Value: strings.ToUpper(arg.Inspect())}
@@ -3596,7 +3621,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 		}
 		arg := Eval(node.Array, env)
 		if arg.Type() == object.DBFIELD_OBJ {
-			return &object.DBField{Value: fmt.Sprintf("%s(%s)", node.Function.Value, arg.Inspect())}
+			return &object.DBField{OType: string(object.STRING_OBJ), Value: fmt.Sprintf("%s(%s)", node.Function.Value, arg.Inspect())}
 		}
 		if arg.Type() == object.STRING_OBJ {
 			return &object.String{Value: strings.ToLower(arg.Inspect())}
@@ -3608,7 +3633,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 			if len(node.Arguments) > 0 {
 				return newError("Nsina: %s Too much arguments", node.Function.String())
 			}
-			return &object.DBField{Value: fmt.Sprintf("%s(%s)", node.Function.Value, arg.Inspect())}
+			return &object.DBField{OType: arg.(*object.DBField).OType, Value: fmt.Sprintf("%s(%s)", node.Function.Value, arg.Inspect())}
 		}
 		switch {
 		case arg.Type() == object.INTEGER_OBJ:
@@ -3698,7 +3723,7 @@ func evalArrayFunctionCall(node *ast.ArrayFunctionCall, env *object.Environment)
 			s := arg.(*object.String)
 			if arg.Type() == object.DBFIELD_OBJ {
 				if v1.Value > v2.Value {
-					return &object.DBField{Value: fmt.Sprintf("%s(%s,%d,%d)", node.Function.Value,
+					return &object.DBField{OType: arg.(*object.DBField).OType, Value: fmt.Sprintf("%s(%s,%d,%d)", node.Function.Value,
 						arg.Inspect(), v1.Value, v2.Value)}
 				}
 				return newError("Invalid 'substr' parameters :%s(%s,%d,%d)", node.Function.Value,

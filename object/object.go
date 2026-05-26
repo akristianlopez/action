@@ -339,6 +339,7 @@ func (s *String) Inspect() string  { return s.Value }
 
 type DBField struct {
 	Value string
+	OType string
 }
 
 func (s *DBField) Type() ObjectType { return DBFIELD_OBJ }
@@ -349,6 +350,12 @@ func (s *DBField) Inspect() string {
 	out = strings.ReplaceAll(out, "[", "(")
 	out = strings.ReplaceAll(out, "]", ")")
 	return out
+}
+func (s *DBField) SetType(t string) {
+	s.OType = t
+}
+func (s *DBField) GetType() string {
+	return s.OType
 }
 
 type Time struct {

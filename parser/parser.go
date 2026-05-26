@@ -168,6 +168,9 @@ func (p *Parser) parseDurationLiteral() ast.Expression {
 
 func (p *Parser) nextToken() {
 	p.curToken = p.peekToken
+	if p.curToken.Type == token.EOF {
+		return
+	}
 	p.peekToken = p.l.NextToken()
 
 	// Ignorer les commentaires
@@ -2970,6 +2973,7 @@ func (p *Parser) parseIifExpression() ast.Expression {
 		return nil
 	}
 	p.nextToken()
+
 	exp.Condition = p.parseExpression(LOWEST)
 	if !p.expectPeek(token.COMMA) {
 		return nil

@@ -177,7 +177,7 @@ func evalIifExpression(node *ast.IifExpression, env *object.Environment) object.
 	if condition.Type() == object.DBFIELD_OBJ {
 		TrueExpr := Eval(node.TrueExpr, env)
 		FalseExpr := Eval(node.FalseExpr, env)
-		return &object.DBField{OType: "", Value: fmt.Sprintf("CASE WHEN %s THEN %s ELSE %s END", condition.Inspect(), TrueExpr.Inspect(), FalseExpr.Inspect())}
+		return &object.DBField{OType: string(TrueExpr.Type()), Value: fmt.Sprintf("CASE WHEN %s THEN %s ELSE %s END", condition.Inspect(), TrueExpr.Inspect(), FalseExpr.Inspect())}
 	}
 	return newError("Invalid condition type: %s", condition.Type())
 }

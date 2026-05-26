@@ -63,6 +63,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 			return right
 		}
 		return evalPrefixExpression(node.Operator, right)
+	case *ast.IifExpression:
+		return evalIifExpression(node, env)
 	case *ast.InfixExpression:
 		left := Eval(node.Left, env)
 		if isError(left) {
@@ -161,7 +163,24 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 
 	// return nil
 }
-
+func evalIifExpression(node *ast.IifExpression, env *object.Environment) object.Object {
+	condition := Eval(node.Condition, env)
+	if isError(condition) {
+		return condition
+	}
+	if condition.Type() == object.BOOLEAN_OBJ {
+		if condition.(*object.Boolean).Value {
+			return Eval(node.TrueExpr, env)
+		}
+		return Eval(node.FalseExpr, env)
+	}
+	if condition.Type() == object.DBFIELD_OBJ {
+		TrueExpr := Eval(node.TrueExpr, env)
+		FalseExpr := Eval(node.FalseExpr, env)
+		return &object.DBField{Value: fmt.Sprintf("CASE WHEN %s THEN %s ELSE %s END", condition.Inspect(), TrueExpr.Inspect(), FalseExpr.Inspect())}
+	}
+	return newError("Invalid condition type: %s", condition.Type())
+}
 func evalLikeExpression(node *ast.LikeExpression, env *object.Environment) object.Object {
 	// verifier si c'est un champ d'un objet bd si oui retourner une chaine de caractere
 	// evaluer le like

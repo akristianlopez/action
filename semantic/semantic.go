@@ -2095,6 +2095,8 @@ func (sa *SemanticAnalyzer) visitExpression(expr ast.Expression) *TypeInfo {
 		return sa.visitStructLiteral(e)
 	case *ast.NullLiteral:
 		return &TypeInfo{Name: "null"}
+	case *ast.IifExpression:
+		return sa.visitIifExpression(e)
 	case *ast.InfixExpression:
 		return sa.visitInfixExpression(e)
 	case *ast.PrefixExpression:
@@ -2777,6 +2779,22 @@ func (sa *SemanticAnalyzer) visitStructLiteral(node *ast.StructLiteral) *TypeInf
 	return resultType
 }
 
+func (sa *SemanticAnalyzer) visitIifExpression(node *ast.IifExpression) *TypeInfo {
+	condType := sa.visitExpression(node.Condition)
+	if condType.Name != "boolean" {
+		sa.addError("Condition in IIF expression must be boolean. line:%d, column:%d",
+			node.Condition.Line(), node.Condition.Column())
+		return &TypeInfo{Name: "void"}
+	}
+	trueType := sa.visitExpression(node.TrueExpr)
+	falseType := sa.visitExpression(node.FalseExpr)
+	if !sa.areTypesCompatible(trueType, falseType) {
+		sa.addError("The true and false expressions in IIF must be of compatible types. line:%d, column:%d",
+			node.Line(), node.Column())
+		return &TypeInfo{Name: "void"}
+	}
+	return trueType
+}
 func (sa *SemanticAnalyzer) visitPrefixExpression(node *ast.PrefixExpression) *TypeInfo {
 	rightType := sa.visitExpression(node.Right)
 	switch node.Operator {

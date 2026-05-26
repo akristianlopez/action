@@ -24,6 +24,7 @@ const (
 	RETURN    = "RETURN"
 	CATCH     = "CATCH"
 	PROTECTED = "PROTECTED"
+	IIF	   = "IIF"
 	// WHILE    = "WHILE"
 	// FOREACH  = "FOREACH"
 
@@ -165,14 +166,14 @@ const (
 	FOLLOWING = "FOLLOWING"
 	CURRENT   = "CURRENT"
 	UNBOUNDED = "UNBOUNDED"
-	// LAG         = "LAG"
-	// LEAD        = "LEAD"
-	// FIRST_VALUE = "FIRST_VALUE"
-	// LAST_VALUE  = "LAST_VALUE"
-	// RANK        = "RANK"
-	// DENSE_RANK  = "DENSE_RANK"
-	// ROW_NUMBER  = "ROW_NUMBER"
-	// NTILE       = "NTILE"
+	LAG         = "LAG"
+	LEAD        = "LEAD"
+	FIRST_VALUE = "FIRST_VALUE"
+	LAST_VALUE  = "LAST_VALUE"
+	RANK        = "RANK"
+	DENSE_RANK  = "DENSE_RANK"
+	ROW_NUMBER  = "ROW_NUMBER"
+	NTILE       = "NTILE"
 	CONNECT  = "CONNECT"
 	PRIOR    = "PRIOR"
 	NOCYCLE  = "NOCYCLE"
@@ -275,7 +276,7 @@ var keywords = map[string]TokenType{
 	"nocycle":  NOCYCLE,
 	"siblings": SIBLINGS,
 	"cascade":  CASCADE,
-
+	"iif": IIF,
 	// // Types SQL
 	// "varchar":   VARCHAR,
 	// "char":      CHAR,
@@ -299,14 +300,14 @@ var keywords = map[string]TokenType{
 	"following": FOLLOWING,
 	"current":   CURRENT,
 	"unbounded": UNBOUNDED,
-	// "lag":         LAG,
-	// "lead":        LEAD,
-	// "first_value": FIRST_VALUE,
-	// "last_value":  LAST_VALUE,
-	// "rank":        RANK,
-	// "dense_rank":  DENSE_RANK,
-	// "row_number":  ROW_NUMBER,
-	// "ntile":       NTILE,
+	"lag":         LAG,
+	"lead":        LEAD,
+	"first_value": FIRST_VALUE,
+	"last_value":  LAST_VALUE,
+	"rank":        RANK,
+	"dense_rank":  DENSE_RANK,
+	"row_number":  ROW_NUMBER,
+	"ntile":       NTILE,
 	"array":    ARRAY,
 	"of":       OF,
 	"duration": DURATION,

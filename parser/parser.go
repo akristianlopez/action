@@ -100,14 +100,14 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.OBJECT, p.parsePrefixObjectValue)
 
 	// Enregistrer les fonctions de fenêtrage
-	// p.registerPrefix(token.ROW_NUMBER, p.parseWindowFunction)
-	// p.registerPrefix(token.RANK, p.parseWindowFunction)
-	// p.registerPrefix(token.DENSE_RANK, p.parseWindowFunction)
-	// p.registerPrefix(token.LAG, p.parseWindowFunction)
-	// p.registerPrefix(token.LEAD, p.parseWindowFunction)
-	// p.registerPrefix(token.FIRST_VALUE, p.parseWindowFunction)
-	// p.registerPrefix(token.LAST_VALUE, p.parseWindowFunction)
-	// p.registerPrefix(token.NTILE, p.parseWindowFunction)
+	p.registerPrefix(token.ROW_NUMBER, p.parseWindowFunction)
+	p.registerPrefix(token.RANK, p.parseWindowFunction)
+	p.registerPrefix(token.DENSE_RANK, p.parseWindowFunction)
+	p.registerPrefix(token.LAG, p.parseWindowFunction)
+	p.registerPrefix(token.LEAD, p.parseWindowFunction)
+	p.registerPrefix(token.FIRST_VALUE, p.parseWindowFunction)
+	p.registerPrefix(token.LAST_VALUE, p.parseWindowFunction)
+	p.registerPrefix(token.NTILE, p.parseWindowFunction)
 	p.registerPrefix(token.LBRACKET, p.parseArrayLiteral)
 	// p.registerPrefix(token.LENGTH, p.parseArrayFunctionCall)
 	// p.registerPrefix(token.APPEND, p.parseArrayFunctionCall)
@@ -119,6 +119,7 @@ func New(l *lexer.Lexer) *Parser {
 	// p.registerPrefix(token.CONTAINS, p.parseArrayFunctionCall)
 	p.registerPrefix(token.DURATION_LIT, p.parseDurationLiteral)
 	p.registerPrefix(token.LBRACE, p.parseStructLiteral)
+	p.registerPrefix(token.IIF, p.parseIifExpression)
 
 	p.infixParseFns = make(map[token.TokenType]infixParseFn)
 	p.registerInfix(token.PLUS, p.parseInfixExpression)
@@ -2961,6 +2962,21 @@ func (p *Parser) parseLikeExpression(left ast.Expression) ast.Expression {
 	precedence := p.curPrecedence()
 	p.nextToken()
 	exp.Right = p.parseExpression(precedence)
+	return exp
+}
+func (p *Parser) parseIifExpression() ast.Expression {
+	exp := &ast.IifExpression{Token: p.curToken}
+	exp.Condition = p.parseExpression(LOWEST)
+	if !p.expectPeek(token.COMMA) {
+		return nil
+	}
+	p.nextToken()
+	exp.TrueExpr = p.parseExpression(LOWEST)
+	if !p.expectPeek(token.COMMA) {
+		return nil
+	}
+	p.nextToken()
+	exp.FalseExpr = p.parseExpression(LOWEST)
 	return exp
 }
 

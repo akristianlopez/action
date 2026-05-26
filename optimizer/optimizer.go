@@ -420,6 +420,8 @@ func foldExpression(expr ast.Expression) ast.Expression {
 	switch e := expr.(type) {
 	case *ast.InfixExpression:
 		return foldInfixExpression(e)
+	case *ast.IifExpression:
+		return foldIifExpression(e)
 	case *ast.BetweenExpression:
 		return foldBetweenExpression(e)
 	case *ast.LikeExpression:
@@ -429,6 +431,20 @@ func foldExpression(expr ast.Expression) ast.Expression {
 	default:
 		return e
 	}
+}
+func foldIifExpression(expr *ast.IifExpression) ast.Expression {
+	cond := foldExpression(expr.Condition)
+	then := foldExpression(expr.TrueExpr)
+	elseExpr := foldExpression(expr.FalseExpr)
+	if cond != expr.Condition || then != expr.TrueExpr || elseExpr != expr.FalseExpr {
+		return &ast.IifExpression{
+			Token:     expr.Token,
+			Condition: cond,
+			TrueExpr:  then,
+			FalseExpr: elseExpr,
+		}
+	}
+	return expr
 }
 
 func foldInfixExpression(expr *ast.InfixExpression) ast.Expression {
@@ -774,6 +790,9 @@ func isVariableUsedInExpression(expr ast.Expression, name string) bool {
 		return isVariableUsedInExpression(e.Name, name) || isVariableUsedInExpression(e.Action, name)
 	case *ast.InfixExpression:
 		return isVariableUsedInExpression(e.Left, name) || isVariableUsedInExpression(e.Right, name)
+	case *ast.IifExpression:
+		return isVariableUsedInExpression(e.Condition, name) || isVariableUsedInExpression(e.TrueExpr, name) ||
+			isVariableUsedInExpression(e.FalseExpr, name)
 	case *ast.IndexExpression:
 		return isVariableUsedInExpression(e.Left, name) || isVariableUsedInExpression(e.Index, name)
 	case *ast.PrefixExpression:
@@ -2072,6 +2091,19 @@ func inlineFunctionsInExpression(expr ast.Expression, functions map[string]*ast.
 	}
 	switch e := expr.(type) {
 	case *ast.Identifier:
+		return e
+	case *ast.IifExpression:
+		cond := inlineFunctionsInExpression(e.Condition, functions)
+		then := inlineFunctionsInExpression(e.TrueExpr, functions)
+		elseExpr := inlineFunctionsInExpression(e.FalseExpr, functions)
+		if cond != e.Condition || then != e.TrueExpr || elseExpr != e.FalseExpr {
+			return &ast.IifExpression{
+				Token:     e.Token,
+				Condition: cond,
+				TrueExpr:  then,
+				FalseExpr: elseExpr,
+			}
+		}
 		return e
 	case *ast.InfixExpression:
 		l := inlineFunctionsInExpression(e.Left, functions)

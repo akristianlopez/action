@@ -342,6 +342,22 @@ func (le *LikeExpression) String() string {
 	return "(" + out + " Like " + le.Right.String() + ")"
 }
 
+// InfixExpression - expression infixe
+type IifExpression struct {
+	Token     token.Token
+	Condition Expression
+	TrueExpr  Expression
+	FalseExpr Expression
+}
+
+func (ie *IifExpression) expressionNode()      {}
+func (ie *IifExpression) Line() int            { return ie.Token.Line }
+func (ie *IifExpression) Column() int          { return ie.Token.Column }
+func (ie *IifExpression) TokenLiteral() string { return ie.Token.Literal }
+func (ie *IifExpression) String() string {
+	return "IIF(" + ie.Condition.String() + ", " + ie.TrueExpr.String() + ", " + ie.FalseExpr.String() + ")"
+}
+
 // BlockStatement - bloc d'instructions
 type BlockStatement struct {
 	Token      token.Token

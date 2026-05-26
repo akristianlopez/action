@@ -738,11 +738,12 @@ func defConstraints(ta *ast.TypeAnnotation, env *object.Environment) *object.Lim
 }
 func getDefaultValue(typeName string) object.Object {
 	switch strings.ToLower(typeName) {
-	case "integer":
+	case "integer", "int", "int2", "int4", "int8", "smallint", "bigint":
 		return &object.Integer{Value: 0}
-	case "float":
+	case "float", "float1", "float2", "float4", "float8", "decimal", "numeric", "double":
 		return &object.Float{Value: 0.0}
-	case "string":
+	case "string", "varchar", "varchar2", "nvarchar", "nvarchar2", "text", "ntext", "char", "nchar",
+		"longtext", "mediumtext", "tinytext":
 		return &object.String{Value: ""}
 	case "boolean":
 		return &object.Boolean{Value: false}
@@ -2650,13 +2651,13 @@ func getDefaultSQLValue(dataType string) object.Object {
 		return &object.Integer{Value: 0}
 	case "float", "numeric", "decimal", "double", "foat8", "float8", "double precision":
 		return &object.Float{Value: 0.0}
-	case "varchar", "char", "text", "nvarchar2", "varchar2", "mediumtext", "longtext":
+	case "varchar", "char", "nchar", "text", "nvarchar2", "varchar2", "mediumtext", "longtext":
 		return &object.String{Value: ""}
 	case "boolean", "bool":
 		return object.FALSE
-	case "date":
+	case "date", "datetime":
 		return &object.Date{Value: time.Now()}
-	case "time", "timestamp", "datetime":
+	case "time", "timestamp":
 		return &object.Time{Value: time.Now()}
 	case "duration", "interval":
 		return &object.Duration{Nanoseconds: 0, Original: ""}

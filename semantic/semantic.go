@@ -2788,6 +2788,9 @@ func (sa *SemanticAnalyzer) visitIifExpression(node *ast.IifExpression) *TypeInf
 	}
 	trueType := sa.visitExpression(node.TrueExpr)
 	falseType := sa.visitExpression(node.FalseExpr)
+	if trueType == nil || falseType == nil {
+		return &TypeInfo{Name: "void"}
+	}	
 	if !sa.areTypesCompatible(trueType, falseType) {
 		sa.addError("The true and false expressions in IIF must be of compatible types. line:%d, column:%d",
 			node.Line(), node.Column())

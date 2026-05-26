@@ -2790,7 +2790,7 @@ func (sa *SemanticAnalyzer) visitIifExpression(node *ast.IifExpression) *TypeInf
 	falseType := sa.visitExpression(node.FalseExpr)
 	if trueType == nil || falseType == nil {
 		return &TypeInfo{Name: "void"}
-	}	
+	}
 	if !sa.areTypesCompatible(trueType, falseType) {
 		sa.addError("The true and false expressions in IIF must be of compatible types. line:%d, column:%d",
 			node.Line(), node.Column())
@@ -3297,7 +3297,7 @@ func (sa *SemanticAnalyzer) formType(col *sql.ColumnType) *TypeInfo {
 		sc, er2 := strconv.ParseInt(tb[1], 10, 64)
 		if er1 == nil && er2 == nil {
 			switch s {
-			case "float":
+			case "float", "float2", "float4", "float8":
 				result.Constraints.Precision = pr
 				result.Constraints.Scale = sc
 			default:
@@ -3308,6 +3308,7 @@ func (sa *SemanticAnalyzer) formType(col *sql.ColumnType) *TypeInfo {
 	}
 	return result
 }
+
 func (sa *SemanticAnalyzer) resolveTypeFromTableName(name string) *TypeInfo {
 	sym := sa.lookupSymbol(name)
 	if sym != nil {

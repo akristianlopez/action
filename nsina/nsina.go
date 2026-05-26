@@ -612,9 +612,16 @@ func formType(col *sql.ColumnType) *ast.TypeAnnotation {
 	s = strings.ReplaceAll(s, "varchar", "string")
 	s = strings.ReplaceAll(s, "ntext", "string")
 	s = strings.ReplaceAll(s, "text", "string")
+	s = strings.ReplaceAll(s, "longtext", "string")
+	s = strings.ReplaceAll(s, "mediumtext", "string")
 	s = strings.ReplaceAll(s, "number", "integer")
+	s = strings.ReplaceAll(s, "int", "integer")
+	s = strings.ReplaceAll(s, "tinyint", "integer")
+	s = strings.ReplaceAll(s, "mediumint", "integer")
+	s = strings.ReplaceAll(s, "bigint", "integer")
 	s = strings.ReplaceAll(s, "decimal", "float")
 	s = strings.ReplaceAll(s, "numeric", "float")
+	s = strings.ReplaceAll(s, "double", "float")
 	s = strings.ReplaceAll(s, "blob", "string")
 
 	result := &ast.TypeAnnotation{Type: strings.ToLower(s)}
@@ -626,6 +633,12 @@ func formType(col *sql.ColumnType) *ast.TypeAnnotation {
 			i, er := strconv.ParseInt(tb[0], 10, 64)
 			if er == nil {
 				switch s {
+				case "int2", "integer2":
+					result.Constraints.IntegerRange = &ast.RangeConstraint{Min: &ast.IntegerLiteral{Value: -32768}, Max: &ast.IntegerLiteral{Value: 32767}}
+				case "int4", "integer4":
+					result.Constraints.IntegerRange = &ast.RangeConstraint{Min: &ast.IntegerLiteral{Value: -2147483648}, Max: &ast.IntegerLiteral{Value: 2147483647}}
+				case "int8", "integer8", "bigint":
+					result.Constraints.IntegerRange = &ast.RangeConstraint{Min: &ast.IntegerLiteral{Value: -9223372036854775808}, Max: &ast.IntegerLiteral{Value: 9223372036854775807}}
 				case "integer", "float":
 					result.Constraints.MaxDigits = &ast.IntegerLiteral{Value: i}
 				case "string":
@@ -1894,29 +1907,23 @@ func evalDBFieldInfixExpression(operator string, left, right object.Object) obje
 		}
 		return &object.DBField{OType: right.(*object.DBField).OType, Value: fmt.Sprintf("coalesce(%s, %s)", left.Inspect(), right.Inspect())}
 	}
-	if v, o := left.(*object.DBField); o && v.OType == string(object.DBFIELD_OBJ) && roper == "+" {
-		return &object.DBField{OType: left.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", fmt.Sprintf("'%s'", left.Inspect()), "||", right.Inspect())}
+	if v, o := left.(*object.DBField); o && v.OType == string(object.STRING_OBJ) && roper == "+" {
+		return &object.DBField{OType: left.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), "||", fmt.Sprintf("'%s'", right.Inspect()))}
 	}
-	if v, o := right.(*object.DBField); o && v.OType == string(object.DBFIELD_OBJ) && roper == "+" {
-		return &object.DBField{OType: right.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), "||", fmt.Sprintf("'%s'", right.Inspect()))}
+	if v, o := right.(*object.DBField); o && v.OType == string(object.STRING_OBJ) && roper == "+" {
+		return &object.DBField{OType: right.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", fmt.Sprintf("'%s'", left.Inspect()), "||", right.Inspect())}
 	}
 
-	// if roper == "+" && left.Type() == object.STRING_OBJ {
-	// 	return &object.DBField{OType: left.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", fmt.Sprintf("'%s'", left.Inspect()), "||", right.Inspect())}
-	// }
-	// if roper == "+" && right.Type() == object.STRING_OBJ || right.Type() == object.DATE_OBJ || right.Type() == object.TIME_OBJ {
-	// 	return &object.DBField{OType: right.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), "||", fmt.Sprintf("'%s'", right.Inspect()))}
-	// }
 	if left.Type() == object.STRING_OBJ || left.Type() == object.DATE_OBJ || left.Type() == object.TIME_OBJ {
-		return &object.DBField{OType: left.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", fmt.Sprintf("'%s'", left.Inspect()), roper, right.Inspect())}
+		return &object.DBField{OType: right.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", fmt.Sprintf("'%s'", left.Inspect()), roper, right.Inspect())}
 	}
 	if right.Type() == object.STRING_OBJ || right.Type() == object.DATE_OBJ || right.Type() == object.TIME_OBJ {
-		return &object.DBField{OType: right.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), roper, fmt.Sprintf("'%s'", right.Inspect()))}
+		return &object.DBField{OType: left.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), roper, fmt.Sprintf("'%s'", right.Inspect()))}
 	}
 	if left.Type() == object.DBFIELD_OBJ {
 		return &object.DBField{OType: left.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), roper, right.Inspect())}
 	}
-	return &object.DBField{OType: left.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), roper, right.Inspect())}
+	return &object.DBField{OType: right.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), roper, right.Inspect())}
 }
 
 func evalBangOperatorExpression(right object.Object) object.Object {
@@ -2651,7 +2658,7 @@ func getDefaultSQLValue(dataType string) object.Object {
 		return &object.Integer{Value: 0}
 	case "float", "numeric", "decimal", "double", "foat8", "float8", "double precision":
 		return &object.Float{Value: 0.0}
-	case "varchar", "char", "nchar", "text", "nvarchar2", "varchar2", "mediumtext", "longtext":
+	case "varchar", "string", "char", "nchar", "text", "nvarchar2", "varchar2", "mediumtext", "longtext":
 		return &object.String{Value: ""}
 	case "boolean", "bool":
 		return object.FALSE

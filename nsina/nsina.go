@@ -1901,19 +1901,19 @@ func evalDBFieldInfixExpression(operator string, left, right object.Object) obje
 		roper = "="
 	case "!=":
 		roper = "<>"
+	case "+":
+		if v, o := left.(*object.DBField); o && v.OType == string(object.STRING_OBJ) {
+			roper = "||"
+		}
+		if v, o := right.(*object.DBField); o && v.OType == string(object.STRING_OBJ) {
+			roper = "||"
+		}
 	case "??":
 		if right.Type() == object.STRING_OBJ {
 			return &object.DBField{OType: left.(*object.DBField).OType, Value: fmt.Sprintf("coalesce(%s, '%s')", left.Inspect(), right.Inspect())}
 		}
 		return &object.DBField{OType: right.(*object.DBField).OType, Value: fmt.Sprintf("coalesce(%s, %s)", left.Inspect(), right.Inspect())}
 	}
-	if v, o := left.(*object.DBField); o && v.OType == string(object.STRING_OBJ) && roper == "+" {
-		return &object.DBField{OType: left.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", left.Inspect(), "||", fmt.Sprintf("'%s'", right.Inspect()))}
-	}
-	if v, o := right.(*object.DBField); o && v.OType == string(object.STRING_OBJ) && roper == "+" {
-		return &object.DBField{OType: right.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", fmt.Sprintf("'%s'", left.Inspect()), "||", right.Inspect())}
-	}
-
 	if left.Type() == object.STRING_OBJ || left.Type() == object.DATE_OBJ || left.Type() == object.TIME_OBJ {
 		return &object.DBField{OType: right.(*object.DBField).OType, Value: fmt.Sprintf("(%s %s %s)", fmt.Sprintf("'%s'", left.Inspect()), roper, right.Inspect())}
 	}

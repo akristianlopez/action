@@ -771,7 +771,7 @@ func (sa *SemanticAnalyzer) visitSQLAlterObjectStatement(s *ast.SQLAlterObjectSt
 	for _, action := range s.Actions { //ADD, MODIFY, DROP
 		if !strings.EqualFold(action.Type, "ADD") &&
 			!strings.EqualFold(action.Type, "MODIFY") &&
-			strings.EqualFold(action.Type, "DROP") {
+			!strings.EqualFold(action.Type, "DROP") {
 			sa.addError("Unknown action '%s' in ALTER OBJECT statement. line:%d, column:%d", action.Type, s.Token.Line, s.Token.Column)
 			continue
 		}

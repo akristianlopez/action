@@ -2165,11 +2165,15 @@ func evalSQLDropObject(stmt *ast.SQLDropObjectStatement, env *object.Environment
 	}
 }
 
-func stringCol(col *ast.SQLColumnDefinition, name, dbname string) (string, object.Object) {
+func stringCol(col *ast.SQLColumnDefinition, action, name, dbname string) (string, object.Object) {
 	fields := make([]string, 0)
 	out := ""
 	for _, constraint := range col.Constraints {
 		out += " " + constraint.String()
+	}
+	act := "TYPE"
+	if action != "ALTER COLUMN" {
+		act = ""
 	}
 	switch strings.ToLower(dbname) {
 	case "postgres":
@@ -2177,11 +2181,11 @@ func stringCol(col *ast.SQLColumnDefinition, name, dbname string) (string, objec
 		case "integer":
 			switch col.DataType.Length.Value {
 			case 1, 2, 3, 4, 5: //smallint -32768 to 32767
-				fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "smallint", out))
+				fields = append(fields, fmt.Sprintf("%s %s %s %s", col.Name.Value, act, "smallint", out))
 			case 6, 7, 8, 9, 10, 11: //integer -2147483648 to 2147483647
-				fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "integer", out))
+				fields = append(fields, fmt.Sprintf("%s %s %s %s", col.Name.Value, act, "integer", out))
 			default: //bigint -9223372036854775808 to 9223372036854775807
-				fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "bigint", out))
+				fields = append(fields, fmt.Sprintf("%s %s %s %s", col.Name.Value, act, "bigint", out))
 			}
 		case "float":
 			switch {
@@ -2189,36 +2193,36 @@ func stringCol(col *ast.SQLColumnDefinition, name, dbname string) (string, objec
 				if col.DataType.Length.Value < 0 || col.DataType.Length.Value > 131072 {
 					return "", newError("Scale value error: expected value between 0 and 131072, got %v", col.DataType.Scale.Value)
 				}
-				fields = append(fields, fmt.Sprintf("%s %s(%d) %s", col.Name.Value, "NUMERIC", col.DataType.Length.Value, out))
+				fields = append(fields, fmt.Sprintf("%s %s %s(%d) %s", col.Name.Value, act, "NUMERIC", col.DataType.Length.Value, out))
 			default:
 				if col.DataType.Precision != nil {
 					if col.DataType.Precision.Value > 0 && col.DataType.Scale == nil {
 						if col.DataType.Precision.Value < 0 || col.DataType.Scale.Value > 131072 {
 							return "", newError("Scale value error: expected value between 0 and 131072, got %v", col.DataType.Scale.Value)
 						}
-						fields = append(fields, fmt.Sprintf("%s %s(%d) %s", col.Name.Value, "NUMERIC", col.DataType.Precision.Value, out))
+						fields = append(fields, fmt.Sprintf("%s  %s %s(%d) %s", col.Name.Value, act, "NUMERIC", col.DataType.Precision.Value, out))
 					}
 					if col.DataType.Precision.Value > 0 && col.DataType.Scale != nil {
 						if col.DataType.Scale.Value < -1000 || col.DataType.Scale.Value > 1000 {
 							return "", newError("Scale value error: expected value between -1000 and 1000, got %v", col.DataType.Scale.Value)
 						}
-						fields = append(fields, fmt.Sprintf("%s %s(%d,%d) %s", col.Name.Value, "NUMERIC", col.DataType.Precision.Value, col.DataType.Scale.Value, out))
+						fields = append(fields, fmt.Sprintf("%s %s %s(%d,%d) %s", col.Name.Value, act, "NUMERIC", col.DataType.Precision.Value, col.DataType.Scale.Value, out))
 					}
 				} else {
-					fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "FLOAT", out))
+					fields = append(fields, fmt.Sprintf("%s %s %s %s", col.Name.Value, act, "FLOAT", out))
 				}
 			}
 		case "string":
 			switch {
 			case col.DataType.Length.Value < 65535: //smallint -32768 to 32767
-				fields = append(fields, fmt.Sprintf("%s %s(%d) %s", col.Name.Value, "VARCHAR", col.DataType.Length.Value, out))
+				fields = append(fields, fmt.Sprintf("%s  %s %s(%d) %s", col.Name.Value, act, "VARCHAR", col.DataType.Length.Value, out))
 			default: //bigint -9223372036854775808 to 9223372036854775807
-				fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "TEXT", out))
+				fields = append(fields, fmt.Sprintf("%s  %s %s %s", col.Name.Value, act, "TEXT", out))
 			}
 		case "duration":
-			fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, "interval", out))
+			fields = append(fields, fmt.Sprintf("%s %s  %s %s", col.Name.Value, act, "interval", out))
 		default:
-			fields = append(fields, fmt.Sprintf("%s %s %s", col.Name.Value, col.DataType.Name, out))
+			fields = append(fields, fmt.Sprintf("%s %s  %s %s", col.Name.Value, act, col.DataType.Name, out))
 		}
 	case "mariadb", "mysql":
 		switch strings.ToLower(col.DataType.Name) {
@@ -2266,7 +2270,7 @@ func stringCol(col *ast.SQLColumnDefinition, name, dbname string) (string, objec
 	default:
 		return "", newError("%s: Not supported", dbname)
 	}
-	return fmt.Sprintf("ALTER TABLE %s(%s)", name, strings.Join(fields, ", ")), object.NULL
+	return fmt.Sprintf("ALTER TABLE %s %s %s", name, action, strings.Join(fields, ", ")), object.NULL
 }
 
 func evalSQLAlterObject(stmt *ast.SQLAlterObjectStatement, env *object.Environment) object.Object {
@@ -2293,7 +2297,21 @@ func evalSQLAlterObject(stmt *ast.SQLAlterObjectStatement, env *object.Environme
 			}
 			continue
 		}
-		res, err := env.Exec(stringCol(ac.Column, stmt.ObjectName.Value, env.DBName()))
+		act := strings.ToUpper(ac.Type)
+		if ac.Column != nil {
+			if act == "MODIFY" && strings.EqualFold(env.DBName(), "postgres") {
+				act = "ALTER COLUMN"
+			} else {
+				act = fmt.Sprintf("%s COLUMN", act)
+			}
+		} else if ac.Constraint != nil {
+			act = fmt.Sprintf("%s CONSTRAINT", act)
+		}
+		sql, er := stringCol(ac.Column, fmt.Sprintf("%s", act), stmt.ObjectName.Value, env.DBName())
+		if isError(er) {
+			return er
+		}
+		res, err := env.Exec(sql)
 		// strSQL := stmt.String()
 		if err != nil {
 			return newError("Nsina: %s", err.Error())

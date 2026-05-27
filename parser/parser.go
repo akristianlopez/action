@@ -1860,7 +1860,9 @@ func (p *Parser) parseSQLAlterObject() (*ast.SQLAlterObjectStatement, *ParserErr
 		p.addError(pe)
 		if p.peekTokenIs(token.COMMA) && !p.curTokenIs(token.SEMICOLON) {
 			p.nextToken()
+			continue
 		}
+		break
 	}
 
 	return stmt, nil
@@ -1872,14 +1874,16 @@ func (p *Parser) parseSQLAlterAction() (*ast.SQLAlterAction, *ParserError) {
 
 	switch p.curToken.Type {
 	case token.ADD:
-		action.Type = "ADD"
+
 		if !p.expectPeekEx(token.CONSTRAINT, token.COLUMN) {
 			return nil, nil
 		}
 		if p.curTokenIs(token.CONSTRAINT) {
+			action.Type = "ADD"
 			action.Constraint, pe = p.parseSQLConstraint()
 		} else {
 			p.nextToken()
+			action.Type = "ADD"
 			action.Column, pe = p.parseSQLColumnDefinition()
 		}
 	case token.MODIFY:
@@ -1888,9 +1892,12 @@ func (p *Parser) parseSQLAlterAction() (*ast.SQLAlterAction, *ParserError) {
 		action.Column, pe = p.parseSQLColumnDefinition()
 	case token.DROP:
 		action.Type = "DROP"
+		if !p.expectPeekEx(token.CONSTRAINT, token.COLUMN) {
+			return nil, nil
+		}
 		p.nextToken()
 		if p.curTokenIs(token.CONSTRAINT) {
-			p.nextToken()
+			// p.nextToken()
 			action.Constraint = &ast.SQLConstraint{
 				Token: p.curToken,
 				Name:  &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal},

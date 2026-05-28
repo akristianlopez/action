@@ -885,6 +885,10 @@ func (sa *SemanticAnalyzer) visitSQLUpdateStatement(s *ast.SQLUpdateStatement) {
 		return
 	}
 	for _, stm := range s.Set {
+		if ok, _ := sa.hasField(s.ObjectName.Value, stm.Column.Value); !ok {
+			sa.addError("The column '%s' is not defined in the object '%s'. line:%d, column:%d", stm.Column.Value, s.ObjectName.Value, s.Line(), s.Column())
+			return
+		}
 		if ok, msg := sa.canHandle(sa.ctx, s.ObjectName.Value, stm.Column.Value, "update", sa.mode); !ok {
 			sa.addError("%s", msg)
 			return
@@ -933,6 +937,10 @@ func (sa *SemanticAnalyzer) visitSQLInsertStatement(s *ast.SQLInsertStatement) {
 		return
 	}
 	for _, name := range s.Columns {
+		if ok, _ := sa.hasField(s.ObjectName.Value, name.Value); !ok {
+			sa.addError("The column '%s' is not defined in the object '%s'. line:%d, column:%d", name.Value, s.ObjectName.Value, s.Line(), s.Column())
+			return
+		}
 		if ok, msg := sa.canHandle(sa.ctx, s.ObjectName.Value, name.Value, "insert", sa.mode); !ok {
 			sa.addError("%s", msg)
 			return
@@ -1342,19 +1350,19 @@ func nullString(s *string) string {
 	return *s
 }
 
-// func (sa *SemanticAnalyzer) hasField(o, f string) (bool, string) {
-// 	ti := sa.lookupSymbol(o)
-// 	if ti == nil {
-// 		return false, fmt.Sprintf("'%s' is not defined", o)
-// 	}
-// 	if ti.DataType == nil || ti.DataType.Fields == nil {
-// 		return false, fmt.Sprintf("'%s' is not defined into '%s'", f, o)
-// 	}
-// 	if _, o := ti.DataType.Fields[lower(f)]; !o {
-// 		return false, fmt.Sprintf("'%s' is not defined into '%s'", f, o)
-// 	}
-// 	return true, ""
-// }
+func (sa *SemanticAnalyzer) hasField(o, f string) (bool, string) {
+	ti := sa.lookupSymbol(o)
+	if ti == nil {
+		return false, fmt.Sprintf("'%s' is not defined", o)
+	}
+	if ti.DataType == nil || ti.DataType.Fields == nil {
+		return false, fmt.Sprintf("'%s' is not defined into '%s'", f, o)
+	}
+	if _, o := ti.DataType.Fields[lower(f)]; !o {
+		return false, fmt.Sprintf("'%s' is not defined into '%s'", f, o)
+	}
+	return true, ""
+}
 
 func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) *TypeInfo {
 	//check for select argumens

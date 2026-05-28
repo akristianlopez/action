@@ -2171,12 +2171,14 @@ func evalSQLDropObject(stmt *ast.SQLDropObjectStatement, env *object.Environment
 func stringCol(col *ast.SQLColumnDefinition, action, name, dbname string) (string, object.Object) {
 	fields := make([]string, 0)
 	out := ""
-	for _, constraint := range col.Constraints {
-		out += " " + constraint.String()
-	}
+	md := fmt.Sprintf(", ALTER COLUMN %s SET ", col.Name.Value)
 	act := "TYPE"
 	if action != "ALTER COLUMN" {
 		act = ""
+		md = ""
+	}
+	for _, constraint := range col.Constraints {
+		out += " " + md + constraint.String()
 	}
 	switch strings.ToLower(dbname) {
 	case "postgres":

@@ -1341,6 +1341,21 @@ func nullString(s *string) string {
 	}
 	return *s
 }
+
+// func (sa *SemanticAnalyzer) hasField(o, f string) (bool, string) {
+// 	ti := sa.lookupSymbol(o)
+// 	if ti == nil {
+// 		return false, fmt.Sprintf("'%s' is not defined", o)
+// 	}
+// 	if ti.DataType == nil || ti.DataType.Fields == nil {
+// 		return false, fmt.Sprintf("'%s' is not defined into '%s'", f, o)
+// 	}
+// 	if _, o := ti.DataType.Fields[lower(f)]; !o {
+// 		return false, fmt.Sprintf("'%s' is not defined into '%s'", f, o)
+// 	}
+// 	return true, ""
+// }
+
 func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) *TypeInfo {
 	//check for select argumens
 	if ss.Select == nil {
@@ -1406,10 +1421,21 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 	argList := make([]string, 0)
 	for _, f := range ss.Select {
 		field := f.(*ast.SelectArgs)
+		sa.visitExpression(field.Expr)
 		switch s := field.Expr.(type) {
 		case *ast.Identifier:
 			if !contains(argList, lower(s.Value)) {
 				argList = append(argList, lower(s.Value))
+			}
+			continue
+		case *ast.IifExpression, *ast.PrefixExpression:
+			if field.NewName == nil {
+				sa.addError("IIF '%s' must have a new name. line:%d, column:%d",
+					s.String(), s.Line(), s.Column())
+				continue
+			}
+			if !contains(argList, lower(field.NewName.Value)) {
+				argList = append(argList, lower(field.NewName.Value))
 			}
 			continue
 		case *ast.StringLiteral, *ast.DurationLiteral, *ast.BooleanLiteral,
@@ -3337,8 +3363,11 @@ func (sa *SemanticAnalyzer) resolveTypeFromTableName(name string) *TypeInfo {
 	colTypes, _ := rows.ColumnTypes()
 	structType := &TypeInfo{Name: name, Fields: make(map[string]*TypeInfo)}
 	for _, col := range colTypes {
-		if ok, mesg := sa.canHandle(sa.ctx, name, col.Name(), "read", sa.mode); !ok {
-			sa.addError("%s", mesg)
+		// if ok, mesg := sa.canHandle(sa.ctx, name, col.Name(), "read", sa.mode); !ok {
+		// 	sa.addError("%s", mesg)
+		// }
+		if ok, _ := sa.canHandle(sa.ctx, name, col.Name(), "read", sa.mode); !ok {
+			continue
 		}
 		structType.Fields[lower(col.Name())] = sa.formType(col)
 	}

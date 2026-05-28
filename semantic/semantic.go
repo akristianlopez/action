@@ -879,6 +879,7 @@ func (sa *SemanticAnalyzer) visitSQLUpdateStatement(s *ast.SQLUpdateStatement) {
 			s.Line(), s.Column())
 		return
 	}
+	sa.resolveTypeFromTableName(s.ObjectName.Value)
 	if s.Set == nil {
 		sa.addError("The condition in the clause <where> is needed. line:%d, column:%d",
 			s.Line(), s.Column())
@@ -936,6 +937,7 @@ func (sa *SemanticAnalyzer) visitSQLInsertStatement(s *ast.SQLInsertStatement) {
 		sa.addError("The name of the object is missing. line:%d, column:%d", s.Line(), s.Column())
 		return
 	}
+	sa.resolveTypeFromTableName(s.ObjectName.Value)
 	for _, name := range s.Columns {
 		if ok, _ := sa.hasField(s.ObjectName.Value, name.Value); !ok {
 			sa.addError("The column '%s' is not defined in the object '%s'. line:%d, column:%d", name.Value, s.ObjectName.Value, s.Line(), s.Column())

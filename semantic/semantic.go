@@ -1660,12 +1660,110 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 	if ss.GroupBy != nil {
 		for _, v := range ss.GroupBy {
 			switch t := v.(type) {
-			case *ast.InfixExpression:
-				if t.Operator == "." {
-					sa.visitSQLExpressionWithDotToken(tokenList, t)
-					continue
+			case *ast.TypeMember:
+				switch t.Left.(type) {
+				case *ast.Identifier:
+					n := t.Left.(*ast.Identifier)
+					fm := ss.From.(*ast.FromIdentifier)
+					val := false
+					if strings.EqualFold(n.Value, n.Value) {
+						val = true
+					}
+					if !val && fm.NewName != nil {
+						vl, k := fm.NewName.(*ast.Identifier)
+						if !k {
+							sa.addError("Invalid new name '%s' . line:%d, column:%d",
+								fm.Value, fm.Token.Line, fm.Token.Column)
+							continue
+						}
+						val = strings.EqualFold(n.Value, vl.Value)
+					}
+					if !val && len(ss.Joins) > 0 && !lIsInFrom(n.Value, ss.Joins) {
+						sa.addError("'%s' is not an object. line:%d, column:%d",
+							n.Value, n.Token.Line, n.Token.Column)
+					}
+					switch r := t.Right.(type) {
+					case *ast.Identifier, *ast.StringLiteral:
+						t := sa.lookupSymbol(n.Value)
+						if t != nil && t.Type == DbObjectSymbol {
+							if ok, msg := sa.canHandle(sa.ctx, t.DataType.Name, r.String(), "read", sa.mode); !ok {
+								sa.addError("%s", msg)
+							}
+						}
+						continue
+					default:
+						sa.addError("'%s' can not be a new name. line:%d, column:%d",
+							n.Value, n.Token.Line, n.Token.Column)
+					}
+				case *ast.ArrayFunctionCall:
+					n := t.Left.(*ast.ArrayFunctionCall)
+					if sa.lookupSymbol(n.Function.Value) != nil {
+						sa.addError("'%s' can not be used in the select clause. line:%d, column:%d",
+							t.Right.String(), t.Right.Line(), t.Right.Column())
+					}
+					//Check the function argument format but this will be done after
+					if n.Array == nil && len(n.Arguments) == 0 {
+						sa.addError("Function '%s' must have at least one argument. line:%d, column:%d",
+							n.Function.String(), t.Line(), t.Column())
+					}
+					switch e := t.Right.(type) {
+					case *ast.Identifier, *ast.StringLiteral:
+						if !contains(argList, strings.ToLower(e.String())) {
+							argList = append(argList, strings.ToLower(e.String()))
+						}
+					default:
+						sa.addError("'%s' can not be a new name. line:%d, column:%d",
+							t.Right.String(), t.Right.Line(), t.Right.Column())
+					}
 				}
-				sa.addError("Invalid operation '%s'. line:%d, column:%d", t.Operator, t.Line(), t.Column())
+			case *ast.InfixExpression:
+				switch t.Left.(type) {
+				case *ast.Identifier:
+					n := t.Left.(*ast.Identifier)
+					if !lIsInFrom(n.Value, ss.Joins) {
+						sa.addError("'%s' is not an object. line:%d, column:%d",
+							n.Value, n.Token.Line, n.Token.Column)
+
+					}
+					switch t.Right.(type) {
+					case *ast.Identifier, *ast.StringLiteral:
+						continue
+					default:
+						sa.addError("'%s' can not be a new name. line:%d, column:%d",
+							n.Value, n.Token.Line, n.Token.Column)
+					}
+				case *ast.ArrayFunctionCall:
+					n := t.Left.(*ast.ArrayFunctionCall)
+					if sa.lookupSymbol(n.Function.Value) != nil {
+						sa.addError("'%s' can not be used in the select clause. line:%d, column:%d",
+							t.Right.String(), t.Right.Line(), t.Right.Column())
+					}
+					//Check the function argument format but this will be done after
+					if n.Array == nil && len(n.Arguments) == 0 {
+						sa.addError("Function '%s' must have at least one argument. line:%d, column:%d",
+							n.Function.String(), t.Line(), t.Column())
+					}
+					switch e := t.Right.(type) {
+					case *ast.Identifier, *ast.StringLiteral:
+						if !contains(argList, strings.ToLower(e.String())) {
+							argList = append(argList, strings.ToLower(e.String()))
+						}
+					default:
+						sa.addError("'%s' can not be a new name. line:%d, column:%d",
+							t.Right.String(), t.Right.Line(), t.Right.Column())
+					}
+				}
+			case *ast.ArrayFunctionCall:
+				if sa.lookupSymbol(t.Function.Value) != nil {
+					sa.addError("'%s' can not be used in the select clause. line:%d, column:%d",
+						t.Function.String(), t.Line(), t.Column())
+				}
+				//Check the function argument format but this will be done after
+				if t.Array == nil && len(t.Arguments) == 0 {
+					sa.addError("Function '%s' must have at least one argument. line:%d, column:%d",
+						t.Function.String(), t.Line(), t.Column())
+				}
+
 			case *ast.IntegerLiteral:
 				//verify if the value of the literal is between 0 and length of the select arguments list
 				if t.Value <= 0 || t.Value >= int64(len(argList)) {
@@ -1678,12 +1776,12 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 					sa.addError("Invalid express '%s'. line:%d, column:%d", t.String(),
 						t.Line(), t.Column())
 				}
-			case *ast.ArrayFunctionCall:
-				//very that this function was call in the select clause
-				if !contains(argList, strings.ToLower(t.String())) {
-					sa.addError("Invalid express '%s'. line:%d, column:%d", t.String(),
-						t.Line(), t.Column())
-				}
+			// case *ast.ArrayFunctionCall:
+			// 	//very that this function was call in the select clause
+			// 	if !contains(argList, strings.ToLower(t.String())) {
+			// 		sa.addError("Invalid express '%s'. line:%d, column:%d", t.String(),
+			// 			t.Line(), t.Column())
+			// 	}
 			default:
 				sa.addError("Invalid expression '%s'. line:%d, column:%d", t.String(), t.Line(), t.Column())
 			}
@@ -1692,15 +1790,115 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 	//Check the claude Order by
 	if ss.OrderBy != nil {
 		for _, v := range ss.OrderBy {
+			sa.visitExpression(v.Expression)
+			if strings.ToLower(v.Direction) != "asc" && strings.ToLower(v.Direction) != "desc" {
+				sa.addError("Invalid direction '%s'. line:%d, column:%d", v.Direction, v.Expression.Line(), v.Expression.Column())
+			}
 			switch t := v.Expression.(type) {
-			case *ast.InfixExpression:
-				if t.Operator == "." {
-					sa.visitSQLExpressionWithDotToken(tokenList, t)
-					if !contains(argList, strings.ToLower(t.String())) {
-						sa.addError("Field '%s'does not exist. line:%d, column:%d", t.String(), t.Line(), t.Column())
+			case *ast.TypeMember:
+				switch t.Left.(type) {
+				case *ast.Identifier:
+					n := t.Left.(*ast.Identifier)
+					fm := ss.From.(*ast.FromIdentifier)
+					val := false
+					if strings.EqualFold(n.Value, n.Value) {
+						val = true
+					}
+					if !val && fm.NewName != nil {
+						vl, k := fm.NewName.(*ast.Identifier)
+						if !k {
+							sa.addError("Invalid new name '%s' . line:%d, column:%d",
+								fm.Value, fm.Token.Line, fm.Token.Column)
+							continue
+						}
+						val = strings.EqualFold(n.Value, vl.Value)
+					}
+					if !val && len(ss.Joins) > 0 && !lIsInFrom(n.Value, ss.Joins) {
+						sa.addError("'%s' is not an object. line:%d, column:%d",
+							n.Value, n.Token.Line, n.Token.Column)
+					}
+					switch r := t.Right.(type) {
+					case *ast.Identifier, *ast.StringLiteral:
+						t := sa.lookupSymbol(n.Value)
+						if t != nil && t.Type == DbObjectSymbol {
+							if ok, msg := sa.canHandle(sa.ctx, t.DataType.Name, r.String(), "read", sa.mode); !ok {
+								sa.addError("%s", msg)
+							}
+						}
+						continue
+					default:
+						sa.addError("'%s' can not be a new name. line:%d, column:%d",
+							n.Value, n.Token.Line, n.Token.Column)
+					}
+				case *ast.ArrayFunctionCall:
+					n := t.Left.(*ast.ArrayFunctionCall)
+					if sa.lookupSymbol(n.Function.Value) != nil {
+						sa.addError("'%s' can not be used in the select clause. line:%d, column:%d",
+							t.Right.String(), t.Right.Line(), t.Right.Column())
+					}
+					//Check the function argument format but this will be done after
+					if n.Array == nil && len(n.Arguments) == 0 {
+						sa.addError("Function '%s' must have at least one argument. line:%d, column:%d",
+							n.Function.String(), t.Line(), t.Column())
+					}
+					switch e := t.Right.(type) {
+					case *ast.Identifier, *ast.StringLiteral:
+						if !contains(argList, strings.ToLower(e.String())) {
+							argList = append(argList, strings.ToLower(e.String()))
+						}
+					default:
+						sa.addError("'%s' can not be a new name. line:%d, column:%d",
+							t.Right.String(), t.Right.Line(), t.Right.Column())
 					}
 				}
-				// sa.addError("Invalid operation '%s'. line:%d, column:%d", t.Operator, t.Line(), t.Column())
+			case *ast.InfixExpression:
+				switch t.Left.(type) {
+				case *ast.Identifier:
+					n := t.Left.(*ast.Identifier)
+					if !lIsInFrom(n.Value, ss.Joins) {
+						sa.addError("'%s' is not an object. line:%d, column:%d",
+							n.Value, n.Token.Line, n.Token.Column)
+
+					}
+					switch t.Right.(type) {
+					case *ast.Identifier, *ast.StringLiteral:
+						continue
+					default:
+						sa.addError("'%s' can not be a new name. line:%d, column:%d",
+							n.Value, n.Token.Line, n.Token.Column)
+					}
+				case *ast.ArrayFunctionCall:
+					n := t.Left.(*ast.ArrayFunctionCall)
+					if sa.lookupSymbol(n.Function.Value) != nil {
+						sa.addError("'%s' can not be used in the select clause. line:%d, column:%d",
+							t.Right.String(), t.Right.Line(), t.Right.Column())
+					}
+					//Check the function argument format but this will be done after
+					if n.Array == nil && len(n.Arguments) == 0 {
+						sa.addError("Function '%s' must have at least one argument. line:%d, column:%d",
+							n.Function.String(), t.Line(), t.Column())
+					}
+					switch e := t.Right.(type) {
+					case *ast.Identifier, *ast.StringLiteral:
+						if !contains(argList, strings.ToLower(e.String())) {
+							argList = append(argList, strings.ToLower(e.String()))
+						}
+					default:
+						sa.addError("'%s' can not be a new name. line:%d, column:%d",
+							t.Right.String(), t.Right.Line(), t.Right.Column())
+					}
+				}
+			case *ast.ArrayFunctionCall:
+				if sa.lookupSymbol(t.Function.Value) != nil {
+					sa.addError("'%s' can not be used in the select clause. line:%d, column:%d",
+						t.Function.String(), t.Line(), t.Column())
+				}
+				//Check the function argument format but this will be done after
+				if t.Array == nil && len(t.Arguments) == 0 {
+					sa.addError("Function '%s' must have at least one argument. line:%d, column:%d",
+						t.Function.String(), t.Line(), t.Column())
+				}
+
 			case *ast.Identifier, *ast.StringLiteral:
 				if !contains(argList, strings.ToLower(t.String())) {
 					sa.addError("Field '%s'does not exist. line:%d, column:%d", t.String(), t.Line(), t.Column())

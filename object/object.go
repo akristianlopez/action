@@ -722,7 +722,26 @@ func (e *Environment) Valid(name string, value Object) (bool, string) {
 	}
 	return true, ""
 }
-
+func (e *Environment) SysUser() Object {
+	usr := &Struct{Name: "sysuser", Fields: make(map[string]Object)}
+	for key, values := range e.ctx.Request.Header {
+		// Vérifie si la clé commence par "X-User-"
+		if strings.HasPrefix(key, "X-User-") {
+			if strings.EqualFold(key, "X-User-Roles") {
+				continue
+			}
+			if len(values) > 1 {
+				usr.Fields[strings.ToLower(strings.TrimPrefix(key, "X-User-"))] = &Array{ElementType: STRING_OBJ, Elements: make([]Object, len(values))}
+				for i, v := range values {
+					usr.Fields[strings.ToLower(strings.TrimPrefix(key, "X-User-"))].(*Array).Elements[i] = &String{Value: v}
+				}
+				continue
+			}
+			usr.Fields[strings.ToLower(strings.TrimPrefix(key, "X-User-"))] = &String{Value: values[0]}
+		}
+	}
+	return e.Set("sysuser", usr)
+}
 func (e *Environment) IsStructExist(node *Struct, env *Environment) string {
 	// keys := make([]string, 0)
 	Scope := env

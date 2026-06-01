@@ -93,7 +93,6 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 	case *ast.TypeMember:
 		return evalTypeMember(node, env)
 	case *ast.TypeExternalCall:
-		//TODO: A definir
 		return evalContract(node, env)
 	case *ast.BetweenExpression:
 		return evalBetweenExpression(node, env)
@@ -973,6 +972,7 @@ func toString(selectStmt *ast.SQLSelectStatement, env *object.Environment) objec
 			expr, True = env.Filter(n.Value, "")
 		}
 		if expr != nil {
+			env.SysUser()
 			filter = Eval(expr, env).Inspect()
 		}
 	}
@@ -1009,6 +1009,7 @@ func toString(selectStmt *ast.SQLSelectStatement, env *object.Environment) objec
 				if filter == "" {
 					filter = fmt.Sprintf("(%s)", Eval(w, env).Inspect())
 				} else {
+					env.SysUser()
 					filter = fmt.Sprintf("%s And (%s)", filter, Eval(w, env).Inspect())
 				}
 			}
@@ -2478,6 +2479,7 @@ func evalSQLUpdate(stmt *ast.SQLUpdateStatement, env *object.Environment) object
 	var filter object.Object
 	filter = nil
 	if ok {
+		scope.SysUser()
 		filter = Eval(expr, scope)
 		if isError(filter) {
 			return filter
@@ -2554,6 +2556,7 @@ func evalSQLDelete(stmt *ast.SQLDeleteStatement, env *object.Environment) object
 	var filter object.Object
 	expr, True := scope.Filter(stmt.From.Value, "")
 	if True {
+		scope.SysUser()
 		filter = Eval(expr, scope)
 		if isError(filter) {
 			return filter
@@ -2779,54 +2782,116 @@ func getValueFromRealType(typ string, val any) object.Object {
 
 func evalSQLWithStatement(stmt *ast.SQLWithStatement, env *object.Environment) object.Object {
 	// Créer un nouvel environnement pour les CTE
+	result := &object.SQLResult{
+		Columns: make([]string, 0),
+		Rows:    nil,
+	}
+
 	cteEnv := object.NewEnclosedEnvironment(env)
 
 	// Évaluer les CTEs
-	for _, cte := range stmt.CTEs {
-		result := evalCommonTableExpression(cte, cteEnv)
-		if isError(result) {
-			return result
-		}
-		cteEnv.Set(cte.Name.Value, result)
+	sql := "WITH"
+	if stmt.Recursive {
+		sql = "WITH RECURSIVE"
 	}
+	for i, cte := range stmt.CTEs {
+		objSQL := toString(cte.Query, cteEnv)
+		if isError(objSQL) {
+			return objSQL
+		}
+		if i == 0 {
+			sql = fmt.Sprintf("%s %s (%s) AS (%s)", sql, cte.Name.Value, cte.Cols(), objSQL.Inspect())
+		} else {
+			sql = fmt.Sprintf("%s, %s (%s) AS (%s)", sql, cte.Name.Value, cte.Cols(), objSQL.Inspect())
+		}
+		// Register CTE object
+		t := &object.DBStruct{Name: strings.ToLower(cte.Name.Value), Fields: make(map[string]object.Object)}
+		for _, f := range cte.Query.Select {
+			switch s := f.(type) {
+			case *ast.SelectArgs:
+				if s.NewName != nil {
+					t.Fields[strings.ToLower(s.NewName.Value)] = Eval(s.Expr, cteEnv)
+					if isError(t.Fields[strings.ToLower(s.NewName.Value)]) {
+						return t.Fields[strings.ToLower(s.NewName.Value)]
+					}
+					continue
+				}
+				switch e := s.Expr.(type) {
+				case *ast.Identifier:
+					t.Fields[strings.ToLower(e.Value)] = Eval(e, cteEnv)
+					if isError(t.Fields[strings.ToLower(e.Value)]) {
+						return t.Fields[strings.ToLower(e.Value)]
+					}
+					continue
+				case *ast.TypeMember:
+					s, _ := e.Right.(*ast.Identifier)
+					t.Fields[strings.ToLower(s.Value)] = Eval(e, cteEnv)
+				default:
+					return newError("'%s' invalid . line:%d, column:%d",
+						s.Expr.String(), s.Expr.Line(), s.Expr.Column())
+				}
 
-	// Évaluer la requête principale dans l'environnement avec CTE
-	return Eval(stmt.Select, cteEnv)
+			default:
+				return newError("'%s' invalid . line:%d, column	:%d",
+					s.String(), s.Line(), s.Column())
+			}
+		}
+
+		cteEnv.Set(cte.Name.Value, t)
+	}
+	str := toString(stmt.Select, cteEnv)
+	if isError(str) {
+		return str
+	}
+	rows, err := env.Query(fmt.Sprintf("%s %s", sql, str.Inspect()))
+	if err != nil {
+		return newError("%s", err.Error())
+	}
+	result.Rows = rows
+	cols, err := rows.Columns()
+	if err != nil {
+		return newError("Nsina: %s", err.Error())
+	}
+	for _, k := range cols {
+		result.Columns = append(result.Columns, strings.ToLower(k))
+	}
+	return result
+
 }
 
-func evalCommonTableExpression(cte *ast.SQLCommonTableExpression, env *object.Environment) object.Object {
-	// Évaluer la requête CTE
-	result := Eval(cte.Query, env)
-	if isError(result) {
-		return result
-	}
+// func evalCommonTableExpression(cte *ast.SQLCommonTableExpression, env *object.Environment) object.Object {
+// 	// Évaluer la requête CTE
+// 	result := Eval(cte.Query, env)
+// 	if isError(result) {
+// 		return result
+// 	}
 
-	// Stocker le résultat comme table temporaire
-	if sqlResult, ok := result.(*object.SQLResult); ok {
-		defer sqlResult.Rows.Close()
+// 	// Stocker le résultat comme table temporaire
+// 	if sqlResult, ok := result.(*object.SQLResult); ok {
+// 		defer sqlResult.Rows.Close()
 
-		table := &object.SQLTable{
-			Name:    cte.Name.Value,
-			Columns: make(map[string]*object.SQLColumn),
-			Data:    nil, // sqlResult.Rows,
-		}
+// 		table := &object.SQLTable{
+// 			Name:    cte.Name.Value,
+// 			Columns: make(map[string]*object.SQLColumn),
+// 			Data:    nil, // sqlResult.Rows,
+// 		}
 
-		// Définir les colonnes
-		for i, colName := range sqlResult.Columns {
-			if i < len(cte.Columns) {
-				colName = cte.Columns[i].Value
-			}
-			table.Columns[colName] = &object.SQLColumn{
-				Name: colName,
-				Type: "dynamic", // Type déterminé dynamiquement
-			}
-		}
+// 		// Définir les colonnes
+// 		for i, colName := range sqlResult.Columns {
+// 			if i < len(cte.Columns) {
+// 				colName = cte.Columns[i].Value
+// 			}
+// 			table.Columns[colName] = &object.SQLColumn{
+// 				Name: colName,
+// 				Type: "dynamic", // Type déterminé dynamiquement
+// 			}
+// 		}
 
-		return table
-	}
+// 		return table
+// 	}
 
-	return newError("Le CTE doit retourner un résultat SQL")
-}
+// 	return newError("Le CTE doit retourner un résultat SQL")
+// }
 
 // func evalRecursiveCTE(cte *ast.SQLRecursiveCTE, env *object.Environment) object.Object {
 // 	// Évaluer la partie anchor

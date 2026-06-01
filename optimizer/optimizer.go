@@ -811,6 +811,13 @@ func isVariableUsedInExpression(expr ast.Expression, name string) bool {
 			flag = flag || isVariableUsedInExpression(ex.On, name)
 		}
 		return flag
+	case *ast.SQLWithStatement:
+		for _, cte := range e.CTEs {
+			if isVariableUsedInExpression(cte.Query, name) {
+				return true
+			}
+		}
+		return isVariableUsedInExpression(e.Select, name)
 	case *ast.SQLDeleteStatement:
 		return isVariableUsedInExpression(e.Where, name) || isVariableUsedInExpression(e.From, name)
 	case *ast.SQLUpdateStatement:

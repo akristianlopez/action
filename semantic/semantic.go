@@ -653,6 +653,31 @@ func (sa *SemanticAnalyzer) AnalyzeExpression(table, newName string, expr ast.Ex
 		if symb != nil && newName != "" {
 			sa.registerSymbol(newName, symb.Type, symb.DataType, symb.Node)
 		}
+		if sa.ctx == nil {
+			sa.addError("Context is nil")
+			return
+		}
+		if sa.ctx.Request == nil {
+			sa.addError("Request is nil")
+			return
+		}
+		//Register the User object in the symbol table to be used in the expression analysis
+		fields := map[string]*TypeInfo{}
+		for key, value := range sa.ctx.Request.Header {
+			// Vérifie si la clé commence par "X-User-"
+			if strings.HasPrefix(key, "X-User-") {
+				if strings.EqualFold(key, "X-User-Roles") {
+					continue
+				}
+				if len(value) > 1 {
+					fields[strings.ToLower(strings.TrimPrefix(key, "X-User-"))] = &TypeInfo{Name: "array", IsArray: true, ElementType: &TypeInfo{Name: "string"}}
+					continue
+				}
+				fields[strings.ToLower(strings.TrimPrefix(key, "X-User-"))] = &TypeInfo{Name: "string"}
+			}
+		}
+
+		sa.registerSymbol("sysuser", VariableSymbol, &TypeInfo{Name: "sysuser", Fields: fields}, &ast.Identifier{Value: "sysuser"})
 		sa.visitExpression(expr)
 	}
 }
@@ -737,6 +762,8 @@ func (sa *SemanticAnalyzer) visitStatement(stmt ast.Statement, t *TypeInfo) {
 		sa.visitSQLTruncateStatement(s)
 	case *ast.SQLSelectStatement:
 		sa.visitSQLSelectStatement(s)
+	case *ast.SQLWithStatement:
+		sa.visitWithStatement(s)
 	}
 }
 
@@ -1198,7 +1225,8 @@ func (sa *SemanticAnalyzer) canReceivedValue(s ast.Expression) *TypeInfo {
 	case *ast.TypeExternalCall:
 		return sa.visitTypeExternalCall(exp)
 	case *ast.SQLSelectStatement:
-		return sa.visitSQLSelectStatement(exp)
+		ti, _ := sa.visitSQLSelectStatement(exp)
+		return ti
 	}
 	return &TypeInfo{Name: "void"}
 }
@@ -1300,7 +1328,7 @@ func (sa *SemanticAnalyzer) visitObjectInFromClause(se ast.Expression) (*string,
 				sa.addError("New name expected. line:%d, column:%d", s.Value.Line(), s.Value.Column())
 				break
 			}
-			selectType := sa.visitSQLSelectStatement(v)
+			selectType, _ := sa.visitSQLSelectStatement(v)
 			if val, ok := s.NewName.(*ast.Identifier); ok {
 				sa.registerSymbol(val.Value, ArraySymbol, selectType, v)
 				sa.registerSymbol(v.String(), ArraySymbol, selectType, v)
@@ -1366,20 +1394,20 @@ func (sa *SemanticAnalyzer) hasField(o, f string) (bool, string) {
 	return true, ""
 }
 
-func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) *TypeInfo {
+func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) (*TypeInfo, *Scope) {
 	//check for select argumens
 	if ss.Select == nil {
 		sa.addError("select must have at least one field. line:%d, column:%d", ss.Line(), ss.Column())
-		return &TypeInfo{Name: "void"}
+		return &TypeInfo{Name: "void"}, nil
 	}
 	if ss.From == nil {
 		sa.addError("select must have at least one object in the clause from. line:%d, column:%d", ss.Line(), ss.Column())
-		return &TypeInfo{Name: "void"}
+		return &TypeInfo{Name: "void"}, nil
 	}
 	ctes := make([]string, 0)
-	if ss.With != nil && ss.With.Recursive {
-		return sa.visitSQLWithStatement(ss.With, ctes)
-	}
+	// if ss.With != nil && ss.With.Recursive {
+	// 	return sa.visitSQLWithStatement(ss.With, ctes)
+	// }
 	//Check the clause From expression
 	tokenList := make([]string, 0)
 	oldscope := sa.CurrentScope
@@ -1392,7 +1420,7 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 		if !contains(ctes, *cf) && len(ctes) > 0 {
 			sa.addError("'%s' is not defined as CTE. line:%d, column:%d", *cf, ss.From.Line(), ss.From.Column())
 			sa.CurrentScope = oldscope
-			return &TypeInfo{Name: "void"}
+			return &TypeInfo{Name: "void"}, &scope
 		}
 		ctes = append(tokenList, nullString(cf))
 		tokenList = append(tokenList, nullString(nn))
@@ -1417,7 +1445,7 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 				sa.addError("The condition of a for loop must be boolean. line:%d, column:%d",
 					ss.Line(), ss.Column())
 				sa.CurrentScope = oldscope
-				return &TypeInfo{Name: "void"}
+				return &TypeInfo{Name: "void"}, &scope
 			}
 			//Verify that each time, we have a.b, a exists in the list
 			sa.visitSQLExpressionWithDotToken(tokenList, fm.On)
@@ -1648,7 +1676,7 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 	if ss.Union != nil {
 		sa.visitSQLSelectStatement(ss.Union)
 	}
-	return &TypeInfo{Name: "sql_result"}
+	return &TypeInfo{Name: "sql_result"}, &scope
 }
 
 func (sa *SemanticAnalyzer) visitSQLWithStatement(sw *ast.SQLWithStatement, ctes []string) *TypeInfo {
@@ -1662,14 +1690,84 @@ func (sa *SemanticAnalyzer) visitSQLWithStatement(sw *ast.SQLWithStatement, ctes
 			sw.Line(), sw.Column())
 		return &TypeInfo{Name: "void"}
 	}
+	oldScope := sa.CurrentScope
 	// ctes = make([]string, 0)
 	for _, cte := range sw.CTEs {
+		t, scope := sa.visitSQLSelectStatement(cte.Query)
+		sa.CurrentScope = scope
+		if t == nil || t.Name == "void" {
+			sa.addError("Invalid CTE '%s'. line:%d, column:%d", cte.Name.Value, cte.Name.Line(), cte.Name.Column())
+			continue
+		}
+		// if  t.Name == "void" {
+		// 	sa.addError("Invalid CTE '%s'. line:%d, column:%d", cte.Name.Value, cte.Name.Line(), cte.Name.Column())
+		// 	continue
+		// }
+		t = &TypeInfo{Name: cte.Name.Value, Fields: make(map[string]*TypeInfo)}
+		for _, f := range cte.Query.Select {
+			switch s := f.(type) {
+			case *ast.SelectArgs:
+				if s.NewName != nil {
+					if len(cte.Columns) == 0 {
+						t.Fields[lower(s.NewName.Value)] = sa.visitExpression(s.Expr)
+						continue
+					}
+					if !cte.Contains(lower(s.NewName.Value)) {
+						sa.addError("'%s' does not exist. line:%d, column:%d", s.NewName.Value, s.NewName.Line(), s.NewName.Column())
+						continue
+					}
+					t.Fields[lower(s.NewName.Value)] = sa.visitExpression(s.Expr)
+					continue
+				}
+				switch e := s.Expr.(type) {
+				case *ast.Identifier:
+					if len(cte.Columns) == 0 {
+						t.Fields[lower(e.Value)] = sa.visitExpression(s.Expr)
+						continue
+					}
+					if !cte.Contains(lower(e.Value)) {
+						sa.addError("'%s' does not exist. line:%d, column:%d", e.Value, e.Line(), e.Column())
+						continue
+					}
+					t.Fields[lower(e.Value)] = sa.visitExpression(s.Expr)
+				case *ast.TypeMember:
+					s, ok := e.Right.(*ast.Identifier)
+					if !ok {
+						sa.addError("'%s' invalid . line:%d, column:%d",
+							e.Right.String(), e.Right.Line(), e.Right.Column())
+						continue
+					}
+					if len(cte.Columns) == 0 {
+						t.Fields[lower(s.Value)] = sa.visitExpression(e)
+						continue
+					}
+					if !cte.Contains(lower(s.Value)) {
+						sa.addError("'%s' does not exist. line:%d, column:%d", s.Value, s.Line(), s.Column())
+						continue
+					}
+					t.Fields[lower(s.Value)] = sa.visitExpression(e)
+				default:
+					sa.addError("'%s' invalid . line:%d, column:%d",
+						s.Expr.String(), s.Expr.Line(), s.Expr.Column())
+				}
+
+			default:
+				sa.addError("'%s' invalid . line:%d, column	:%d",
+					s.String(), s.Line(), s.Column())
+			}
+		}
+		sa.CurrentScope = oldScope
+		sa.registerSymbol(cte.Name.Value, StructSymbol, t, nil)
 		if !contains(ctes, lower(cte.Name.Value)) {
 			ctes = append(ctes, lower(cte.Name.Value))
+			continue
 		}
+		sa.addError("'%s' already exists. line:%d, column:%d", cte.Name.Value, cte.Name.Line(), cte.Name.Column())
 	}
-	sw.Select.With.Recursive = false
-	return sa.visitSQLSelectStatement(sw.Select)
+	// sw.Select.With.Recursive = false
+	ti, _ := sa.visitSQLSelectStatement(sw.Select)
+	sa.CurrentScope = oldScope
+	return ti
 }
 
 func (sa *SemanticAnalyzer) visitLetStatement(node *ast.LetStatement) {
@@ -3762,6 +3860,13 @@ func (sa *SemanticAnalyzer) visitReturnStatement(node *ast.ReturnStatement, t *T
 		sa.addError("Type of the Return value mismatch: expected %s, got %s. line:%d, column:%d",
 			t.Name, ti.Name, node.Token.Line, node.Token.Column)
 	}
+}
+
+func (sa *SemanticAnalyzer) visitWithStatement(s *ast.SQLWithStatement) {
+	if s == nil {
+		return
+	}
+	sa.visitSQLWithStatement(s, []string{})
 }
 
 func (sa *SemanticAnalyzer) visitBlockStatement(node *ast.BlockStatement, t *TypeInfo) {

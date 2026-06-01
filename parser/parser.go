@@ -449,8 +449,10 @@ func (p *Parser) parseStmStartSection() (ast.Statement, *ParserError) {
 			return p.parseSQLTruncate()
 		}
 		return nil, Create("token 'object' is missing", p.peekToken.Line, p.peekToken.Column)
-	case token.SELECT, token.WITH:
+	case token.SELECT:
 		return p.parseSQLSelectStatement()
+	case token.WITH:
+		return p.parseSQLWithStatement()
 	case token.LET:
 		return p.parseLetStatements()
 	case token.TYPE:
@@ -1484,13 +1486,13 @@ func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 
 func (p *Parser) parsePropertyAccess(left ast.Expression) ast.Expression {
 	pa := &ast.TypeMember{Token: p.curToken, Left: left}
-	prefix := p.prefixParseFns[p.peekToken.Type]
-	if prefix == nil {
-		p.noPrefixParseFnError(p.peekToken.Type)
-		return nil
-	}
-	p.nextToken()
-	pa.Right = prefix()
+	// prefix := p.prefixParseFns[p.peekToken.Type]
+	// if prefix == nil {
+	// 	p.noPrefixParseFnError(p.peekToken.Type)
+	// 	return nil
+	// }
+	// p.nextToken()
+	// pa.Right = prefix()
 	for !p.peekTokenIs(token.SEMICOLON) && p.peekTokenIs(token.DOT) {
 		p.nextToken()
 		pa.Right = p.parsePropertyAccess(pa.Right) // p.parseExpression(LOWEST)
@@ -2399,53 +2401,54 @@ func (p *Parser) addError(pe *ParserError) {
 		p.errors = append(p.errors, *pe)
 	}
 }
-func (p *Parser) parseRecursiveCTE() (*ast.SQLRecursiveCTE, *ParserError) {
-	cte := &ast.SQLRecursiveCTE{Token: p.curToken}
-	cte.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
-	var pe *ParserError = nil
-	// Colonnes optionnelles
-	if p.peekTokenIs(token.LPAREN) {
-		p.nextToken()
-		cte.Columns, pe = p.parseColumnList()
-	}
 
-	if !p.expectPeek(token.AS) {
-		return nil, nil //Create("token 'as' expected", p.peekToken.Line, p.peekToken.Column)
-	}
+// func (p *Parser) parseRecursiveCTE() (*ast.SQLRecursiveCTE, *ParserError) {
+// 	cte := &ast.SQLRecursiveCTE{Token: p.curToken}
+// 	cte.Name = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+// 	var pe *ParserError = nil
+// 	// Colonnes optionnelles
+// 	if p.peekTokenIs(token.LPAREN) {
+// 		p.nextToken()
+// 		cte.Columns, pe = p.parseColumnList()
+// 	}
 
-	if !p.expectPeek(token.LPAREN) {
-		return nil, nil //Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
-	}
+// 	if !p.expectPeek(token.AS) {
+// 		return nil, nil //Create("token 'as' expected", p.peekToken.Line, p.peekToken.Column)
+// 	}
 
-	p.nextToken()
+// 	if !p.expectPeek(token.LPAREN) {
+// 		return nil, nil //Create("'(' expected", p.peekToken.Line, p.peekToken.Column)
+// 	}
 
-	// Partie anchor
-	if p.curTokenIs(token.SELECT) {
-		cte.Anchor, pe = p.parseSQLSelectStatement() //.(*ast.SQLSelectStatement)
-	}
-	p.addError(pe)
+// 	p.nextToken()
 
-	// UNION ou UNION ALL
-	if p.peekTokenIs(token.UNION) {
-		p.nextToken()
-		if p.peekTokenIs(token.ALL) {
-			p.nextToken()
-			cte.UnionAll = true
-		}
+// 	// Partie anchor
+// 	if p.curTokenIs(token.SELECT) {
+// 		cte.Anchor, pe = p.parseSQLSelectStatement() //.(*ast.SQLSelectStatement)
+// 	}
+// 	p.addError(pe)
 
-		// Partie récursive
-		p.nextToken()
-		if p.curTokenIs(token.SELECT) {
-			cte.Recursive, pe = p.parseSQLSelectStatement() //.(*ast.SQLSelectStatement)
-		}
-	}
+// 	// UNION ou UNION ALL
+// 	if p.peekTokenIs(token.UNION) {
+// 		p.nextToken()
+// 		if p.peekTokenIs(token.ALL) {
+// 			p.nextToken()
+// 			cte.UnionAll = true
+// 		}
 
-	if !p.expectPeek(token.RPAREN) {
-		return nil, nil //Create("')' expected", p.peekToken.Line, p.peekToken.Column)
-	}
+// 		// Partie récursive
+// 		p.nextToken()
+// 		if p.curTokenIs(token.SELECT) {
+// 			cte.Recursive, pe = p.parseSQLSelectStatement() //.(*ast.SQLSelectStatement)
+// 		}
+// 	}
 
-	return cte, pe
-}
+// 	if !p.expectPeek(token.RPAREN) {
+// 		return nil, nil //Create("')' expected", p.peekToken.Line, p.peekToken.Column)
+// 	}
+
+// 	return cte, pe
+// }
 
 func (p *Parser) parseWindowFunction() ast.Expression {
 	function := &ast.SQLWindowFunction{Token: p.curToken, Name: p.curToken.Literal}
@@ -2608,22 +2611,6 @@ func (p *Parser) parseHierarchicalQuery() *ast.SQLHierarchicalQuery {
 func (p *Parser) parseSQLSelectStatement() (*ast.SQLSelectStatement, *ParserError) {
 	// Vérifier d'abord s'il y a une clause WITH
 	// var pe *ParserError=nil
-
-	if p.curTokenIs(token.WITH) {
-		// var selectStmt *ast.SQLSelectStatement
-		withStmt, pe := p.parseSQLWithStatement()
-		if withStmt == nil {
-			return nil, pe
-		}
-		p.addError(pe)
-		selectStmt := withStmt.Select
-		if selectStmt == nil {
-			return nil, pe
-		}
-		selectStmt.With = withStmt
-		return selectStmt, nil //return withStmt //
-	}
-
 	selectStmt := &ast.SQLSelectStatement{Token: p.curToken}
 
 	// DISTINCT optionnel

@@ -1086,6 +1086,30 @@ func (cte *SQLCommonTableExpression) String() string {
 	out += " AS (" + cte.Query.String() + ")"
 	return out
 }
+func (cte *SQLCommonTableExpression) expressionNode()      {}
+func (cte *SQLCommonTableExpression) Line() int            { return cte.Token.Line }
+func (cte *SQLCommonTableExpression) Column() int          { return cte.Token.Column }
+func (cte *SQLCommonTableExpression) TokenLiteral() string { return cte.Token.Literal }
+func (cte *SQLCommonTableExpression) Contains(name string) bool {
+	if len(cte.Columns) > 0 {
+		for _, col := range cte.Columns {
+			if strings.EqualFold(col.Value, name) {
+				return true
+			}
+		}
+	}
+	return false
+}
+func (cte *SQLCommonTableExpression) Cols() string {
+	if len(cte.Columns) > 0 {
+		var colNames []string
+		for _, col := range cte.Columns {
+			colNames = append(colNames, col.String())
+		}
+		return strings.Join(colNames, ", ")
+	}
+	return "*"
+}
 
 // SQLWindowFunction - Fonction de fenêtrage
 type SQLWindowFunction struct {
@@ -1225,31 +1249,31 @@ func (sh *SQLHierarchicalQuery) String() string {
 
 // Étendre SQLSelectStatement pour inclure les fonctionnalités récursives
 type SQLSelectStatement struct {
-	Token         token.Token
-	Distinct      bool
-	Select        []Expression
-	From          Expression
-	Joins         []*SQLJoin
-	Where         Expression
-	GroupBy       []Expression
-	Having        Expression
-	OrderBy       []*SQLOrderBy
-	Limit         Expression
-	Offset        Expression
-	Union         *SQLSelectStatement
-	UnionAll      bool
-	With          *SQLWithStatement
+	Token    token.Token
+	Distinct bool
+	Select   []Expression
+	From     Expression
+	Joins    []*SQLJoin
+	Where    Expression
+	GroupBy  []Expression
+	Having   Expression
+	OrderBy  []*SQLOrderBy
+	Limit    Expression
+	Offset   Expression
+	Union    *SQLSelectStatement
+	UnionAll bool
+	// With          *SQLWithStatement
 	Hierarchical  *SQLHierarchicalQuery
 	WindowClauses []*SQLWindowClause
 }
 
 func (ss *SQLSelectStatement) String() string {
 	var out string
-
-	// Clause WITH
-	if ss.With != nil {
-		out += ss.With.String() + " "
-	}
+	out = ""
+	// // Clause WITH
+	// if ss.With != nil {
+	// 	out += ss.With.String() + " "
+	// }
 
 	out += "SELECT "
 	if ss.Distinct {

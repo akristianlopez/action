@@ -70,6 +70,7 @@ func (action *Action) Execute(prog *ast.Action, hasFilter func(ctx *gin.Context,
 	idps func(ctx *gin.Context, arg ...string) error) object.Object {
 	env := object.NewEnvironment(action.ctx, action.db, hasFilter, getFilter, action.dbname, params,
 		disableUpdate, disabledDDL, signature, external, emit, idps)
+	//Register the User object in the symbol table to be used in the expression analysis
 	result := nsina.Eval(prog, env)
 	return result
 }

@@ -2799,10 +2799,17 @@ func evalSQLWithStatement(stmt *ast.SQLWithStatement, env *object.Environment) o
 		if isError(objSQL) {
 			return objSQL
 		}
-		if i == 0 {
-			sql = fmt.Sprintf("%s %s (%s) AS (%s)", sql, cte.Name.Value, cte.Cols(), objSQL.Inspect())
+		cols := cte.Cols()
+		if cols == "*" {
+			cols = ""
 		} else {
-			sql = fmt.Sprintf("%s, %s (%s) AS (%s)", sql, cte.Name.Value, cte.Cols(), objSQL.Inspect())
+			cols = fmt.Sprintf("(%s)", cols)
+		}
+
+		if i == 0 {
+			sql = fmt.Sprintf("%s %s %s AS (%s)", sql, cte.Name.Value, cols, objSQL.Inspect())
+		} else {
+			sql = fmt.Sprintf("%s, %s %s AS (%s)", sql, cte.Name.Value, cols, objSQL.Inspect())
 		}
 		// Register CTE object
 		t := &object.DBStruct{Name: strings.ToLower(cte.Name.Value), Fields: make(map[string]object.Object)}

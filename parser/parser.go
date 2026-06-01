@@ -2365,7 +2365,7 @@ func (p *Parser) parseCTEList() ([]*ast.SQLCommonTableExpression, *ParserError) 
 
 	for p.peekTokenIs(token.COMMA) {
 		p.nextToken()
-		p.nextToken()
+		// p.nextToken()
 		cte, pe = p.parseCommonTableExpression()
 		if pe != nil {
 			p.errors = append(p.errors, *pe)

@@ -1495,7 +1495,6 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 				if !lIsInFrom(n.Value, ss.Joins) {
 					sa.addError("'%s' is not an object. line:%d, column:%d",
 						n.Value, n.Token.Line, n.Token.Column)
-
 				}
 				switch r := s.Right.(type) {
 				case *ast.Identifier, *ast.StringLiteral:
@@ -1767,6 +1766,9 @@ func (sa *SemanticAnalyzer) visitSQLWithStatement(sw *ast.SQLWithStatement, ctes
 	// sw.Select.With.Recursive = false
 	ti, _ := sa.visitSQLSelectStatement(sw.Select)
 	sa.CurrentScope = oldScope
+	if ti == nil || ti.Name == "void" {
+		sa.addError("Invalid Select. line:%d, column:%d", sw.Select.Line(), sw.Select.Column())
+	}
 	return ti
 }
 
@@ -2476,8 +2478,8 @@ func (sa *SemanticAnalyzer) visitSelectExpression(node *ast.SQLSelectStatement) 
 }
 
 func (sa *SemanticAnalyzer) visitWithSelectExpression(e *ast.SQLWithStatement) *TypeInfo {
-
-	return &TypeInfo{Name: "sql_result", IsArray: true, ElementType: &TypeInfo{Name: "select_item"}}
+	ctes := []string{}
+	return sa.visitSQLWithStatement(e, ctes)
 }
 
 func (sa *SemanticAnalyzer) visitLikeExpression(e *ast.LikeExpression) *TypeInfo {
@@ -2686,10 +2688,10 @@ func (sa *SemanticAnalyzer) visitTypeMember(node *ast.TypeMember, path string) *
 				node.Line(), node.Column())
 			return &TypeInfo{Name: "void"}
 		}
-		if l.Type == DbObjectSymbol {
-			return &TypeInfo{Name: "any"}
-		}
-		if (l.Type == VariableSymbol || l.Type == StructSymbol || l.Type == ParameterSymbol) && l.DataType != nil && !l.DataType.IsArray &&
+		// if l.Type == DbObjectSymbol {
+		// 	return &TypeInfo{Name: "any"}
+		// }
+		if (l.Type == VariableSymbol || l.Type == DbObjectSymbol || l.Type == StructSymbol || l.Type == ParameterSymbol) && l.DataType != nil && !l.DataType.IsArray &&
 			len(l.DataType.Fields) > 0 {
 			switch node.Right.(type) {
 			case *ast.Identifier:
@@ -3480,7 +3482,7 @@ func (sa *SemanticAnalyzer) resolveTypeFromTableName(name string) *TypeInfo {
 		structType.Fields[lower(col.Name())] = sa.formType(col)
 	}
 
-	sa.registerSymbol(structType.Name, StructSymbol, structType, nil)
+	sa.registerSymbol(structType.Name, DbObjectSymbol /* StructSymbol */, structType, nil)
 	return structType
 	// return &TypeInfo{
 	// 	Name:        "sql_object",

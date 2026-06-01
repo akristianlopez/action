@@ -1314,9 +1314,9 @@ func (sa *SemanticAnalyzer) visitObjectInFromClause(se ast.Expression) (*string,
 				res = oldname
 				return &res, nil
 			}
-			switch s.NewName.(type) {
+			switch n := s.NewName.(type) {
 			case *ast.Identifier:
-				res = strings.ToLower(v.Value)
+				res = strings.ToLower(n.Value)
 				return &oldname, &res
 			default:
 				sa.addError("'%s' invalid statement here. line:%d, column:%d", s.NewName.String(), s.NewName.Line(), s.NewName.Column())
@@ -1415,30 +1415,52 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 		Parent:  sa.CurrentScope,
 		Symbols: make(map[string]*Symbol),
 	}
-	nn, cf := sa.visitObjectInFromClause(ss.From)
-	if cf != nil {
-		if !contains(ctes, *cf) && len(ctes) > 0 {
-			sa.addError("'%s' is not defined as CTE. line:%d, column:%d", *cf, ss.From.Line(), ss.From.Column())
+	oldName, newName := sa.visitObjectInFromClause(ss.From)
+	if newName != nil {
+		if !contains(ctes, *newName) && len(ctes) > 0 {
+			sa.addError("'%s' is not defined as CTE. line:%d, column:%d", *newName, ss.From.Line(), ss.From.Column())
 			sa.CurrentScope = oldscope
 			return &TypeInfo{Name: "void"}, &scope
 		}
-		ctes = append(tokenList, nullString(cf))
-		tokenList = append(tokenList, nullString(nn))
+		ctes = append(ctes, nullString(newName))
+		tokenList = append(tokenList, nullString(oldName))
 	}
 	sa.CurrentScope = &scope
 	sa.registerTempoSymbols(tokenList)
+	if newName != nil && *newName != "" {
+		td := sa.lookupSymbol(*oldName)
+		tn := sa.lookupSymbol(*newName)
+		if tn != nil {
+			sa.addError("'%s' already exists. Line:%d, column:%d", *newName, ss.From.Line(), ss.From.Column())
+			return &TypeInfo{Name: "void"}, &scope
+		}
+		if td != nil && (td.Type == DbObjectSymbol || td.Type == StructSymbol) {
+			sa.CurrentScope.Symbols[lower(*newName)] = td
+		}
+	}
 
 	//Look on the join clauses
 	if ss.Joins != nil {
 		for _, fm := range ss.Joins {
-			nn, cf = sa.visitObjectInFromClause(fm.Table)
-			if !contains(tokenList, *cf) {
-				tokenList = append(tokenList, *cf)
+			oldName, newName = sa.visitObjectInFromClause(fm.Table)
+			if !contains(tokenList, *oldName) {
+				tokenList = append(tokenList, *oldName)
 				tab := make([]string, 0)
-				sa.registerTempoSymbols(append(tab, *cf))
+				sa.registerTempoSymbols(append(tab, *oldName))
+				if newName != nil && *newName != "" {
+					td := sa.lookupSymbol(*oldName)
+					tn := sa.lookupSymbol(*newName)
+					if tn != nil {
+						sa.addError("'%s' already exists. Line:%d, column:%d", *newName, ss.From.Line(), ss.From.Column())
+						return &TypeInfo{Name: "void"}, &scope
+					}
+					if td != nil && (td.Type == DbObjectSymbol || td.Type == StructSymbol) {
+						sa.CurrentScope.Symbols[lower(*newName)] = td
+					}
+				}
 				continue
 			}
-			sa.addError("'%s' already exists. Line:%d, column:%d", *cf, fm.Table.Line(), fm.Table.Column())
+			sa.addError("'%s' already exists. Line:%d, column:%d", *newName, fm.Table.Line(), fm.Table.Column())
 			//check the clause ON globally
 			condType := sa.visitExpression(fm.On)
 			if condType.Name != "boolean" {
@@ -1451,11 +1473,11 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 			sa.visitSQLExpressionWithDotToken(tokenList, fm.On)
 		}
 	}
-	for k, ce := range ctes {
-		if ce != "" && tokenList[k] != "" {
-			sa.CurrentScope.Symbols[lower(ce)] = sa.CurrentScope.Symbols[lower(tokenList[k])]
-		}
-	}
+	// for k, ce := range ctes {
+	// 	if ce != "" && tokenList[k] != "" {
+	// 		sa.CurrentScope.Symbols[lower(ce)] = sa.CurrentScope.Symbols[lower(tokenList[k])]
+	// 	}
+	// }
 	argList := make([]string, 0)
 	for _, f := range ss.Select {
 		field := f.(*ast.SelectArgs)
@@ -1492,14 +1514,31 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 			switch s.Left.(type) {
 			case *ast.Identifier:
 				n := s.Left.(*ast.Identifier)
-				if !lIsInFrom(n.Value, ss.Joins) {
+				fm := ss.From.(*ast.FromIdentifier)
+				val := false
+				if strings.EqualFold(n.Value, n.Value) {
+					val = true
+				}
+				if !val && fm.NewName != nil {
+					vl, k := fm.NewName.(*ast.Identifier)
+					if !k {
+						sa.addError("Invalid new name '%s' . line:%d, column:%d",
+							fm.Value, fm.Token.Line, fm.Token.Column)
+						continue
+					}
+					val = strings.EqualFold(n.Value, vl.Value)
+				}
+				if !val && len(ss.Joins) > 0 && !lIsInFrom(n.Value, ss.Joins) {
 					sa.addError("'%s' is not an object. line:%d, column:%d",
 						n.Value, n.Token.Line, n.Token.Column)
 				}
 				switch r := s.Right.(type) {
 				case *ast.Identifier, *ast.StringLiteral:
-					if ok, msg := sa.canHandle(sa.ctx, n.Value, r.String(), "read", sa.mode); !ok {
-						sa.addError("%s", msg)
+					t := sa.lookupSymbol(n.Value)
+					if t != nil && t.Type == DbObjectSymbol {
+						if ok, msg := sa.canHandle(sa.ctx, t.DataType.Name, r.String(), "read", sa.mode); !ok {
+							sa.addError("%s", msg)
+						}
 					}
 					continue
 				default:
@@ -3826,12 +3865,12 @@ func (sa *SemanticAnalyzer) registerTempoSymbols(names []string) {
 		if name == "" {
 			continue
 		}
-		if _, ok := sa.CurrentScope.Symbols[lower(name)]; ok {
+		if symbol := sa.lookupSymbol(lower(name)); symbol != nil {
 			continue
 		}
 		symbol := &Symbol{
 			Name:     name,
-			Type:     StructSymbol,
+			Type:     DbObjectSymbol,
 			DataType: sa.resolveTypeFromTableName(name),
 			Scope:    sa.CurrentScope,
 			Node:     nil,

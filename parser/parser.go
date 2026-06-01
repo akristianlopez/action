@@ -97,6 +97,7 @@ func New(l *lexer.Lexer) *Parser {
 	p.registerPrefix(token.MINUS, p.parsePrefixExpression)
 	// p.registerPrefix(token.PLUS, p.parsePrefixExpression)
 	p.registerPrefix(token.SELECT, p.parseSQLSelect)
+	p.registerPrefix(token.WITH, p.parseSQLWithStatement)
 	p.registerPrefix(token.OBJECT, p.parsePrefixObjectValue)
 
 	// Enregistrer les fonctions de fenêtrage
@@ -451,8 +452,8 @@ func (p *Parser) parseStmStartSection() (ast.Statement, *ParserError) {
 		return nil, Create("token 'object' is missing", p.peekToken.Line, p.peekToken.Column)
 	case token.SELECT:
 		return p.parseSQLSelectStatement()
-	case token.WITH:
-		return p.parseSQLWithStatement()
+	// case token.WITH:
+	// 	return p.parseSQLWithStatement(), nil
 	case token.LET:
 		return p.parseLetStatements()
 	case token.TYPE:
@@ -1486,13 +1487,14 @@ func (p *Parser) parseInfixExpression(left ast.Expression) ast.Expression {
 
 func (p *Parser) parsePropertyAccess(left ast.Expression) ast.Expression {
 	pa := &ast.TypeMember{Token: p.curToken, Left: left}
-	// prefix := p.prefixParseFns[p.peekToken.Type]
-	// if prefix == nil {
-	// 	p.noPrefixParseFnError(p.peekToken.Type)
-	// 	return nil
-	// }
-	// p.nextToken()
-	// pa.Right = prefix()
+	t := p.toIdent(p.peekToken.Type)
+	prefix := p.prefixParseFns[t]
+	if prefix == nil {
+		p.noPrefixParseFnError(t)
+		return nil
+	}
+	p.nextToken()
+	pa.Right = prefix()
 	for !p.peekTokenIs(token.SEMICOLON) && p.peekTokenIs(token.DOT) {
 		p.nextToken()
 		pa.Right = p.parsePropertyAccess(pa.Right) // p.parseExpression(LOWEST)
@@ -1503,6 +1505,18 @@ func (p *Parser) parsePropertyAccess(left ast.Expression) ast.Expression {
 		}
 	}
 	return pa
+}
+func (p *Parser) toIdent(t token.TokenType) token.TokenType {
+	switch t {
+	case token.TYPE, token.DATE, token.DURATION, token.INTEGER, token.FLOAT, token.STRING, token.BOOLEAN:
+		return token.IDENT
+	case token.RANK, token.ROW_NUMBER, token.DENSE_RANK, token.LAG, token.LEAD:
+		return token.IDENT
+	case token.ACTION, token.START, token.STOP, token.LET, token.FUNCTION, token.STRUCT, token.FOR, token.IF, token.ELSE, token.RETURN, token.CATCH, token.PROTECTED, token.IIF:
+		return token.IDENT
+	default:
+		return t
+	}
 }
 
 func (p *Parser) parseBetweenExpression(left ast.Expression) ast.Expression {
@@ -2312,7 +2326,7 @@ func (p *Parser) registerInfix(tokenType token.TokenType, fn infixParseFn) {
 	p.infixParseFns[tokenType] = fn
 }
 
-func (p *Parser) parseSQLWithStatement() (*ast.SQLWithStatement, *ParserError) {
+func (p *Parser) parseSQLWithStatement() ast.Expression {
 	stmt := &ast.SQLWithStatement{Token: p.curToken}
 	var pe *ParserError = nil
 
@@ -2328,12 +2342,12 @@ func (p *Parser) parseSQLWithStatement() (*ast.SQLWithStatement, *ParserError) {
 
 	// Requête principale
 	if !p.expectPeek(token.SELECT) {
-		return nil, nil //Create("token 'select' expected", p.peekToken.Line, p.peekToken.Column)
+		return nil //Create("token 'select' expected", p.peekToken.Line, p.peekToken.Column)
 	}
 	// p.nextToken()
 	stmt.Select, pe = p.parseSQLSelectStatement() //.(*ast.SQLSelectStatement)
 
-	return stmt, pe
+	return stmt
 }
 
 func (p *Parser) parseCTEList() ([]*ast.SQLCommonTableExpression, *ParserError) {

@@ -1178,7 +1178,11 @@ func toString(selectStmt *ast.SQLSelectStatement, stepName string, env *object.E
 		if selectStmt.UnionAll {
 			union = "ALL"
 		}
-		strSQL = fmt.Sprintf("%s\nUNION %s \n (%s)", strSQL, union, toString(selectStmt.Union, "", env))
+		sqlObject := toString(selectStmt.Union, "", env)
+		if isError(sqlObject) {
+			return sqlObject
+		}
+		strSQL = fmt.Sprintf("%s\nUNION %s \n (%s)", strSQL, union, sqlObject.Inspect())
 	}
 	return &object.String{Value: strSQL}
 }

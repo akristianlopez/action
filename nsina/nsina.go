@@ -72,7 +72,7 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		}
 		var right object.Object
 		if val, ok := node.Right.(*ast.SQLSelectStatement); ok {
-			right = toString(val, env)
+			right = toString(val, "", env)
 		} else {
 			// if left.Type() == object.DBFIELD_OBJ {
 			// 	return &object.DBField{Value: node.String()}
@@ -948,7 +948,7 @@ func evalDateTimeLiteral(dt *ast.DateTimeLiteral) object.Object {
 	}
 }
 
-func toString(selectStmt *ast.SQLSelectStatement, env *object.Environment) object.Object {
+func toString(selectStmt *ast.SQLSelectStatement, stepName string, env *object.Environment) object.Object {
 
 	from := defineFromObject(selectStmt.From, env)
 	if isError(from) {
@@ -1142,8 +1142,43 @@ func toString(selectStmt *ast.SQLSelectStatement, env *object.Environment) objec
 		strHaving := Eval(selectStmt.Having, env)
 		strSQL = fmt.Sprintf("%s\nHAVING(%s)", strSQL, strHaving.Inspect())
 	}
+	if strings.ToLower(stepName) != "" {
+		// Create a temporary structure to store data
+		result := object.DBStruct{Name: strings.ToLower(stepName), Fields: make(map[string]object.Object)}
+		for _, arg := range selectStmt.Select {
+			sarg := arg.(*ast.SelectArgs)
+			switch sg := sarg.Expr.(type) {
+			case *ast.TypeMember:
+				base := sg.Left.(*ast.Identifier).Value
+				member := sg.Right.(*ast.Identifier).Value
+				ob, ok := env.Get(base)
+				if !ok {
+					return newError("Nsina: Inalid expression '%s'", arg.String())
+				}
+				ta := ob.(*object.DBStruct).Fields[member]
+				if sarg.NewName != nil {
+					result.Fields[strings.ToLower(sarg.NewName.Value)] = getDefaultSQLValue(string(ta.Type()))
+				} else {
+					result.Fields[strings.ToLower(member)] = getDefaultSQLValue(string(ta.Type()))
+				}
+			default:
+				if sarg.NewName != nil {
+					result.Fields[strings.ToLower(sarg.NewName.Value)] = getDefaultSQLValue("any")
+				} else {
+					result.Fields[strings.ToLower(sarg.Expr.String())] = getDefaultSQLValue("any")
+				}
+
+			}
+		}
+		env.Set(result.Name, &result)
+	}
+
 	if selectStmt.Union != nil {
-		strSQL = fmt.Sprintf("%s\nUNION\n (%s)", strSQL, toString(selectStmt.Union, env))
+		union := ""
+		if selectStmt.UnionAll {
+			union = "ALL"
+		}
+		strSQL = fmt.Sprintf("%s\nUNION %s \n (%s)", strSQL, union, toString(selectStmt.Union, "", env))
 	}
 	return &object.String{Value: strSQL}
 }
@@ -1248,7 +1283,7 @@ func defineFromObject(exp ast.Expression, env *object.Environment) object.Object
 				}
 			}
 			env.Set(ex.String(), &result)
-			return toString(ex, env)
+			return toString(ex, "", env)
 		default:
 			return newError("Nsina: Inalid expression '%s'", exp.String())
 		}
@@ -1268,7 +1303,7 @@ func evalSQLSelectStatement(selectStmt *ast.SQLSelectStatement, env *object.Envi
 	// Traiter la clause FROM
 	// Build SQL String to run in the database
 	// strSelect := toString(selectStmt)
-	strSQl := toString(selectStmt, env)
+	strSQl := toString(selectStmt, "", env)
 	if isError(strSQl) {
 		return strSQl
 	}
@@ -2400,7 +2435,7 @@ func evalSQLInsert(stmt *ast.SQLInsertStatement, env *object.Environment) object
 		}
 		strHeader = fmt.Sprintf("%s, %s", strHeader, set.Value)
 	}
-	strSQL := toString(stmt.Select, env)
+	strSQL := toString(stmt.Select, "", env)
 	if isError(strSQL) {
 		return strSQL
 	}
@@ -2429,6 +2464,7 @@ func evalSQLInsert(stmt *ast.SQLInsertStatement, env *object.Environment) object
 		RowsAffected: 0,
 	}
 }
+
 func defineObjectFromUpdateDelete(exp ast.Expression, env *object.Environment) object.Object {
 	if exp == nil {
 		return object.NULL
@@ -2698,9 +2734,11 @@ func getDefaultSQLValue(dataType string) object.Object {
 		return object.NULL
 	}
 }
+
 func escape(val, p string) string {
 	return strings.TrimSuffix(strings.TrimPrefix(val, p), p)
 }
+
 func getObjectValue(val object.Object) any {
 	if val == nil {
 		return object.NULL.Inspect()
@@ -2724,6 +2762,7 @@ func getObjectValue(val object.Object) any {
 		return object.NULL.Inspect()
 	}
 }
+
 func getDefaultSQLValueAddress(s string) any {
 	tab := strings.Split(s, "(")
 	dataType := strings.ToLower(tab[0])
@@ -2751,9 +2790,11 @@ func getDefaultSQLValueAddress(s string) any {
 		return object.NULL
 	}
 }
+
 func GetDefaultSQLValueAddress(s string) any {
 	return getDefaultSQLValueAddress(s)
 }
+
 func getValueFromRealType(typ string, val any) object.Object {
 	if val == nil {
 		return object.NULL
@@ -2794,8 +2835,13 @@ func evalSQLWithStatement(stmt *ast.SQLWithStatement, env *object.Environment) o
 	if stmt.Recursive {
 		sql = "WITH RECURSIVE"
 	}
+	var objSQL object.Object
 	for i, cte := range stmt.CTEs {
-		objSQL := toString(cte.Query, cteEnv)
+		if cte.Query.Union != nil {
+			objSQL = toString(cte.Query, cte.Name.Value, cteEnv)
+		} else {
+			objSQL = toString(cte.Query, "", cteEnv)
+		}
 		if isError(objSQL) {
 			return objSQL
 		}
@@ -2846,7 +2892,7 @@ func evalSQLWithStatement(stmt *ast.SQLWithStatement, env *object.Environment) o
 
 		cteEnv.Set(cte.Name.Value, t)
 	}
-	str := toString(stmt.Select, cteEnv)
+	str := toString(stmt.Select, "", cteEnv)
 	if isError(str) {
 		return str
 	}
@@ -3367,7 +3413,7 @@ func evalInExpression(node *ast.InExpression, env *object.Environment) object.Ob
 	var right object.Object
 
 	if val, ok := node.Right.(*ast.SQLSelectStatement); ok {
-		right = &object.DBField{OType: string(object.DBOBJECT_OBJ), Value: toString(val, env).Inspect()}
+		right = &object.DBField{OType: string(object.DBOBJECT_OBJ), Value: toString(val, "", env).Inspect()}
 	} else {
 		right = Eval(node.Right, env)
 	}

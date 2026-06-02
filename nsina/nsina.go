@@ -1157,15 +1157,15 @@ func toString(selectStmt *ast.SQLSelectStatement, stepName string, env *object.E
 				}
 				ta := ob.(*object.DBStruct).Fields[member]
 				if sarg.NewName != nil {
-					result.Fields[strings.ToLower(sarg.NewName.Value)] = getDefaultSQLValue(string(ta.Type()))
+					result.Fields[strings.ToLower(sarg.NewName.Value)] = ta //getDefaultSQLValue(string(ta.Type()))
 				} else {
-					result.Fields[strings.ToLower(member)] = getDefaultSQLValue(string(ta.Type()))
+					result.Fields[strings.ToLower(member)] = ta //getDefaultSQLValue(string(ta.Type()))
 				}
 			default:
 				if sarg.NewName != nil {
-					result.Fields[strings.ToLower(sarg.NewName.Value)] = getDefaultSQLValue("any")
+					result.Fields[strings.ToLower(sarg.NewName.Value)] = &object.Null{} // getDefaultSQLValue("any")
 				} else {
-					result.Fields[strings.ToLower(sarg.Expr.String())] = getDefaultSQLValue("any")
+					result.Fields[strings.ToLower(sarg.Expr.String())] = &object.Null{} // getDefaultSQLValue("any")
 				}
 
 			}

@@ -761,7 +761,7 @@ func (sa *SemanticAnalyzer) visitStatement(stmt ast.Statement, t *TypeInfo) {
 	case *ast.SQLTruncateStatement:
 		sa.visitSQLTruncateStatement(s)
 	case *ast.SQLSelectStatement:
-		sa.visitSQLSelectStatement(s)
+		sa.visitSQLSelectStatement(s, "")
 	case *ast.SQLWithStatement:
 		sa.visitWithStatement(s)
 	}
@@ -1015,7 +1015,7 @@ func (sa *SemanticAnalyzer) visitSQLInsertStatement(s *ast.SQLInsertStatement) {
 			return
 		}
 	}
-	sa.visitSQLSelectStatement(s.Select)
+	sa.visitSQLSelectStatement(s.Select, "")
 }
 func (sa *SemanticAnalyzer) visitSQLTypeConstraint(v *ast.SQLDataType) {
 	//Check the type and it's constraint
@@ -1225,7 +1225,7 @@ func (sa *SemanticAnalyzer) canReceivedValue(s ast.Expression) *TypeInfo {
 	case *ast.TypeExternalCall:
 		return sa.visitTypeExternalCall(exp)
 	case *ast.SQLSelectStatement:
-		ti, _ := sa.visitSQLSelectStatement(exp)
+		ti, _ := sa.visitSQLSelectStatement(exp, "")
 		return ti
 	}
 	return &TypeInfo{Name: "void"}
@@ -1256,7 +1256,7 @@ func (sa *SemanticAnalyzer) visitExpressionStatement(s *ast.ExpressionStatement)
 	case *ast.ArrayFunctionCall:
 		sa.visitArrayFunctionCall(expr)
 	case *ast.SQLSelectStatement:
-		sa.visitSQLSelectStatement(expr)
+		sa.visitSQLSelectStatement(expr, "")
 	default:
 		sa.addError("Invalid expression '%s'. Line:%d, column:%d", expr.String(), expr.Line(), expr.Column())
 	}
@@ -1328,7 +1328,7 @@ func (sa *SemanticAnalyzer) visitObjectInFromClause(se ast.Expression) (*string,
 				sa.addError("New name expected. line:%d, column:%d", s.Value.Line(), s.Value.Column())
 				break
 			}
-			selectType, _ := sa.visitSQLSelectStatement(v)
+			selectType, _ := sa.visitSQLSelectStatement(v, "")
 			if val, ok := s.NewName.(*ast.Identifier); ok {
 				sa.registerSymbol(val.Value, ArraySymbol, selectType, v)
 				sa.registerSymbol(v.String(), ArraySymbol, selectType, v)
@@ -1394,7 +1394,7 @@ func (sa *SemanticAnalyzer) hasField(o, f string) (bool, string) {
 	return true, ""
 }
 
-func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) (*TypeInfo, *Scope) {
+func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement, stepName string) (*TypeInfo, *Scope) {
 	//check for select argumens
 	if ss.Select == nil {
 		sa.addError("select must have at least one field. line:%d, column:%d", ss.Line(), ss.Column())
@@ -1909,8 +1909,40 @@ func (sa *SemanticAnalyzer) visitSQLSelectStatement(ss *ast.SQLSelectStatement) 
 			}
 		}
 	}
+	if strings.TrimSpace(stepName) != "" {
+		t := &TypeInfo{Name: strings.TrimSpace(stepName), Fields: make(map[string]*TypeInfo)}
+		for _, f := range ss.Select {
+			switch s := f.(type) {
+			case *ast.SelectArgs:
+				if s.NewName != nil {
+					t.Fields[lower(s.NewName.Value)] = sa.visitExpression(s.Expr)
+					continue
+				}
+				switch e := s.Expr.(type) {
+				case *ast.Identifier:
+					t.Fields[lower(e.Value)] = sa.visitExpression(s.Expr)
+				case *ast.TypeMember:
+					s, ok := e.Right.(*ast.Identifier)
+					if !ok {
+						sa.addError("'%s' invalid . line:%d, column:%d",
+							e.Right.String(), e.Right.Line(), e.Right.Column())
+						continue
+					}
+					t.Fields[lower(s.Value)] = sa.visitExpression(e)
+				default:
+					sa.addError("'%s' invalid . line:%d, column:%d",
+						s.Expr.String(), s.Expr.Line(), s.Expr.Column())
+				}
+
+			default:
+				sa.addError("'%s' invalid . line:%d, column	:%d",
+					s.String(), s.Line(), s.Column())
+			}
+		}
+		sa.registerSymbol(stepName, StructSymbol, t, nil)
+	}
 	if ss.Union != nil {
-		sa.visitSQLSelectStatement(ss.Union)
+		sa.visitSQLSelectStatement(ss.Union, "")
 	}
 	return &TypeInfo{Name: "sql_result"}, &scope
 }
@@ -1928,8 +1960,14 @@ func (sa *SemanticAnalyzer) visitSQLWithStatement(sw *ast.SQLWithStatement, ctes
 	}
 	oldScope := sa.CurrentScope
 	// ctes = make([]string, 0)
+	var t *TypeInfo = nil
+	var scope *Scope = nil
 	for _, cte := range sw.CTEs {
-		t, scope := sa.visitSQLSelectStatement(cte.Query)
+		if cte.Query.Union != nil {
+			t, scope = sa.visitSQLSelectStatement(cte.Query, cte.Name.Value)
+		} else {
+			t, scope = sa.visitSQLSelectStatement(cte.Query, "")
+		}
 		sa.CurrentScope = scope
 		if t == nil || t.Name == "void" {
 			sa.addError("Invalid CTE '%s'. line:%d, column:%d", cte.Name.Value, cte.Name.Line(), cte.Name.Column())
@@ -2001,7 +2039,7 @@ func (sa *SemanticAnalyzer) visitSQLWithStatement(sw *ast.SQLWithStatement, ctes
 		sa.addError("'%s' already exists. line:%d, column:%d", cte.Name.Value, cte.Name.Line(), cte.Name.Column())
 	}
 	// sw.Select.With.Recursive = false
-	ti, _ := sa.visitSQLSelectStatement(sw.Select)
+	ti, _ := sa.visitSQLSelectStatement(sw.Select, "")
 	sa.CurrentScope = oldScope
 	if ti == nil || ti.Name == "void" {
 		sa.addError("Invalid Select. line:%d, column:%d", sw.Select.Line(), sw.Select.Column())

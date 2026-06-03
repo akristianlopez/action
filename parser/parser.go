@@ -1513,7 +1513,7 @@ func (p *Parser) toIdent(t token.TokenType) token.TokenType {
 	switch t {
 	case token.TYPE, token.DATE, token.DURATION, token.INTEGER, token.FLOAT, token.STRING, token.BOOLEAN:
 		return token.IDENT
-	case token.RANK, token.ROW_NUMBER, token.DENSE_RANK, token.LAG, token.LEAD:
+	case token.RANK, token.ROW_NUMBER, token.DENSE_RANK, token.LAG, token.LEAD, token.GROUP, token.BY:
 		return token.IDENT
 	case token.ACTION, token.START, token.STOP, token.LET, token.FUNCTION, token.STRUCT, token.FOR, token.IF, token.ELSE, token.RETURN, token.CATCH, token.PROTECTED, token.IIF:
 		return token.IDENT

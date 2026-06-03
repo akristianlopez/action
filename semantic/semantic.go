@@ -2142,7 +2142,7 @@ func (sa *SemanticAnalyzer) visitAssignmentStatement(node *ast.AssignmentStateme
 			leftType.String(), rightType.String(), node.Token.Line, node.Token.Column)
 		return &TypeInfo{Name: "void"}
 	}
-	return leftType
+	return leftType.clone()
 }
 
 func (sa *SemanticAnalyzer) visitFunctionStatement(node *ast.FunctionStatement) {
@@ -2989,7 +2989,7 @@ func (sa *SemanticAnalyzer) visitTypeMember(node *ast.TypeMember, path string) *
 						node.Right.Line(), node.Right.Column())
 					return &TypeInfo{Name: "void"}
 				}
-				return ta
+				return ta.clone()
 			case *ast.TypeMember:
 				if path == "" {
 					path = node.Left.String()
@@ -3017,14 +3017,14 @@ func (sa *SemanticAnalyzer) visitTypeMember(node *ast.TypeMember, path string) *
 		if left.Fields != nil {
 			switch r := node.Right.(type) {
 			case *ast.Identifier:
-				return left.Fields[lower(r.Value)]
+				return left.Fields[lower(r.Value)].clone()
 			default:
 				sa.addError("Invalid expression '%s'. line:%d, column:%d", node.Left.String(),
 					node.Left.Line(), node.Left.Column())
 				return &TypeInfo{Name: "void"}
 			}
 		}
-		return left
+		return left.clone()
 	default:
 		sa.addError("Invalid expression '%s'. line:%d, column:%d", node.Left.String(),
 			node.Left.Line(), node.Left.Column())
@@ -3147,7 +3147,7 @@ func (sa *SemanticAnalyzer) ifExists(node *ast.StructLiteral) *TypeInfo {
 	}
 
 	sa.CurrentScope = oldScope
-	return returnType
+	return returnType.clone()
 }
 
 func (sa *SemanticAnalyzer) visitStructLiteral(node *ast.StructLiteral) *TypeInfo {
@@ -3164,7 +3164,7 @@ func (sa *SemanticAnalyzer) visitStructLiteral(node *ast.StructLiteral) *TypeInf
 				node.Token.Line, node.Token.Column)
 			return &TypeInfo{Name: "void"}
 		}
-		resultType = structType.DataType
+		resultType = structType.DataType.clone()
 	}
 	if node.Name == nil {
 		newInlineType := sa.ifExists(node)
@@ -3736,7 +3736,7 @@ func (sa *SemanticAnalyzer) formType(col *sql.ColumnType) *TypeInfo {
 func (sa *SemanticAnalyzer) resolveTypeFromTableName(name string) *TypeInfo {
 	sym := sa.lookupSymbol(name)
 	if sym != nil {
-		return sym.DataType
+		return sym.DataType.clone()
 	}
 	if f, m := sa.canHandle(sa.ctx, name, "", "read", sa.mode); !f {
 		sa.addError("%s", m)
@@ -3898,7 +3898,7 @@ func (sa *SemanticAnalyzer) resolveTypeAnnotation(ta *ast.TypeAnnotation) *TypeI
 	if strings.EqualFold(ta.Token.Literal, "object") {
 		resultType := sa.lookupSymbol(ta.Type)
 		if resultType != nil {
-			return resultType.DataType
+			return resultType.DataType.clone()
 		}
 		return sa.resolveTypeFromTableName(ta.Type)
 	}

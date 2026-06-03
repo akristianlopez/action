@@ -758,6 +758,8 @@ func (sa *SemanticAnalyzer) visitStatement(stmt ast.Statement, t *TypeInfo) {
 		sa.visitSQLDeleteStatement(s)
 	case *ast.SQLDropObjectStatement:
 		sa.visitSQLDropObjectStatement(s)
+	case *ast.SQLDropIndexStatement:
+		sa.visitSQLDropIndexStatement(s)
 	case *ast.SQLTruncateStatement:
 		sa.visitSQLTruncateStatement(s)
 	case *ast.SQLSelectStatement:
@@ -775,12 +777,23 @@ func (sa *SemanticAnalyzer) visitSQLTruncateStatement(s *ast.SQLTruncateStatemen
 }
 
 func (sa *SemanticAnalyzer) visitSQLDropObjectStatement(s *ast.SQLDropObjectStatement) {
+	if s == nil {
+		return
+	}
 	if ok, msg := sa.canHandle(sa.ctx, "system", "", "ddl_delete", sa.mode); !ok {
 		sa.addError("%s", msg)
 		return
 	}
 }
-
+func (sa *SemanticAnalyzer) visitSQLDropIndexStatement(s *ast.SQLDropIndexStatement) {
+	if s == nil {
+		return
+	}
+	if ok, msg := sa.canHandle(sa.ctx, "system", "", "ddl_delete", sa.mode); !ok {
+		sa.addError("%s", msg)
+		return
+	}
+}
 func (sa *SemanticAnalyzer) visitSQLAlterObjectStatement(s *ast.SQLAlterObjectStatement) {
 	if s == nil {
 		return
@@ -812,12 +825,11 @@ func (sa *SemanticAnalyzer) visitSQLAlterObjectStatement(s *ast.SQLAlterObjectSt
 			case "add", "modify":
 				sa.visitSQLTypeConstraint(action.Column.DataType)
 				// sa.visitSQLColumnConstraints(tokenList, action.Constraint)
-			case "drop":
-				continue
-			default:
-				sa.addError("Unknown action '%s' in ALTER OBJECT statement. line:%d, column:%d", action.Type, s.Token.Line, s.Token.Column)
+				// case "drop":
+				// default:
+				// 	sa.addError("Unknown action '%s' in ALTER OBJECT statement. line:%d, column:%d", action.Type, s.Token.Line, s.Token.Column)
+				// 	continue
 			}
-			continue
 		}
 		if action.Constraint != nil {
 			if action.Constraint.Name == nil {

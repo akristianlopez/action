@@ -429,9 +429,12 @@ func (p *Parser) parseStmStartSection() (ast.Statement, *ParserError) {
 		} else if p.peekTokenIs(token.INDEX, token.UNIQUE) {
 			return p.parseSQLCreateIndex()
 		}
+		return nil, Create("token 'object' is missing", p.peekToken.Line, p.peekToken.Column)
 	case token.DROP:
 		if p.peekTokenIs(token.OBJECT) {
 			return p.parseSQLDropObject()
+		} else if p.peekTokenIs(token.INDEX, token.UNIQUE) {
+			return p.parseSQLDropIndex()
 		}
 		return nil, Create("token 'object' is missing", p.peekToken.Line, p.peekToken.Column)
 	case token.ALTER:
@@ -1852,7 +1855,19 @@ func (p *Parser) parseSQLDropObject() (*ast.SQLDropObjectStatement, *ParserError
 	}
 	return stmt, nil
 }
+func (p *Parser) parseSQLDropIndex() (*ast.SQLDropIndexStatement, *ParserError) {
+	stmt := &ast.SQLDropIndexStatement{Token: p.curToken}
 
+	if !p.expectPeek(token.INDEX) {
+		return nil, nil //Create("'index' expected", p.peekToken.Line, p.peekToken.Column)
+	}
+	// Nom de l'index
+	if !p.expectPeek(token.IDENT) {
+		return nil, nil
+	}
+	stmt.IndexName = &ast.Identifier{Token: p.curToken, Value: p.curToken.Literal}
+	return stmt, nil
+}
 func (p *Parser) parseSQLAlterObject() (*ast.SQLAlterObjectStatement, *ParserError) {
 	stmt := &ast.SQLAlterObjectStatement{Token: p.curToken}
 

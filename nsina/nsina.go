@@ -142,6 +142,8 @@ func Eval(node ast.Node, env *object.Environment) object.Object {
 		return evalSQLCreateObject(node, env)
 	case *ast.SQLDropObjectStatement:
 		return evalSQLDropObject(node, env)
+	case *ast.SQLDropIndexStatement:
+		return evalSQLDropIndex(node, env)
 	case *ast.SQLAlterObjectStatement:
 		return evalSQLAlterObject(node, env)
 	case *ast.SQLInsertStatement:
@@ -2667,6 +2669,26 @@ func evalSQLTruncate(stmt *ast.SQLTruncateStatement, env *object.Environment) ob
 
 	return &object.SQLResult{
 		Message:      fmt.Sprintf("OBJECT %s vidé (%d ligne(s) supprimée(s))", stmt.ObjectName.Value, rowsAffected),
+		RowsAffected: int64(rowsAffected),
+	}
+}
+
+func evalSQLDropIndex(stmt *ast.SQLDropIndexStatement, env *object.Environment) object.Object {
+	if env.IsDDLDisabled() {
+		return newError("Drop index '%s' not allowed", stmt.IndexName.Value)
+	}
+	strSQL := fmt.Sprintf("DROP INDEX %s ", stmt.IndexName.Value)
+	res, err := env.Exec(strSQL)
+	if err != nil {
+		return newError("Nsina: %s", err.Error())
+	}
+	rowsAffected, err := res.RowsAffected()
+	if err != nil {
+		return newError("Nsina: %s", err.Error())
+	}
+
+	return &object.SQLResult{
+		Message:      fmt.Sprintf("INDEX %s supprimé avec succès", stmt.IndexName.Value),
 		RowsAffected: int64(rowsAffected),
 	}
 }

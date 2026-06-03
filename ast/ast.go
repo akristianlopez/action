@@ -774,6 +774,23 @@ func (sd *SQLDropObjectStatement) Column() int {
 	return sd.Token.Column
 }
 
+type SQLDropIndexStatement struct {
+	Token     token.Token
+	IndexName *Identifier
+}
+
+func (sd *SQLDropIndexStatement) statementNode()       {}
+func (sd *SQLDropIndexStatement) TokenLiteral() string { return sd.Token.Literal }
+func (sd *SQLDropIndexStatement) String() string {
+	return "DROP INDEX " + sd.IndexName.String()
+}
+func (sd *SQLDropIndexStatement) Line() int {
+	return sd.Token.Line
+}
+func (sd *SQLDropIndexStatement) Column() int {
+	return sd.Token.Column
+}
+
 // SQLAlterObjectStatement - ALTER OBJECT
 type SQLAlterObjectStatement struct {
 	Token      token.Token

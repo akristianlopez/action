@@ -599,6 +599,7 @@ func (sa *SemanticAnalyzer) registerBuiltinTypes() {
 	sa.TypFunct["sum"] = ""
 	sa.TypFunct["lower"] = ""
 	sa.TypFunct["upper"] = ""
+	sa.TypFunct["trim"] = ""
 
 	sa.TypCast["parseinteger"] = ""
 	// sa.TypFunct["coalesce"] = ""
@@ -2824,7 +2825,7 @@ func (sa *SemanticAnalyzer) visitSliceExpression(e *ast.SliceExpression) *TypeIn
 			e.Left.Line(), e.Left.Column())
 		return &TypeInfo{Name: "void"}
 	}
-	return symbol.DataType
+	return symbol.DataType.clone()
 }
 
 func (sa *SemanticAnalyzer) visitArrayFunctionCall(e *ast.ArrayFunctionCall) *TypeInfo {
@@ -2840,7 +2841,7 @@ func (sa *SemanticAnalyzer) visitArrayFunctionCall(e *ast.ArrayFunctionCall) *Ty
 	Scope := symbol.Scope.Children[symbol.Index]
 	if len(Scope.Symbols) == 0 && e.Array == nil {
 		sa.CurrentScope = oldScope
-		return symbol.DataType
+		return symbol.DataType.clone()
 	}
 	if Scope == nil && e.Array != nil {
 		sa.addError("The function '%s' does not have argument(s). line:%d, column:%d", e.Function.Value,
@@ -2932,7 +2933,7 @@ func (sa *SemanticAnalyzer) visitArrayFunctionCall(e *ast.ArrayFunctionCall) *Ty
 			return dt
 		}
 	}
-	return symbol.DataType
+	return symbol.DataType.clone()
 }
 
 func (sa *SemanticAnalyzer) visitIdentifier(node *ast.Identifier) *TypeInfo {
@@ -2942,7 +2943,7 @@ func (sa *SemanticAnalyzer) visitIdentifier(node *ast.Identifier) *TypeInfo {
 			node.Token.Column)
 		return &TypeInfo{Name: "any"}
 	}
-	return symbol.DataType
+	return symbol.DataType.clone()
 }
 
 func (sa *SemanticAnalyzer) visitTypeMember(node *ast.TypeMember, path string) *TypeInfo {
@@ -3199,7 +3200,7 @@ func (sa *SemanticAnalyzer) visitStructLiteral(node *ast.StructLiteral) *TypeInf
 				elem.Name.Token.Line, elem.Name.Token.Column)
 		}
 	}
-	return resultType
+	return resultType.clone()
 }
 
 func (sa *SemanticAnalyzer) visitIifExpression(node *ast.IifExpression) *TypeInfo {

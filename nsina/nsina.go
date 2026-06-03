@@ -2702,7 +2702,7 @@ func evalSQLCreateIndex(stmt *ast.SQLCreateIndexStatement, env *object.Environme
 			RowsAffected: i,
 		}
 	}
-	res, err := env.Exec(fmt.Sprintf("CREATE UNIQUE %s ON %s(%s)", stmt.IndexName.Value,
+	res, err := env.Exec(fmt.Sprintf("CREATE UNIQUE INDEX %s ON %s(%s)", stmt.IndexName.Value,
 		stmt.ObjectName.Value, strSQL))
 	if err != nil {
 		return newError("Nsina: %s", err.Error())

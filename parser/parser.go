@@ -283,7 +283,13 @@ func (p *Parser) ParseAction() *ast.Action {
 			p.nextToken()
 		}
 	}
-
+	if !p.curTokenIs(token.STOP) {
+		p.errors = append(p.errors, *Create("'stop' is missing", p.curToken.Line, p.curToken.Column))
+	}
+	if !p.expectPeek(token.EOF) {
+		p.nextToken()
+		p.errors = append(p.errors, *Create("Unrichable statement", p.curToken.Line, p.curToken.Column))
+	}
 	return program
 }
 func (p *Parser) ParseSignature() ([]*ast.StructField, *ast.TypeAnnotation, []*ast.StructStatement) {

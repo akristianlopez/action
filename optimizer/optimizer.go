@@ -635,7 +635,7 @@ func (dce *DeadCodeElimination) Apply(program *ast.Action) *ast.Action {
 	for _, stmt := range program.Statements {
 		switch s := stmt.(type) {
 		case *ast.LetStatement:
-			if !isDeadCode(s, program) {
+			if !isDeadCode(s, program.Statements) {
 				optimized.Statements = append(optimized.Statements, s)
 				continue
 			}
@@ -643,7 +643,7 @@ func (dce *DeadCodeElimination) Apply(program *ast.Action) *ast.Action {
 				s.Token.Line, s.Token.Column)
 			continue
 		case *ast.FunctionStatement:
-			if !isDeadCode(s, program) {
+			if !isDeadCode(s, program.Statements) {
 				optimized.Statements = append(optimized.Statements, s)
 				continue
 			}
@@ -651,7 +651,7 @@ func (dce *DeadCodeElimination) Apply(program *ast.Action) *ast.Action {
 				s.Token.Line, s.Token.Column)
 			continue
 		case *ast.StructStatement:
-			if !isDeadCode(s, program) {
+			if !isDeadCode(s, program.Statements) {
 				optimized.Statements = append(optimized.Statements, s)
 				continue
 			}
@@ -659,7 +659,7 @@ func (dce *DeadCodeElimination) Apply(program *ast.Action) *ast.Action {
 				s.Token.Line, s.Token.Column)
 			continue
 		case *ast.IfStatement:
-			if !isDeadCode(s, program) {
+			if !isDeadCode(s, program.Statements) {
 				optimized.Statements = append(optimized.Statements, s)
 				continue
 			}
@@ -672,21 +672,21 @@ func (dce *DeadCodeElimination) Apply(program *ast.Action) *ast.Action {
 			Warnings("Dead code eliminated: if statement at Line:%d, column:%d has empty body.",
 				s.Token.Line, s.Token.Column)
 		case *ast.CatchStatement:
-			if !isDeadCode(s, program) {
+			if !isDeadCode(s, program.Statements) {
 				optimized.Statements = append(optimized.Statements, s)
 				continue
 			}
 			Warnings("Dead code eliminated: Catch statement at Line:%d, column:%d has empty body.",
 				s.Token.Line, s.Token.Column)
 		case *ast.ProtectedStatement:
-			if !isDeadCode(s, program) {
+			if !isDeadCode(s, program.Statements) {
 				optimized.Statements = append(optimized.Statements, s)
 				continue
 			}
 			Warnings("Dead code eliminated: Protected statement at Line:%d, column:%d has empty body.",
 				s.Token.Line, s.Token.Column)
 		case *ast.WhileStatement:
-			if !isDeadCode(s, program) {
+			if !isDeadCode(s, program.Statements) {
 				optimized.Statements = append(optimized.Statements, s)
 				continue
 			}
@@ -698,7 +698,7 @@ func (dce *DeadCodeElimination) Apply(program *ast.Action) *ast.Action {
 			Warnings("Dead code eliminated: while statement at Line:%d, column:%d has empty body.",
 				s.Token.Line, s.Token.Column)
 		case *ast.ForStatement:
-			if !isDeadCode(s, program) {
+			if !isDeadCode(s, program.Statements) {
 				optimized.Statements = append(optimized.Statements, s)
 				continue
 			}
@@ -710,21 +710,21 @@ func (dce *DeadCodeElimination) Apply(program *ast.Action) *ast.Action {
 			Warnings("Dead code eliminated: for statement at Line:%d, column:%d has empty body.",
 				s.Token.Line, s.Token.Column)
 		case *ast.ForEachStatement:
-			if !isDeadCode(s, program) {
+			if !isDeadCode(s, program.Statements) {
 				optimized.Statements = append(optimized.Statements, s)
 				continue
 			}
 			Warnings("Dead code eliminated: foreach statement at Line:%d, column:%d has empty body.",
 				s.Token.Line, s.Token.Column)
 		case *ast.SwitchStatement:
-			if !isDeadCode(s, program) {
+			if !isDeadCode(s, program.Statements) {
 				optimized.Statements = append(optimized.Statements, s)
 				continue
 			}
 			Warnings("Dead code eliminated: switch statement at Line:%d, column:%d has all cases dead.",
 				s.Token.Line, s.Token.Column)
 		case *ast.ReturnStatement:
-			if !isDeadCode(s, program) {
+			if !isDeadCode(s, program.Statements) {
 				optimized.Statements = append(optimized.Statements, s)
 				continue
 			}
@@ -737,9 +737,9 @@ func (dce *DeadCodeElimination) Apply(program *ast.Action) *ast.Action {
 	return optimized
 }
 
-func isUsed(name string, actions *ast.Action) bool {
+func isUsed(name string, actions []ast.Statement) bool {
 	// Vérifier si la variable est utilisée dans le programme
-	for _, stmt := range actions.Statements {
+	for _, stmt := range actions {
 		if isFunctionUsedInStatement(stmt, name) {
 			return true
 		}
@@ -865,7 +865,7 @@ func isVariableUsedInExpression(expr ast.Expression, name string) bool {
 	return false
 }
 
-func isDeadCode(stmt ast.Statement, actions *ast.Action) bool {
+func isDeadCode(stmt ast.Statement, actions []ast.Statement) bool {
 	// Identifier le code mort (variables non utilisées, etc.)
 	switch s := stmt.(type) {
 	case *ast.LetStatement:
@@ -875,22 +875,57 @@ func isDeadCode(stmt ast.Statement, actions *ast.Action) bool {
 		// Une référence depuis sa propre définition (p.ex. appel récursif) n'est pas considérée comme utilisation externe.
 		return isFunctionDead(s, actions)
 	case *ast.StructStatement:
+		if len(s.Fields) == 0 {
+			Warnings("Dead code eliminated: struct '%s' is empty. Line:%d, column:%d", s.Name.Value,
+				s.Token.Line, s.Token.Column)
+			return true
+		}
 		// Les structures ne sont pas considérées comme du code mort ici
 		return isDefinedStructDead(s, actions)
 	case *ast.ExpressionStatement:
 		// Les expressions sans effet de bord peuvent être mortes
 		return false //isPureExpression(s.Expression)
+	// case *ast.IfStatement:
+	// 	// Si les deux branches sont mortes, le if est mort
+	// 	thenDead := s.Then == nil || isDeadCode(s.Then, actions)
+	// 	elseDead := s.Else == nil || isDeadCode(s.Else, actions)
+	// 	if thenDead && elseDead {
+	// 		return true
+	// 	}
+	// 	if isUnrichabled(s.Condition) {
+	// 		return true
+	// 	}
+	// 	return false
 	case *ast.IfStatement:
-		// Si les deux branches sont mortes, le if est mort
-		thenDead := s.Then == nil || isDeadCode(s.Then, actions)
-		elseDead := s.Else == nil || isDeadCode(s.Else, actions)
-		if thenDead && elseDead {
+		// 1. On évalue si la condition est prévisible à la compilation
+		if isAlwaysFalse(s.Condition) {
+			// Si le IF est toujours faux, on ne garde que le corps du ELSE s'il existe
+			if s.Else != nil {
+				return isDeadCode(s.Else, actions)
+			}
 			return true
 		}
-		if isUnrichabled(s.Condition) {
+		if isAlwaysTrue(s.Condition) {
+			// Si le IF est toujours vrai, on ne garde que le corps du THEN
+			if s.Then != nil {
+				return isDeadCode(s.Then, actions)
+			}
 			return true
 		}
-		return false
+
+		// 2. Sinon, on optimise les deux branches indépendamment
+		if s.Then != nil {
+			return isDeadCode(s.Then, actions)
+		}
+		if s.Else != nil {
+			return isDeadCode(s.Else, actions)
+		}
+
+		// Si les deux branches sont vides après optimisation, le IF ne sert plus à rien (sauf si la condition a un effet de bord)
+		if s.Then == nil && s.Else == nil {
+			return true
+		}
+		return true
 	case *ast.CatchStatement:
 		// Si les deux branches sont mortes, le if est mort
 		return s.Statements == nil || isDeadCode(s.Statements, actions)
@@ -934,16 +969,35 @@ func isDeadCode(stmt ast.Statement, actions *ast.Action) bool {
 			allDead = false
 		}
 		return allDead
+	// case *ast.BlockStatement:
+	// 	// Si tous les statements dans le bloc sont morts, le bloc est mort
+	// 	allDead := true
+	// 	if len(s.Statements) == 0 {
+	// 		return allDead
+	// 	}
+	// 	for _, st := range s.Statements {
+	// 		allDead = allDead && isDeadCode(st, actions)
+	// 	}
+	// 	return allDead
 	case *ast.BlockStatement:
-		// Si tous les statements dans le bloc sont morts, le bloc est mort
-		allDead := true
-		if len(s.Statements) == 0 {
-			return allDead
-		}
+		var cleanStatements []ast.Statement
 		for _, st := range s.Statements {
-			allDead = allDead && isDeadCode(st, actions)
+			if !isDeadCode(st, actions) {
+				cleanStatements = append(cleanStatements, st)
+			} else {
+				Warnings("Dead code eliminated: statement at Line:%d, column:%d has no effect.",
+					st.Line(), st.Column())
+			}
+			// Si on croise un Return, tout ce qui suit dans ce bloc est du code mort !
+			if _, ok := st.(*ast.ReturnStatement); ok {
+				break
+			}
 		}
-		return allDead
+		s.Statements = cleanStatements
+		if len(s.Statements) == 0 {
+			return true
+		}
+		return len(s.Statements) == 0
 	case *ast.ReturnStatement:
 		// Un return est mort s'il n'y a pas de valeur de retour ou si la valeur est pure
 		if s.ReturnValue == nil {
@@ -954,6 +1008,20 @@ func isDeadCode(stmt ast.Statement, actions *ast.Action) bool {
 		return false
 	}
 }
+func isAlwaysTrue(expr ast.Expression) bool {
+	// Détermine si une expression est toujours vraie (p.ex. while(true))
+	if boolLit, ok := expr.(*ast.BooleanLiteral); ok {
+		return boolLit.Value
+	}
+	return false
+}
+func isAlwaysFalse(expr ast.Expression) bool {
+	// Détermine si une expression est toujours fausse (p.ex. while(false))
+	if boolLit, ok := expr.(*ast.BooleanLiteral); ok {
+		return !boolLit.Value
+	}
+	return false
+}
 
 func isUnrichabled(expr ast.Expression) bool {
 	// Détermine si une expression est toujours fausse (p.ex. while(false))
@@ -963,7 +1031,7 @@ func isUnrichabled(expr ast.Expression) bool {
 	return false
 }
 
-func isDefinedStructDead(s *ast.StructStatement, actions *ast.Action) bool {
+func isDefinedStructDead(s *ast.StructStatement, actions []ast.Statement) bool {
 	// Retourne true si la structure n'est utilisée nulle part comme type.
 	// Vérifie les déclarations du programme (variables, fonctions, champs, paramètres, retours, etc.)
 	if s == nil || s.Name == nil {
@@ -971,7 +1039,7 @@ func isDefinedStructDead(s *ast.StructStatement, actions *ast.Action) bool {
 	}
 	name := s.Name.Value
 
-	for _, stmt := range actions.Statements {
+	for _, stmt := range actions {
 		// ignorer la définition elle-même
 		if st, ok := stmt.(*ast.StructStatement); ok && st == s {
 			continue
@@ -1086,9 +1154,9 @@ func scanForTypeLikeField(node ast.Node, name string) bool {
 	return false
 }
 
-func isFunctionDead(fn *ast.FunctionStatement, program *ast.Action) bool {
+func isFunctionDead(fn *ast.FunctionStatement, program []ast.Statement) bool {
 	name := fn.Name.Value
-	for _, stmt := range program.Statements {
+	for _, stmt := range program {
 		// ignorer la définition même
 		if f, ok := stmt.(*ast.FunctionStatement); ok && f == fn {
 			continue

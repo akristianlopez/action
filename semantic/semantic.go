@@ -3918,6 +3918,15 @@ func (sa *SemanticAnalyzer) getArraySize(size *ast.IntegerLiteral) int64 {
 }
 func (sa *SemanticAnalyzer) areTypesConstraintsCompatible(t1, t2 *TypeInfo) bool {
 	var c1, c2 *Constraint
+	if t1==nil && t2==nil {
+		return true
+	}	
+	if t1==nil && t2!=nil {
+		return false
+	}
+	if t1!=nil && t2==nil {
+		return false
+	}
 	if t1.Name != t2.Name {
 		return false
 	}
